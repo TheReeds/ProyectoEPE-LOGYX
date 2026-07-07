@@ -4,6 +4,10 @@
 
 Este sitio reúne la documentación de la **Evaluación del Perfil de Egreso (EPE)**, organizada según las tres áreas evaluadas del programa de Ingeniería de Sistemas de la Universidad Peruana Unión.
 
+<p align="center" markdown>
+[:material-presentation-play: Ver presentación del proyecto](presentacion.html){ .md-button .md-button--primary }
+</p>
+
 ## Áreas de evaluación
 
 <div class="grid cards" markdown>
