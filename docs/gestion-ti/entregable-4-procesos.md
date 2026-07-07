@@ -30,17 +30,17 @@ Migue Alexandre Huayhua Chambi
 
 Juliaca, Perú — Julio 2026
 
-# **Nota Metodológica**
+## Nota Metodológica
 
 Este documento es uno de los 4 entregables del área de Gestión de Tecnologías de Información (GTI) del Perfil de Egreso, conforme al índice de líneas evaluadas: Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico (CE0111–CE0115); Entregable 2 — Business Case del Proyecto (CE0113); Entregable 3 — Plan de Gestión del Proyecto (CE0121–CE0125); Entregable 4 — Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135). La línea CE014 (Solución Técnica Integrada) se evalúa en otro momento y no forma parte de esta entrega; las referencias a su contenido en este documento se declaran explícitamente como “fuera del alcance de esta ronda de evaluación”.
 
 Este documento específico corresponde al Entregable 4 (Modelado de Procesos AS-IS/TO-BE). El proceso se modela sobre el ecosistema PYME–transportista (PYME arquetipo) diagnosticado en el Entregable 1, y se complementa con el toolkit completo de Lean Six Sigma (5W2H, Swimlane, Ishikawa, árboles causales, Pareto, Brainstorming, Plan de Acción y Plan de Control, sección 4.6) aplicado específicamente al caso de LOGYX.
 
-# **Entregable 4 — Modelado de Procesos AS-IS / TO-BE**
+**Entregable 4 — Modelado de Procesos AS-IS / TO-BE**
 
 *(Evalúa: CE013 — Gestión de Procesos · Evidencias CE0131, CE0132, CE0133, CE0134, CE0135)*
 
-## **4.1 Identificación y Caracterización del Proceso (CE0131)**
+## 4.1 Identificación y Caracterización del Proceso (CE0131)
 
 Del diagnóstico del Entregable 1 se selecciona el proceso crítico del ecosistema: la contratación y ejecución de un envío de carga, por ser el proceso donde convergen los cinco problemas identificados (P1–P5) y donde se destruye la mayor parte del valor (eslabones 2–7 de la cadena de valor).
 
@@ -55,9 +55,9 @@ Del diagnóstico del Entregable 1 se selecciona el proceso crítico del ecosiste
 | Frecuencia            | Semanal (perfil arquetipo: envíos de 0.5–5 toneladas)                                                                            |
 | Sistemas de soporte   | WhatsApp, llamadas, Excel/cuaderno, efectivo/transferencia (inventario AS-IS, sección 1.3.1)                                     |
 
-## **4.2 Proceso Actual — AS-IS (CE0132)**
+## 4.2 Proceso Actual — AS-IS (CE0132)
 
-### **4.2.1 Descripción narrativa**
+### 4.2.1 Descripción narrativa
 
 El proceso actual inicia cuando el encargado de almacén informa al gerente que hay mercadería lista para despachar. El gerente interrumpe sus actividades y comienza la búsqueda de transporte: llama o escribe por WhatsApp a entre cinco y diez transportistas de su lista de contactos personales, describiendo verbalmente la carga, el destino y la fecha. Algunos no responden; otros no tienen capacidad disponible; los que responden cotizan verbalmente un precio que el gerente no puede contrastar con ninguna referencia de mercado.
 
@@ -65,7 +65,7 @@ Con frecuencia interviene un intermediario (broker informal) que “consigue el 
 
 Durante el traslado no existe visibilidad: si el cliente pregunta por su pedido, el área de ventas “llama al chofer”. La entrega se realiza sin evidencia formal —sin fotografía, sin firma digital, a lo sumo un mensaje de “ya entregué”. El pago se hace en efectivo o por transferencia, muchas veces adelantado en parte, sin vínculo con la conformidad de la entrega. Finalmente, el gasto se anota (a veces) en un Excel o cuaderno, sin desglose que permita análisis posterior. Si surge una disputa —carga dañada, retraso, cobro distinto al pactado— no hay registro que permita resolverla: es palabra contra palabra.
 
-### **4.2.2 Modelo BPMN AS-IS (especificación textual)**
+### 4.2.2 Modelo BPMN AS-IS (especificación textual)
 
 El diagrama BPMN AS-IS se estructura en cuatro carriles (pools/lanes). Especificación para su elaboración en herramienta editable (Anexo B):
 
@@ -117,7 +117,7 @@ El diagrama BPMN AS-IS se estructura en cuatro carriles (pools/lanes). Especific
 
 <img src="media/image3.png" style="width:6.4625in;height:2.47708in" />
 
-### **4.2.3 Indicadores actuales (línea base)**
+### 4.2.3 Indicadores actuales (línea base)
 
 | **KPI del proceso**                                | **Valor AS-IS (línea base)**                             | **Fuente / naturaleza**                            |
 |----------------------------------------------------|----------------------------------------------------------|----------------------------------------------------|
@@ -130,7 +130,7 @@ El diagrama BPMN AS-IS se estructura en cuatro carriles (pools/lanes). Especific
 | Envíos con seguimiento en tiempo real              | 0%                                                       | Por definición del AS-IS                           |
 | Disputas con posibilidad de resolución documentada | 0%                                                       | Por definición del AS-IS                           |
 
-### **4.2.4 Problemas detectados en el flujo**
+### 4.2.4 Problemas detectados en el flujo
 
 - La búsqueda secuencial por contactos (tareas 2–3) consume horas del gerente y limita la oferta a su red personal — manifestación directa de P1 y P5.
 
@@ -144,15 +144,15 @@ El diagrama BPMN AS-IS se estructura en cuatro carriles (pools/lanes). Especific
 
 - El registro opcional (tarea 15) impide la analítica y la mejora continua — P1.
 
-## **4.3 Proceso Propuesto — TO-BE (CE0133)**
+## 4.3 Proceso Propuesto — TO-BE (CE0133)
 
-### **4.3.1 Descripción narrativa del rediseño**
+### 4.3.1 Descripción narrativa del rediseño
 
 En el proceso rediseñado, la PYME publica la solicitud de carga en la plataforma en un formulario de dos minutos; el sistema calcula automáticamente un precio de referencia basado en la distancia real de la ruta y el histórico del corredor, y abre una subasta con ventana de tiempo definida. Los transportistas verificados cuyo perfil es compatible reciben la notificación y ofertan; la PYME compara ofertas viendo simultáneamente precio y reputación verificada, puede contraofertar por el canal moderado y acepta la mejor combinación precio–confianza, generándose el contrato digital.
 
 Durante la ejecución, el conductor gestiona su ruta desde la aplicación móvil: cada parada registra estado, y la entrega se confirma con fotografía y firma digital del receptor —incluso sin conexión, con sincronización posterior. La PYME y su cliente ven el avance en tiempo real sin llamar a nadie. Al confirmarse la entrega, se habilita la calificación mutua que alimenta la reputación compuesta de ambos actores. Terminada la ruta, el sistema notifica al transportista las cargas de retorno disponibles cerca de su destino, atacando directamente el recorrido en vacío. Todo queda registrado: precios, tiempos, evidencias y calificaciones alimentan la analítica de la PYME y el precio de referencia del corredor.
 
-### **4.3.2 Modelo BPMN TO-BE (especificación textual)**
+### 4.3.2 Modelo BPMN TO-BE (especificación textual)
 
 <table>
 <colgroup>
@@ -200,7 +200,7 @@ Durante la ejecución, el conductor gestiona su ruta desde la aplicación móvil
 
 <img src="media/image4.png" style="width:6.4625in;height:2.38264in" />
 
-### **4.3.3 Nuevos indicadores del proceso**
+### 4.3.3 Nuevos indicadores del proceso
 
 - Tiempo publicación → primera oferta y publicación → aceptación (meta: \< 60 minutos).
 
@@ -212,7 +212,7 @@ Durante la ejecución, el conductor gestiona su ruta desde la aplicación móvil
 
 - Desviación del precio aceptado respecto al precio de referencia (salud del mercado interno).
 
-## **4.4 Propuesta de Automatización mediante TIC (CE0134)**
+## 4.4 Propuesta de Automatización mediante TIC (CE0134)
 
 Las automatizaciones del TO-BE y su mecanismo, referenciando los módulos de la solución (cuyo diseño técnico se desarrolla en la documentación técnica de la solución (fuera del alcance de esta ronda de evaluación)):
 
@@ -226,7 +226,7 @@ Las automatizaciones del TO-BE y su mecanismo, referenciando los módulos de la 
 | Detección de carga de retorno       | Retorno en vacío por defecto (P3)                    | Búsqueda automática de cargas abiertas cercanas al destino al confirmar la última entrega       |
 | Registro y analítica                | Excel/cuaderno opcional (tarea 15)                   | Persistencia automática de precios, tiempos, evidencias y calificaciones; tablero para la PYME  |
 
-## **4.5 Indicadores de Desempeño y Análisis Comparativo (CE0135)**
+## 4.5 Indicadores de Desempeño y Análisis Comparativo (CE0135)
 
 | **Dimensión** | **KPI**                                     | **AS-IS (línea base)**      | **TO-BE (meta)**                                                  | **Mejora esperada**                            |
 |---------------|---------------------------------------------|-----------------------------|-------------------------------------------------------------------|------------------------------------------------|
@@ -240,11 +240,11 @@ Las automatizaciones del TO-BE y su mecanismo, referenciando los módulos de la 
 
 El comparativo evidencia mejoras en las tres dimensiones exigidas (tiempo, costo y calidad), con dos anclas cuantitativas verificadas por fuentes externas (brecha de costos y recorridos en vacío) y el resto de indicadores medibles desde el primer día de operación de la plataforma, dado que el TO-BE registra sus propias métricas de forma nativa. La línea base declarada aquí es el contrato de medición contra el cual se evaluará el impacto real del piloto.
 
-## **4.6 Complemento Metodológico: Toolkit Lean Six Sigma aplicado a LOGYX**
+## 4.6 Complemento Metodológico: Toolkit Lean Six Sigma aplicado a LOGYX
 
 Como refuerzo metodológico de la gestión de procesos, el proyecto de mejora AS-IS/TO-BE de LOGYX se desarrolla adicionalmente con el conjunto completo de herramientas de Lean Six Sigma utilizado por el equipo en el curso de Gestión de Procesos (ciclo 8): 5W2H, diagrama de Swimlane, diagrama de Ishikawa, árboles causales por categoría, diagrama de Pareto, sesión de brainstorming, plan de acción y plan de control. A diferencia de una síntesis tabular, cada herramienta se desarrolla aquí en su propio apartado, con introducción metodológica, desarrollo aplicado al caso real de LOGYX, el diagrama o espacio correspondiente, y su interpretación.
 
-### **4.6.1 Herramienta 5W2H**
+### 4.6.1 Herramienta 5W2H
 
 Introducción metodológica: el 5W2H es un instrumento de definición de problema que responde siete preguntas estructuradas (Qué, Dónde, Cuándo, Quién, Por qué, Cómo, Cuánto) para delimitar con precisión el alcance de un proyecto de mejora antes de diseñar la solución. Se utiliza típicamente en la fase de Antecedentes del formato A3 o en la fase Define de DMAIC.
 
@@ -260,7 +260,7 @@ Introducción metodológica: el 5W2H es un instrumento de definición de problem
 
 > *Resumen 5W2H: el problema de fragmentación operativa en la contratación de transporte de carga en el corredor Lima–Sierra Sur afecta a PYMEs y transportistas debido a la coordinación informal sin sistema de información compartido, con un impacto de hasta 5 puntos porcentuales sobre ventas en sobrecosto logístico, y debe abordarse porque erosiona la competitividad de la pequeña empresa y perpetúa la informalidad del sector, ya que se manifiesta en cada envío semanal, lo que requiere que el ecosistema adopte una plataforma digital colaborativa de logística para resolverlo.*
 
-### **4.6.2 Diagrama de Swimlane (análisis VA/NVA/NNVA)**
+### 4.6.2 Diagrama de Swimlane (análisis VA/NVA/NNVA)
 
 Introducción metodológica: el diagrama de Swimlane (carriles funcionales) descompone el proceso en pasos secuenciales, asignándole a cada uno un actor responsable, un tiempo promedio y una clasificación de valor: VA (actividad de Valor Agregado, que el cliente pagaría por ella), NVA (actividad de No Valor Agregado, desperdicio puro) y NNVA (No Valor Agregado pero Necesario, como controles o registros exigidos aunque no agreguen valor directo). Este análisis cuantifica qué proporción del tiempo total del proceso es realmente productiva.
 
@@ -293,7 +293,7 @@ Introducción metodológica: el diagrama de Swimlane (carriles funcionales) desc
 
 Interpretación: solo el 54.1% del tiempo total del proceso es de Valor Agregado, y ese porcentaje está dominado por el tiempo de traslado físico (que no puede eliminarse). De los pasos controlables por diseño de proceso, el 19.5% del tiempo corresponde a NVA puro (búsqueda de camión e intermediación, pasos 4 y 5) —exactamente el tramo que LOGYX elimina mediante el marketplace digital—, mientras que el 26.4% restante (NNVA) corresponde a coordinación y registro que LOGYX no elimina pero sí automatiza y acelera (de 6.1 horas acumuladas a minutos).
 
-### **4.6.3 Diagrama de Ishikawa (causa–efecto): desarrollo ampliado**
+### 4.6.3 Diagrama de Ishikawa (causa–efecto): desarrollo ampliado
 
 Introducción metodológica: el diagrama de Ishikawa (espina de pescado) organiza las causas potenciales de un efecto no deseado en categorías estándar, facilitando un análisis exhaustivo antes de saltar a soluciones. La versión resumida de este diagrama ya se presentó en el Entregable 1 (sección 1.4.2) como insumo del diagnóstico; aquí se retoma como punto de partida formal del proyecto de mejora de procesos y se amplía con el detalle de por qué cada espina contribuye al efecto central.
 
@@ -314,7 +314,7 @@ Introducción metodológica: el diagrama de Ishikawa (espina de pescado) organiz
 
 Interpretación: de las seis categorías, tres (Método, Información, Tecnología) son directamente resolubles mediante una solución TIC —son, de hecho, exactamente los tres pilares funcionales de LOGYX (proceso de subasta estructurado, motor de precios de referencia, y plataforma digital con trazabilidad). La categoría Personas se mitiga indirectamente al externalizar la coordinación del conocimiento tácito del gerente hacia un sistema. Las categorías Mercado y Entorno son estructurales del sector y no se resuelven por completo con tecnología, pero LOGYX actúa sobre Mercado mediante el mecanismo de consolidación de demanda y oferta.
 
-### **4.6.4 Árboles Causales por Categoría**
+### 4.6.4 Árboles Causales por Categoría
 
 Introducción metodológica: mientras que el Ishikawa identifica categorías amplias de causas, el árbol causal profundiza cada categoría crítica en niveles sucesivos de “por qué”, hasta llegar a la causa raíz accionable. Se desarrollan tres árboles causales, uno por cada categoría considerada de mayor peso para el diseño de la solución: Personas, Planta (adaptado a Infraestructura Tecnológica, dado que el ecosistema logístico de PYMEs no opera una planta física propia) y Procedimiento.
 
@@ -356,7 +356,7 @@ Causa raíz: vacío de mercado —ausencia de una solución tecnológica diseña
 
 Causa raíz: ausencia de un actor articulador que defina y haga cumplir un procedimiento estándar de contratación en un mercado estructuralmente fragmentado. Solución asociada en LOGYX: el flujo TO-BE (sección 4.3) impone un procedimiento único y obligatorio —publicación, subasta, aceptación, ejecución con evidencia— para todos los actores que operan en la plataforma, actuando LOGYX como el articulador tecnológico que el mercado no había producido por sí solo.
 
-### **4.6.5 Diagrama de Pareto**
+### 4.6.5 Diagrama de Pareto
 
 Introducción metodológica: el diagrama de Pareto ordena las causas identificadas de mayor a menor peso (frecuencia, costo o impacto asignado) para identificar la “regla 80/20”: el subconjunto minoritario de causas que concentra la mayor parte del efecto negativo, y que por tanto debe priorizarse en la solución.
 
@@ -384,7 +384,7 @@ Introducción metodológica: el diagrama de Pareto ordena las causas identificad
 
 Interpretación (regla 80/20): las primeras 9 causas (de 13 totales) concentran el 80.5% del peso acumulado. Estas 9 causas —en orden— corresponden mayoritariamente a las categorías Tecnología, Método e Información del Ishikawa, confirmando cuantitativamente que la solución debe priorizar: (1) un sistema de información logística del dominio, (2) un mecanismo de matching que reemplace la búsqueda manual, (3) un motor de precios de referencia, (4) un sistema de reputación verificable, y (5) trazabilidad digital de extremo a extremo. Estas cinco prioridades coinciden exactamente con los cinco Factores Críticos de Éxito definidos en el Entregable 1 (sección 1.2.8), validando la coherencia del diagnóstico con el análisis cuantitativo de causas.
 
-### **4.6.6 Sesión de Brainstorming**
+### 4.6.6 Sesión de Brainstorming
 
 Introducción metodológica: la sesión de brainstorming genera de forma divergente el mayor número posible de ideas de solución frente a las causas raíz priorizadas por el Pareto, antes de converger en el plan de acción. Las ideas generadas por el equipo se agrupan por categoría de intervención.
 
@@ -431,7 +431,7 @@ Introducción metodológica: la sesión de brainstorming genera de forma diverge
 
 Interpretación: las ideas de la categoría Tecnología/Producto atacan directamente las 5 causas de mayor peso del Pareto (Rango 1–9); las de Proceso/Operación resuelven las causas de Mercado del Ishikawa (oferta atomizada, intermediarios); y las de Alianzas/Arranque y Comunicación/Adopción existen específicamente para mitigar el riesgo estratégico crítico RE1/RE2 (resistencia al cambio y arranque en frío) identificado en el Entregable 1, sección 1.6. Estas ideas convergen en el plan de acción de la siguiente sección.
 
-### **4.6.7 Plan de Acción**
+### 4.6.7 Plan de Acción
 
 Introducción metodológica: el plan de acción traduce las ideas priorizadas del brainstorming en compromisos concretos y verificables: qué se hará, quién es el responsable, cuándo se completará y cómo se logrará, alineado con el cronograma de sprints del Entregable 2.
 
@@ -448,7 +448,7 @@ Introducción metodológica: el plan de acción traduce las ideas priorizadas de
 
 El plan de acción se articula directamente con el cronograma de 8 sprints (Entregable 2, sección 2.3) y con las fases de implementación de la solución técnica, evitando duplicar planificación: cada acción aquí referencia el sprint o fase donde se ejecuta.
 
-### **4.6.8 Plan de Control y Seguimiento**
+### 4.6.8 Plan de Control y Seguimiento
 
 Introducción metodológica: el plan de control define cómo se sostendrá la mejora una vez implementada, especificando qué parámetro crítico se mide, el límite aceptable, el método y lugar de medición, y la frecuencia de revisión —evitando que el proceso regrese a su estado AS-IS una vez terminado el proyecto.
 
@@ -463,7 +463,7 @@ Introducción metodológica: el plan de control define cómo se sostendrá la me
 
 Responsable del plan de control: la torre de control (Operador LOGYX), con revisión mensual consolidada por el líder de proyecto y presentación de resultados en la retrospectiva de cada fase de implementación de la solución técnica. Cualquier indicador que se desvíe del límite establecido durante dos periodos consecutivos activa una revisión de causa raíz siguiendo el mismo protocolo Ishikawa/árbol causal desarrollado en esta sección.
 
-### **4.6.9 Síntesis en Formato A3**
+### 4.6.9 Síntesis en Formato A3
 
 Finalmente, el desarrollo completo de las ocho herramientas anteriores se consolida en el formato A3 estándar de Lean Six Sigma —una sola vista ejecutiva que resume el proyecto de mejora de principio a fin—, útil para la presentación ante el jurado:
 
@@ -482,7 +482,7 @@ Finalmente, el desarrollo completo de las ocho herramientas anteriores se consol
 
 *Supuesto declarado del equipo: la plantilla Excel completa de Lean Six Sigma (hojas A-3, 5W2H, Swim Lane, SMART, Ishikawa, árboles causales, Pareto, Brainstorming, Plan de Acción y Plan de Control), usada como base metódica de todo el desarrollo de esta sección, se adjunta como evidencia de respaldo en el Anexo D.*
 
-# **Referencias**
+## Referencias
 
 Armstrong & Associates, Inc. (2025). U.S. Third-Party Logistics (3PL) Market Size Estimates: Domestic Transportation Management. https://www.3plogistics.com/
 

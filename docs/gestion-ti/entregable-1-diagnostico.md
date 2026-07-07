@@ -29,7 +29,7 @@ Migue Alexandre Huayhua Chambi
 
 Juliaca, Perú — Julio 2026
 
-# **Nota Metodológica**
+## Nota Metodológica
 
 Este documento es uno de los 4 entregables del área de Gestión de Tecnologías de Información (GTI) del Perfil de Egreso, conforme al índice de líneas evaluadas: Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico (CE0111–CE0115); Entregable 2 — Business Case del Proyecto (CE0113); Entregable 3 — Plan de Gestión del Proyecto (CE0121–CE0125); Entregable 4 — Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135). La línea CE014 (Solución Técnica Integrada) se evalúa en otro momento y no forma parte de esta entrega; las referencias a su contenido en este documento se declaran explícitamente como “fuera del alcance de esta ronda de evaluación”.
 
@@ -37,19 +37,19 @@ Este documento específico corresponde al Entregable 1. El diagnóstico se desar
 
 Como refuerzo de la Matriz de Riesgos Estratégicos (CE0115), se incorpora al final de este documento (sección 1.7) un análisis de Gobierno de TI bajo el marco COBIT 2019, que profundiza el diagnóstico de riesgo desde la perspectiva de gobierno corporativo de TI.
 
-# **Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico**
+**Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico**
 
 *(Evalúa: CE011 — Gestión e Innovación de TI · Evidencias CE0111, CE0112, CE0113, CE0114, CE0115)*
 
-## **1.1 Contexto Organizacional (CE0111)**
+## 1.1 Contexto Organizacional (CE0111)
 
-### **1.1.1 Unidad de análisis**
+### 1.1.1 Unidad de análisis
 
 El objeto del presente diagnóstico es el ecosistema logístico de las pequeñas y medianas empresas del corredor Lima–Sierra Sur (Lima–Arequipa–Juliaca–Puno–Cusco). Un ecosistema, a diferencia de una organización individual, carece de estructura jerárquica y documentos institucionales propios; por ello, para efectos operativos del análisis, se emplea como recurso metodológico declarado una PYME arquetipo: una empresa manufacturera o comercial del corredor, con envíos regulares de 0.5 a 5 toneladas y frecuencia semanal, que coordina su transporte de manera informal. Esta figura sintetiza el perfil de los segmentos identificados en el estudio de mercado del proyecto y permite aplicar los instrumentos de análisis estratégico (FODA, EFI, EFE, PESTEL, Porter, CAME) sobre un sujeto concreto sin perder la representatividad del ecosistema.
 
 LOGYX —plataforma colaborativa de logística B2B— constituye la solución TIC que se propondrá como resultado de este diagnóstico, y su diseño técnico se desarrolla en la documentación técnica de la solución (fuera del alcance de esta ronda de evaluación). Esta separación metodológica garantiza que el diagnóstico no esté sesgado hacia la solución: primero se caracteriza el problema del ecosistema con evidencia verificable, y solo después se justifica la intervención tecnológica.
 
-### **1.1.2 Descripción del sector y entorno competitivo**
+### 1.1.2 Descripción del sector y entorno competitivo
 
 El tejido empresarial peruano está compuesto por **2,330,226 MIPYMEs formales** (Ministerio de la Producción, 2025), concentradas mayoritariamente en los sectores Comercio (44.1%) y Servicios (41.3%), con Manufactura representando el 8.7%.
 
@@ -59,7 +59,7 @@ En el plano macro-logístico, el Perú obtiene un puntaje de **3.0 sobre 5 en el
 
 El entorno competitivo del servicio de transporte de carga en el corredor está dominado por la informalidad: coordinación por WhatsApp, llamadas y Excel; intermediarios sin tecnología ni trazabilidad; y la figura del “hombre-camión” que atomiza la oferta.
 
-### **1.1.3 Estructura organizacional de la PYME arquetipo**
+### 1.1.3 Estructura organizacional de la PYME arquetipo
 
 | **Rol**                      | **Funciones**                                           | **Relación con la logística**                                            |
 |------------------------------|---------------------------------------------------------|--------------------------------------------------------------------------|
@@ -70,7 +70,7 @@ El entorno competitivo del servicio de transporte de carga en el corredor está 
 
 La función logística no existe como área: está distribuida informalmente entre el gerente, el almacén y ventas, sin procesos definidos, sin indicadores y sin sistemas de información de soporte.
 
-### **1.1.4 Cadena de valor logística del corredor**
+### 1.1.4 Cadena de valor logística del corredor
 
 **Actividades primarias del flujo logístico**
 
@@ -90,7 +90,7 @@ Conclusión: los eslabones 2, 3, 4 y 5 concentran la destrucción de valor —ac
 
 *Figura 5. Cadena de Valor de Porter aplicada a LOGYX (actividades primarias, de apoyo y margen).*
 
-### **1.1.5 Mapa de stakeholders**
+### 1.1.5 Mapa de stakeholders
 
 | **Stakeholder**                                | **Poder**         | **Interés**      | **Cuadrante / estrategia** |
 |------------------------------------------------|-------------------|------------------|----------------------------|
@@ -103,7 +103,7 @@ Conclusión: los eslabones 2, 3, 4 y 5 concentran la destrucción de valor —ac
 | MTC / SUNAT (reguladores)                      | Alto              | Bajo             | Mantener satisfechos       |
 | Clientes finales de las PYMEs                  | Bajo              | Medio            | Monitorear                 |
 
-### **1.1.6 Aspectos Generales de la Organización LOGYX**
+### 1.1.6 Aspectos Generales de la Organización LOGYX
 
 A diferencia de las secciones 1.1.1 a 1.1.5 (que caracterizan el ecosistema de mercado en el que LOGYX opera), esta sección presenta a LOGYX como organización —el sujeto que ejecuta el proyecto—, con el mismo nivel de detalle institucional exigido en un diagnóstico organizacional formal.
 
@@ -175,9 +175,9 @@ Arquitectura de monolito modular sobre infraestructura cloud, con aplicaciones w
 
 **\[COMPLETAR POR EL EQUIPO — insertar aquí el logo institucional de LOGYX (imagen), una vez definido por el equipo.\]**
 
-## **1.2 Análisis Estratégico (CE0112)**
+## 1.2 Análisis Estratégico (CE0112)
 
-### **1.2.1 Orientación estratégica de la PYME arquetipo**
+### 1.2.1 Orientación estratégica de la PYME arquetipo
 
 - **Misión:** producir y comercializar bienes de calidad para clientes del corredor Lima–Sierra Sur, entregando a tiempo y a costos competitivos.
 
@@ -193,7 +193,7 @@ Arquitectura de monolito modular sobre infraestructura cloud, con aplicaciones w
 
 - OE4 — Ampliar el alcance comercial a nuevas plazas del corredor.
 
-### **1.2.2 Análisis Interno: Fortalezas y Debilidades (AMOFHIT)**
+### 1.2.2 Análisis Interno: Fortalezas y Debilidades (AMOFHIT)
 
 El análisis interno se desarrolla siguiendo las seis áreas funcionales del modelo AMOFHIT (Administración, Marketing, Operaciones, Finanzas, Recursos Humanos, Sistemas de Información), aplicado a LOGYX como organización. Para cada área se desarrolla el fundamento de la fortaleza y de la debilidad identificadas, antes de presentar el resumen tabulado.
 
@@ -218,7 +218,7 @@ El análisis interno se desarrolla siguiendo las seis áreas funcionales del mod
 | Recursos humanos          | Equipo pequeño, comunicación rápida             | Función logística dispersa sin responsable  |
 | Sistemas de información   | Uso cotidiano de smartphone y WhatsApp          | Cero sistemas de información logística      |
 
-### **1.2.3 Matriz EFI — Evaluación de Factores Internos**
+### 1.2.3 Matriz EFI — Evaluación de Factores Internos
 
 *Supuesto declarado del equipo: a partir de esta versión, la Matriz EFI evalúa a LOGYX como organización (startup en fase de incubación), no a una PYME arquetipo ficticia. Los pesos y calificaciones siguen siendo juicio experto del equipo por consenso, metodología estándar en la construcción de matrices EFI/EFE.*
 
@@ -250,7 +250,7 @@ Escala de calificación: 4 = fortaleza mayor, 3 = fortaleza menor, 2 = debilidad
 
 <img src="media/image1.png" style="width:6.4625in;height:4.87639in" />Lectura: un puntaje ponderado entre 1.0 y 2.5 indica una posición interna débil; entre 2.5 y 4.0, una posición interna fuerte. El resultado de 2.50 refleja el balance real de una startup en etapa temprana: fortalezas técnicas y de producto sólidas, contrarrestadas por debilidades típicas de validación de mercado y capital, propias de esta fase del proyecto.
 
-### **1.2.4 Análisis del Microentorno — Cinco Fuerzas de Porter**
+### 1.2.4 Análisis del Microentorno — Cinco Fuerzas de Porter
 
 **1. Rivalidad entre competidores actuales**
 
@@ -294,7 +294,7 @@ Descripción: es el problema P5 — la PYME negocia como minorista, sin volumen 
 
 Conclusión: la fuerza dominante es el sustituto (statu quo informal), lo que define el criterio de diseño: debe ser radicalmente más simple y con valor inmediato para vencer la inercia.
 
-### **1.2.5 Análisis del Macroentorno — PESTEL**
+### 1.2.5 Análisis del Macroentorno — PESTEL
 
 El análisis PESTEL examina las seis dimensiones del macroentorno que condicionan al ecosistema logístico del corredor y, por extensión, la viabilidad de LOGYX. Para cada dimensión se desarrolla el razonamiento antes de presentar el resumen tabulado clasificado en Oportunidad (O) o Amenaza (A).
 
@@ -326,7 +326,7 @@ El análisis PESTEL examina las seis dimensiones del macroentorno que condiciona
 | Legal         | Normativa MTC de transporte de carga hoy no verificada                      | A                       |
 | Legal         | Ley N° 29733 de Protección de Datos Personales                              | A / O si se cumple bien |
 
-### **1.2.6 Matriz EFE — Evaluación de Factores Externos**
+### 1.2.6 Matriz EFE — Evaluación de Factores Externos
 
 *Supuesto declarado del equipo: los pesos y calificaciones de la Matriz EFE son juicio experto del equipo derivado del PESTEL y Porter precedentes. A diferencia de la Matriz EFI (que ahora evalúa a LOGYX como organización), la Matriz EFE mantiene como objeto de análisis el entorno de mercado —el ecosistema PYME–transportista del corredor Lima–Sierra Sur—, que es el entorno externo real donde LOGYX opera.*
 
@@ -358,7 +358,7 @@ Escala de calificación: 4 = respuesta superior, 3 = superior a la media, 2 = me
 
 <img src="media/image2.png" style="width:6.4625in;height:3.87431in" />Lectura: un puntaje de 2.21 (bajo el punto medio de 2.5) indica que el ecosistema responde débilmente a oportunidades y amenazas del entorno, consistente con la ausencia de mecanismos que le permitan capitalizarlas. Junto al EFI de LOGYX (sección 1.2.3), evidencia que el diagnóstico interno y externo son consistentes entre sí: la organización aún no cuenta con una posición interna consolidada, y el entorno externo tampoco ofrece condiciones favorables sin intervención activa.
 
-### **1.2.7 Análisis FODA y Cruce Estratégico CAME**
+### 1.2.7 Análisis FODA y Cruce Estratégico CAME
 
 *Decisión metodológica: el FODA y el cruce CAME de esta sección se reconstruyen con los mismos factores internos (F1–F6, D1–D6) de la Matriz EFI de LOGYX (sección 1.2.3), manteniendo las oportunidades y amenazas (O1–O5, A1–A7) de la Matriz EFE (sección 1.2.6). Así, el diagnóstico interno (LOGYX como organización) y el diagnóstico externo (el mercado donde opera) quedan integrados bajo una misma matriz FODA, evitando dos sistemas de códigos incompatibles.*
 
@@ -430,7 +430,7 @@ El análisis CAME traduce el cruce FODA en cuatro líneas de acción: Corregir d
 | AFRONTAR (DA)       | D5+A4     | Mitigar el riesgo de equipo reducido frente a la resistencia cultural al cambio priorizando un diseño de adopción sin fricción (onboarding asistido) antes de escalar comercialmente. |
 | AFRONTAR (DA)       | D6+A7     | Cerrar las funcionalidades de cumplimiento (Ley 29733) como prioridad del MVP, antes que otras funcionalidades avanzadas aún pendientes.                                              |
 
-### **1.2.8 Factores Críticos de Éxito (FCE)**
+### 1.2.8 Factores Críticos de Éxito (FCE)
 
 | **FCE**                                 | **Descripción**                                       | **Origen en el análisis**      |
 |-----------------------------------------|-------------------------------------------------------|--------------------------------|
@@ -440,9 +440,9 @@ El análisis CAME traduce el cruce FODA en cuatro líneas de acción: Corregir d
 | FCE4. Trazabilidad extremo a extremo    | Estado y evidencia en cada operación                  | D2, D4 · O1 · CAME Corregir    |
 | FCE5. Adopción sin fricción             | Más simple que WhatsApp para vencer la inercia        | A4 · Porter F2 · CAME Afrontar |
 
-## **1.3 Diagnóstico Digital / TI (CE0111/CE0113)**
+## 1.3 Diagnóstico Digital / TI (CE0111/CE0113)
 
-### **1.3.1 Inventario de sistemas de información AS-IS**
+### 1.3.1 Inventario de sistemas de información AS-IS
 
 | **Sistema / herramienta**       | **Función que cumple**                   | **Limitación crítica**                 | **Riesgo**                            |
 |---------------------------------|------------------------------------------|----------------------------------------|---------------------------------------|
@@ -452,7 +452,7 @@ El análisis CAME traduce el cruce FODA en cuatro líneas de acción: Corregir d
 | Efectivo / transferencia        | Pago del flete                           | Sin vínculo con conformidad de entrega | Impago o pago por servicio deficiente |
 | Facturación electrónica (SUNAT) | Emisión de comprobantes                  | Aislada del proceso logístico          | Incumplimiento formal; multas         |
 
-### **1.3.2 Nivel de madurez digital**
+### 1.3.2 Nivel de madurez digital
 
 | **Nivel**      | **Caracterización**                                    | **¿La PYME arquetipo?**     |
 |----------------|--------------------------------------------------------|-----------------------------|
@@ -464,7 +464,7 @@ El análisis CAME traduce el cruce FODA en cuatro líneas de acción: Corregir d
 
 Veredicto: nivel 1–2 (ad-hoc/repetible), consistente con el resultado cuantitativo de la Matriz EFI (1.93/4).
 
-### **1.3.3 Brechas tecnológicas**
+### 1.3.3 Brechas tecnológicas
 
 - **Brecha macro:** infraestructura 2.5 y aduanas 2.6 en el LPI 2023 (Arvis et al., 2023).
 
@@ -476,9 +476,9 @@ Veredicto: nivel 1–2 (ad-hoc/repetible), consistente con el resultado cuantita
 
 - **Brecha de consolidación:** sin mecanismo técnico de agrupación de cargas.
 
-## **1.4 Identificación del Problema (CE0111)**
+## 1.4 Identificación del Problema (CE0111)
 
-### **1.4.1 Definición estructurada del problema**
+### 1.4.1 Definición estructurada del problema
 
 | **Código** | **Problema**                  | **Manifestación**                      | **Evidencia**                           |
 |------------|-------------------------------|----------------------------------------|-----------------------------------------|
@@ -488,7 +488,7 @@ Veredicto: nivel 1–2 (ad-hoc/repetible), consistente con el resultado cuantita
 | P4         | Déficit de confianza          | Contratación sin historial verificable | Brecha de confianza; FCE1               |
 | P5         | Falta de poder de negociación | Costo logístico 21.1% vs. 15.7%        | ComexPerú (2022); EFI D7; EFE A6        |
 
-### **1.4.2 Análisis de causas raíz**
+### 1.4.2 Análisis de causas raíz
 
 <table>
 <colgroup>
@@ -542,7 +542,7 @@ Cuatro de las seis espinas corresponden a causas de coordinación e información
 
 *Supuesto declarado del equipo: el diagrama de Ishikawa visual se elaborará en herramienta con archivo fuente editable (draw.io, Bizagi o Enterprise Architect) a partir de esta tabla, para cumplir el requisito de formato de sustentación (Anexo C).*
 
-### **1.4.3 Impacto estratégico**
+### 1.4.3 Impacto estratégico
 
 - Sobre OE1: la brecha de ~5 pp erosiona el margen operativo, pudiendo equivaler a la utilidad neta de una PYME.
 
@@ -554,7 +554,7 @@ Cuatro de las seis espinas corresponden a causas de coordinación e información
 
 > *Se asume como hipótesis de trabajo, sustentada en la revisión bibliográfica del sector, que la informalidad en la coordinación logística de las PYMEs del corredor Lima–Arequipa–Juliaca genera pérdidas recurrentes de envíos y sobrecostos operativos. Esta hipótesis se apoya en evidencia indirecta: la alta tasa de recorridos en vacío documentada para la región (40–45%, Farromeque Quiroz, 2017), la brecha de costos logísticos que penaliza desproporcionadamente a la micro y pequeña empresa (21.1% vs. 15.7% de la gran empresa, ComexPerú, 2022), y el rezago estructural de Perú en infraestructura y eficiencia logística (puntaje 3.0/5 en el LPI 2023, Arvis et al., 2023). No existe actualmente una medición pública específica de la frecuencia de incidentes de coordinación para el corredor Lima–Sierra Sur, por lo que este dato queda fuera del alcance cuantificado del diagnóstico y se declara como supuesto de diseño del proyecto, no como estadística verificada.*
 
-### **1.4.4 Justificación de la intervención y alineamiento estratégico**
+### 1.4.4 Justificación de la intervención y alineamiento estratégico
 
 | **FCE requerido**                    | **¿Alcanzable con el AS-IS?** | **¿Por qué no?**                                         |
 |--------------------------------------|-------------------------------|----------------------------------------------------------|
@@ -566,7 +566,7 @@ Cuatro de las seis espinas corresponden a causas de coordinación e información
 
 Ninguno de los cuatro primeros FCE es alcanzable con las herramientas actuales. Se justifica la intervención mediante una solución TIC colaborativa (LOGYX), contra la línea base establecida aquí (comparativo en el Entregable 4).
 
-## **1.5 Roadmap de Tecnología (CE0114)**
+## 1.5 Roadmap de Tecnología (CE0114)
 
 | **Horizonte**                   | **Periodo**  | **Objetivo tecnológico**            | **Capacidades incorporadas**                                                               |
 |---------------------------------|--------------|-------------------------------------|--------------------------------------------------------------------------------------------|
@@ -574,7 +574,7 @@ Ninguno de los cuatro primeros FCE es alcanzable con las herramientas actuales. 
 | H2 — Optimizar la red           | 6–12 meses   | Capturar la eficiencia estructural  | Consolidación inteligente · retornos · pricing dinámico · reputación · escrow              |
 | H3 — Inteligencia y servicios   | 12–24+ meses | Convertir datos en valor predictivo | Predicción de demanda · ML · cooperativas · factoring logístico                            |
 
-## **1.6 Matriz de Riesgos Estratégicos (CE0115)**
+## 1.6 Matriz de Riesgos Estratégicos (CE0115)
 
 | **ID** | **Riesgo estratégico**                              | **P** | **I** | **Nivel**    | **Estrategia de respuesta**                               |
 |--------|-----------------------------------------------------|-------|-------|--------------|-----------------------------------------------------------|
@@ -586,7 +586,7 @@ Ninguno de los cuatro primeros FCE es alcanzable con las herramientas actuales. 
 | RE6    | Cambio regulatorio adverso                          | 2     | 3     | 6 — Medio    | Cumplimiento Ley 29733 y normativa MTC desde el origen    |
 | RE7    | Incumplimiento de la promesa de ahorro              | 2     | 4     | 8 — Medio    | Medición del ahorro real desde el piloto                  |
 
-## **1.7 Refuerzo de Gobierno de TI bajo COBIT 2019 (AS-IS / TO-BE) — extensión de CE0115**
+## 1.7 Refuerzo de Gobierno de TI bajo COBIT 2019 (AS-IS / TO-BE) — extensión de CE0115
 
 Como complemento al modelado de procesos operativos (secciones 3.1 a 3.6), se aplicó el marco COBIT 2019 de ISACA para diagnosticar el estado actual (AS-IS) y diseñar el estado objetivo (TO-BE) del gobierno de TI de LOGYX como organización. A diferencia del AS-IS/TO-BE operativo (proceso de contratación de transporte), este análisis cubre el nivel de gobierno: qué prácticas de gestión del riesgo, seguridad, cumplimiento y monitoreo debe establecer LOGYX para operar con confianza.
 
@@ -651,7 +651,7 @@ La cascada demuestra que los procesos de seguridad y cumplimiento no son opciona
 
 *Nota: el portafolio completo priorizó 20 procesos COBIT; esta tabla presenta los 8 de mayor criticidad inmediata para el MVP. El detalle completo de los 20 procesos y su desarrollo metodológico (fases del diseño COBIT, análisis de factores) se documenta como evidencia complementaria del equipo.*
 
-# **Referencias**
+## Referencias
 
 Armstrong & Associates, Inc. (2025). U.S. Third-Party Logistics (3PL) Market Size Estimates: Domestic Transportation Management. https://www.3plogistics.com/
 

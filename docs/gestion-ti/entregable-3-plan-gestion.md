@@ -29,19 +29,19 @@ Migue Alexandre Huayhua Chambi
 
 Juliaca, Perú — Julio 2026
 
-# **Nota Metodológica**
+## Nota Metodológica
 
 Este documento es uno de los 4 entregables del área de Gestión de Tecnologías de Información (GTI) del Perfil de Egreso, conforme al índice de líneas evaluadas: Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico (CE0111–CE0115); Entregable 2 — Business Case del Proyecto (CE0113); Entregable 3 — Plan de Gestión del Proyecto (CE0121–CE0125); Entregable 4 — Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135). La línea CE014 (Solución Técnica Integrada) se evalúa en otro momento y no forma parte de esta entrega; las referencias a su contenido en este documento se declaran explícitamente como “fuera del alcance de esta ronda de evaluación”.
 
 Este documento específico corresponde al Entregable 3 (Plan de Gestión del Proyecto), bajo un enfoque híbrido PMBOK–ágil. Incluye evidencia real de configuración en Azure DevOps (sección 3.6.4) y, como refuerzo de la Gestión de Riesgos del Proyecto (CE0125), una sección de Cumplimiento Normativo (sección 3.7) derivada del análisis de Gobierno de TI bajo COBIT 2019 desarrollado en el Entregable 1.
 
-# **Entregable 3 — Plan de Gestión del Proyecto (PMBOK / Agile)**
+**Entregable 3 — Plan de Gestión del Proyecto (PMBOK / Agile)**
 
 *(Evalúa: CE012 — Gestión de Proyectos · Evidencias CE0121, CE0122, CE0123, CE0124, CE0125)*
 
 El plan adopta un enfoque híbrido: los artefactos de gobierno del proyecto siguen las buenas prácticas del PMBOK (acta de constitución, EDT, línea base de costos, gestión de riesgos), mientras que la ejecución del desarrollo se gestiona con Scrum (backlog priorizado, sprints de dos semanas, métricas de velocidad). Esta combinación es la recomendada por el PMI para proyectos de software con alcance evolutivo y equipo pequeño.
 
-## **3.1 Acta de Constitución del Proyecto — Project Charter (CE0121)**
+## 3.1 Acta de Constitución del Proyecto — Project Charter (CE0121)
 
 | **Campo**                    | **Contenido**                                                                                                                                                                                                                                                                                                                                 |
 |------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -58,7 +58,7 @@ El plan adopta un enfoque híbrido: los artefactos de gobierno del proyecto sigu
 | Criterios de éxito           | MVP desplegado y demostrable · flujo completo publicar–ofertar–aceptar–entregar–calificar funcionando de extremo a extremo · cumplimiento de OP1 y avance verificable hacia OP2–OP4                                                                                                                                                           |
 | Hitos de alto nivel          | H1: arquitectura y módulos base (fin S2) · H2: marketplace y subastas operativas (fin S6) · H3: tracking y app del conductor (fin S10) · H4: MVP integrado en staging (fin S14) · H5: MVP en producción y demo final (fin S16)                                                                                                                |
 
-## **3.2 Gestión del Alcance: EDT/WBS y diccionario (CE0122)**
+## 3.2 Gestión del Alcance: EDT/WBS y diccionario (CE0122)
 
 La Estructura de Desglose del Trabajo se organiza en cuatro cuentas de control. Los paquetes de trabajo del desarrollo se mapean directamente desde las épicas del backlog del producto (EP-01 a EP-16), garantizando trazabilidad entre el plan predictivo y la ejecución ágil:
 
@@ -89,7 +89,7 @@ La Estructura de Desglose del Trabajo se organiza en cuatro cuentas de control. 
 
 Control de cambios: toda modificación de alcance se evalúa en la reunión de planificación de sprint contra el criterio de valor del MVP; los cambios que afecten hitos H1–H5 requieren aprobación del sponsor.
 
-## **3.3 Gestión del Cronograma (CE0123)**
+## 3.3 Gestión del Cronograma (CE0123)
 
 *Supuesto declarado del equipo: fecha de inicio del Sprint 1 fijada tentativamente para agosto de 2026, sujeta al calendario académico del semestre; toda la planificación está expresada en semanas relativas (S1–S16), por lo que el desplazamiento de la fecha de inicio no altera la estructura.*
 
@@ -110,7 +110,7 @@ Control de cambios: toda modificación de alcance se evalúa en la reunión de p
 
 Dependencias críticas de la ruta: 2.1 → 2.3 → 2.4 → 2.5 → 3.1 → 3.2 (el flujo transaccional completo). Los paquetes 3.3–3.5 pueden avanzar en paralelo desde el Sprint 5; 3.7 depende de que 2.3 y 2.6 estén estables. El diagrama de Gantt visual se elabora sobre esta tabla manteniendo estos vínculos.
 
-## **3.4 Gestión de Costos: presupuesto y línea base (CE0124)**
+## 3.4 Gestión de Costos: presupuesto y línea base (CE0124)
 
 El presupuesto total del proyecto es de S/ 27,566 (detalle en Entregable 2, sección 2.6). La línea base de costos se distribuye por sprint conforme al esfuerzo planificado (120 horas por sprint del equipo completo):
 
@@ -132,7 +132,7 @@ El presupuesto total del proyecto es de S/ 27,566 (detalle en Entregable 2, secc
 
 Control presupuestal: el consumo real de horas se registra por sprint en la herramienta de gestión; una desviación acumulada mayor al 10% activa la revisión de alcance con el sponsor. La reserva de contingencia solo se libera contra riesgos materializados de la matriz RP.
 
-## **3.5 Gestión de Riesgos del Proyecto (CE0125)**
+## 3.5 Gestión de Riesgos del Proyecto (CE0125)
 
 Riesgos operativos del proyecto (distintos de los estratégicos RE y de negocio RB), con análisis cualitativo y plan de respuesta:
 
@@ -147,11 +147,11 @@ Riesgos operativos del proyecto (distintos de los estratégicos RE y de negocio 
 
 La matriz se revisa en la retrospectiva de cada sprint: los riesgos materializados se registran con su impacto real y las respuestas se ajustan. El registro histórico de riesgos forma parte de la evidencia de gestión del proyecto.
 
-## **3.6 Gestión Ágil**
+## 3.6 Gestión Ágil
 
 La ejecución se gobierna con Scrum adaptado a un equipo de cuatro personas a tiempo parcial: sprints de dos semanas, planificación y retrospectiva por sprint, sincronización asíncrona diaria, y tablero de trabajo en la plataforma del repositorio.
 
-### **3.6.1 Backlog del producto (resumen por épicas)**
+### 3.6.1 Backlog del producto (resumen por épicas)
 
 | **Épica** | **Nombre**                   | **Alcance esencial**                              | **Sprint(s)** |
 |-----------|------------------------------|---------------------------------------------------|---------------|
@@ -172,7 +172,7 @@ La ejecución se gobierna con Scrum adaptado a un equipo de cuatro personas a ti
 | EP-15     | Gestión de flota             | Vehículos, capacidades y conductores              | 2             |
 | EP-16     | Infraestructura y CI/CD      | Entornos, pipeline, seguridad y respaldos         | 1 y 8         |
 
-### **3.6.2 Historias de usuario (formato y ejemplos)**
+### 3.6.2 Historias de usuario (formato y ejemplos)
 
 Cada épica se descompone en historias con el formato estándar Como / Quiero / Para, criterios de aceptación verificables y estimación en puntos de historia. Ejemplos representativos:
 
@@ -182,7 +182,7 @@ Cada épica se descompone en historias con el formato estándar Como / Quiero / 
 
 - HU-058 (EP-07): Como conductor, quiero confirmar cada entrega con fotografía y firma del receptor incluso sin conexión, para que la evidencia quede registrada y se sincronice al recuperar señal. Criterios: captura local persistente; sincronización automática; la PYME ve la evidencia en su panel.
 
-### **3.6.3 Métricas de la gestión ágil**
+### 3.6.3 Métricas de la gestión ágil
 
 - Velocidad: puntos completados por sprint, con gráfico de tendencia a partir del Sprint 2.
 
@@ -192,7 +192,7 @@ Cada épica se descompone en historias con el formato estándar Como / Quiero / 
 
 El backlog completo —historias por épica con criterios y puntos, planificación detallada por sprint y métricas— se adjunta como evidencia en el Anexo C.
 
-### **3.6.4 Evidencia de Configuración en Azure DevOps**
+### 3.6.4 Evidencia de Configuración en Azure DevOps
 
 La planificación ágil descrita en las secciones 2.6.1 a 2.6.3 se implementó y configuró en Azure DevOps (organización fabriziosanchezs, proyecto LOGYX), como evidencia verificable de que el plan de sprints no es únicamente teórico. A continuación se documenta la configuración real de la herramienta: creación del proyecto, programación de los 8 sprints con sus fechas exactas, carga del backlog de épicas e historias de usuario, y su distribución en el Sprint Backlog y Taskboard.
 
@@ -226,7 +226,7 @@ La planificación ágil descrita en las secciones 2.6.1 a 2.6.3 se implementó y
 
 Las fechas de las Figuras 9 y 10 coinciden exactamente con el cronograma declarado en la sección 3.3 (Gestión del Cronograma) y con el Diagrama de Gantt (Figura 6), garantizando consistencia entre la planificación documentada y la configuración real de la herramienta de gestión ágil.
 
-## **3.7 Cumplimiento Normativo — Hallazgos del Análisis COBIT (extensión de CE0125)**
+## 3.7 Cumplimiento Normativo — Hallazgos del Análisis COBIT (extensión de CE0125)
 
 El análisis de gobierno de TI bajo COBIT 2019 (Entregable 1, sección 1.7) identificó obligaciones normativas concretas que la solución LOGYX debe satisfacer desde su diseño. El detalle técnico del cumplimiento de la Ley N° 29733 se desarrolla en la documentación técnica de la solución (fuera del alcance de esta ronda de evaluación); esta sección consolida las obligaciones accionables derivadas del análisis COBIT, sin repetir las medidas técnicas ya detalladas.
 

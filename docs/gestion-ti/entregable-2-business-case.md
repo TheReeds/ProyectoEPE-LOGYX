@@ -30,7 +30,7 @@ Migue Alexandre Huayhua Chambi
 
 Juliaca, Perú — Julio 2026
 
-# **Nota Metodológica**
+## Nota Metodológica
 
 Este documento es uno de los 4 entregables del área de Gestión de Tecnologías de Información (GTI) del Perfil de Egreso, conforme al índice de líneas evaluadas: Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico (CE0111–CE0115); Entregable 2 — Business Case del Proyecto (CE0113); Entregable 3 — Plan de Gestión del Proyecto (CE0121–CE0125); Entregable 4 — Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135). La línea CE014 (Solución Técnica Integrada) se evalúa en otro momento y no forma parte de esta entrega; las referencias a su contenido en este documento se declaran explícitamente como “fuera del alcance de esta ronda de evaluación”.
 
@@ -38,11 +38,11 @@ Este documento específico corresponde al Entregable 2 (Business Case), que en v
 
 Esta sección desarrolla el Caso de Negocio exigido por CE0113 dentro del Entregable 1, justificando la viabilidad y conveniencia del proyecto LOGYX como respuesta al diagnóstico precedente.
 
-## **2.1 Justificación del proyecto**
+## 2.1 Justificación del proyecto
 
 El proyecto aborda el problema estructural diagnosticado (P1–P5). Su expresión económica más medible es la brecha de costos: 16% promedio nacional, **21.1% en la microempresa vs. 15.7% en la gran empresa** (ComexPerú, 2022). El beneficio central es el cierre progresivo de esa brecha.
 
-## **2.2 Objetivos del proyecto (SMART)**
+## 2.2 Objetivos del proyecto (SMART)
 
 | **ID** | **Objetivo SMART**                                                                                 |
 |--------|----------------------------------------------------------------------------------------------------|
@@ -53,7 +53,7 @@ El proyecto aborda el problema estructural diagnosticado (P1–P5). Su expresió
 | OP5    | Lograr ≥ 60% de solicitudes con oferta en 24h desde el mes 2.                                      |
 | OP6    | Reducir el tiempo de contratación de un flete de días a menos de 60 minutos.                       |
 
-## **2.3 Dimensionamiento del mercado (TAM → SAM → SOM)**
+## 2.3 Dimensionamiento del mercado (TAM → SAM → SOM)
 
 - **TAM:** 2,330,226 MIPYMEs formales (Ministerio de la Producción, 2025).
 
@@ -61,7 +61,7 @@ El proyecto aborda el problema estructural diagnosticado (P1–P5). Su expresió
 
 - **SOM (año 1):** 300–500 PYMEs y 100–150 transportistas.
 
-## **2.4 Análisis de Alternativas**
+## 2.4 Análisis de Alternativas
 
 | **Criterio (peso)**            | **A. Statu quo** | **B. Broker tradicional** | **C. SaaS existente** | **D. Desarrollar LOGYX** |
 |--------------------------------|------------------|---------------------------|-----------------------|--------------------------|
@@ -74,7 +74,7 @@ El proyecto aborda el problema estructural diagnosticado (P1–P5). Su expresió
 
 La alternativa D (desarrollar LOGYX) obtiene el mayor puntaje, con ventaja decisiva en cobertura de FCE y escalabilidad; su riesgo de implementación se gestiona mediante la estrategia secuencial de arranque descrita en la documentación de implementación de la solución (fuera del alcance de esta ronda de evaluación).
 
-## **2.5 Evaluación de Beneficios**
+## 2.5 Evaluación de Beneficios
 
 - **Gasto logístico mensual por PYME:** USD 500–5,000 (derivado de 16–21.1% de ventas de USD 3,000–24,000; Anexo A).
 
@@ -82,7 +82,7 @@ La alternativa D (desarrollar LOGYX) obtiene el mayor puntaje, con ventaja decis
 
 - **Beneficio al transportista:** ingreso adicional por km ya recorrido al reducir retornos vacíos.
 
-## **2.6 Estimación de Costos**
+## 2.6 Estimación de Costos
 
 *Supuesto declarado del equipo: 4 integrantes × 15 h/semana × 16 semanas = 960 horas; tarifa de referencia S/ 25/hora.*
 
@@ -96,7 +96,7 @@ La alternativa D (desarrollar LOGYX) obtiene el mayor puntaje, con ventaja decis
 
 Costos operativos: ~S/ 2,000/mes. TCO a 24 meses: S/ 75,566.
 
-## **2.7 Evaluación Financiera**
+## 2.7 Evaluación Financiera
 
 *Supuesto declarado del equipo: horizonte 24 meses; tasa de descuento anual 18%; ticket promedio S/ 1,200; comisión efectiva 4.5% (rango 2%–7%).*
 
@@ -113,7 +113,7 @@ Aun en el escenario conservador el proyecto recupera su inversión dentro del ho
 
 *Nota sobre la TIR: los valores obtenidos (417.8% en el escenario base, 217.3% en el conservador) son elevados porque la inversión inicial (S/ 27,566) es pequeña en relación con los ingresos proyectados a 24 meses —patrón típico de startups de software de bajo capital intensivo (“asset-light”). El VAN positivo en ambos escenarios (S/ 364,229 y S/ 149,932 respectivamente, descontados al 18% anual) es el indicador más robusto de viabilidad financiera; la TIR se reporta por completitud metodológica, pero su magnitud debe interpretarse con cautela y idealmente contrastarse con un análisis de sensibilidad antes de usarse como argumento independiente ante inversionistas.*
 
-## **2.8 Riesgos Iniciales del Proyecto**
+## 2.8 Riesgos Iniciales del Proyecto
 
 | **ID** | **Riesgo**                               | **P** | **I** | **Nivel** | **Mitigación**                        |
 |--------|------------------------------------------|-------|-------|-----------|---------------------------------------|
@@ -123,7 +123,7 @@ Aun en el escenario conservador el proyecto recupera su inversión dentro del ho
 | RB4    | Riesgo competitivo                       | 2     | 4     | 8         | Velocidad de captura del corredor     |
 | RB5    | Riesgo técnico                           | 3     | 3     | 9         | MVP acotado; gestión ágil (8 sprints) |
 
-# **Referencias**
+## Referencias
 
 Armstrong & Associates, Inc. (2025). U.S. Third-Party Logistics (3PL) Market Size Estimates: Domestic Transportation Management. https://www.3plogistics.com/
 
