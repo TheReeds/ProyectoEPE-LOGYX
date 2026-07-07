@@ -11,18 +11,19 @@ theme:
   language: es
   icon:
     logo: material/truck-fast-outline
+  favicon: assets/favicon.svg
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: indigo
+      primary: blue
+      accent: blue
       toggle:
         icon: material/weather-night
         name: Cambiar a modo oscuro
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: blue
+      accent: blue
       toggle:
         icon: material/weather-sunny
         name: Cambiar a modo claro
@@ -31,8 +32,11 @@ theme:
     - navigation.tabs.sticky
     - navigation.sections
     - navigation.indexes
+    - navigation.path
     - navigation.top
     - navigation.footer
+    - navigation.instant
+    - navigation.instant.progress
     - toc.follow
     - search.suggest
     - search.highlight
@@ -67,6 +71,14 @@ markdown_extensions:
 
 plugins:
   - search
+  - social:
+      cards_layout_options:
+        background_color: "#1d4ed8"
+        color: "#ffffff"
+  - git-revision-date-localized:
+      type: date
+      locale: es
+      fallback_to_build_date: true
 
 extra:
   social: []
