@@ -53,7 +53,7 @@ Escala de calificación: 4 = fortaleza mayor, 3 = fortaleza menor, 2 = debilidad
 
 - **F3.** Diagnóstico de mercado validado con fuentes externas verificadas (ComexPerú, CAF, Banco Mundial, PRODUCE).
 
-- **F4.** Modelo de negocio con comisión escalonada por lealtad (2%–7%), significativamente más eficiente que el margen de un broker tradicional (15.3%).
+- **F4.** Modelo de negocio con comisión escalonada por lealtad (2%–8%), significativamente más eficiente que el margen de un broker tradicional (15.3%).
 
 - **F5.** Diferenciación funcional real frente a la competencia: consolidación de cargas y aprovechamiento de retornos (Smart Load Planner).
 
@@ -199,7 +199,7 @@ Escala de calificación: 4 = respuesta superior, 3 = superior a la media, 2 = me
 <td><p>F1. Equipo multidisciplinario full-stack (backend, frontend, móvil, cloud)</p>
 <p>F2. Arquitectura modular y escalable diseñada desde el inicio</p>
 <p>F3. Diagnóstico de mercado validado con fuentes externas verificadas</p>
-<p>F4. Comisión escalonada (2%–7%), más eficiente que un broker tradicional (15.3%)</p>
+<p>F4. Comisión escalonada (2%–8%), más eficiente que un broker tradicional (15.3%)</p>
 <p>F5. Diferenciación funcional real: consolidación de cargas y retornos</p>
 <p>F6. Bajo costo de infraestructura inicial (cloud eficiente, stack abierto)</p></td>
 <td><p>D1. Sin capital de inversión externo</p>

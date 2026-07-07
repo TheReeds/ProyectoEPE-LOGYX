@@ -2,6 +2,8 @@
 
 *Supuesto declarado del equipo: fecha de inicio del Sprint 1 fijada tentativamente para agosto de 2026, sujeta al calendario académico del semestre; toda la planificación está expresada en semanas relativas (S1–S16), por lo que el desplazamiento de la fecha de inicio no altera la estructura.*
 
+*Nota de trazabilidad: este cronograma es la **línea base (baseline)** planificada en Azure DevOps al inicio del proyecto (evidencia en sección 3.6.4). El **backlog de ejecución**, actualizado sprint a sprint conforme avanza el desarrollo, se documenta en Software, Entregable 4 (Backlog y Sprints); las variaciones puntuales entre ambos reflejan la re-priorización normal de Scrum frente al plan predictivo inicial.*
+
 | **Sprint** | **Semanas** | **Objetivo del sprint**                                                                         | **Paquetes EDT** | **Hito**                        |
 |------------|-------------|-------------------------------------------------------------------------------------------------|------------------|---------------------------------|
 | Sprint 1   | S1–S2       | Fundaciones: autenticación multi-rol, modelo de datos base, CI/CD operativo                     | 2.1 · 4.1        | H1 — arquitectura y base lista  |

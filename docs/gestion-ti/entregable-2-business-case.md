@@ -70,7 +70,7 @@ Costos operativos: ~S/ 2,000/mes. TCO a 24 meses: S/ 68,966.
 
 ## 2.7 Evaluación Financiera
 
-*Supuesto declarado del equipo: horizonte 24 meses; tasa de descuento anual 18%; ticket promedio S/ 1,200; comisión efectiva 4.5% (rango 2%–7%).*
+*Supuesto declarado del equipo: horizonte 24 meses; tasa de descuento anual 18%; ticket promedio S/ 1,200; comisión efectiva 4.5% (rango 2%–8%).*
 
 | **Indicador**                      | **Escenario base**    | **Escenario conservador (50%)** |
 |------------------------------------|-----------------------|---------------------------------|

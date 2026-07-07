@@ -311,6 +311,12 @@ Desarrollar una plataforma digital B2B que conecte PYMEs y empresas transportist
 | RNF14 | **Integridad de datos** | La base de datos debe implementar integridad referencial completa con claves foráneas y constraints |
 | RNF15 | **Trazabilidad** | Todas las acciones de negocio críticas (aceptar oferta, cambiar estado, resolver incidencia) deben quedar registradas con timestamp y usuario responsable |
 | RNF16 | **Disponibilidad offline** | La app del conductor debe mantener en caché la ruta asignada y permitir actualización de estados sin conexión, sincronizando al recuperar conectividad |
+| RNF17 | **Cumplimiento normativo** | El sistema debe exponer una política de privacidad pública y visible en app y web, conforme al Art. 18 de la Ley N° 29733, antes del primer registro de usuario real |
+| RNF18 | **Cumplimiento normativo** | El flujo de onboarding debe incluir un paso de consentimiento informado y explícito para el tratamiento de datos personales, conforme al Art. 13 de la Ley N° 29733 |
+| RNF19 | **Cumplimiento normativo** | El sistema debe mantener un registro interno de actividades de tratamiento de datos y un procedimiento operativo de notificación de brechas a la ANPD en un plazo máximo de 72 horas, conforme al Art. 39 del Reglamento de la Ley N° 29733 |
+| RNF20 | **Cumplimiento normativo (pagos)** | El sistema no debe almacenar datos de tarjeta en ningún momento; el procesamiento de pagos se delega íntegramente a una pasarela certificada PCI-DSS (tokenización delegada) |
+
+*Origen: RNF17–RNF20 derivan del análisis de Gobierno de TI bajo COBIT 2019 (Gestión TI, Entregable 1, sección 1.7) y de la sección de Cumplimiento Normativo del Plan de Gestión del Proyecto (Gestión TI, Entregable 3, sección 3.7).*
 
 ---
 

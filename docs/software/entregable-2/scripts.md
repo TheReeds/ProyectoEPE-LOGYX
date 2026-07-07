@@ -179,6 +179,7 @@ CREATE TABLE profiles (
     email           VARCHAR(255)  NOT NULL,
     password_hash   VARCHAR(255),
     role            profile_role  NOT NULL DEFAULT 'ops',
+    consent_accepted_at TIMESTAMP NULL,
     created_at      TIMESTAMP     NOT NULL DEFAULT NOW(),
 
     CONSTRAINT uq_profiles_email UNIQUE (email)

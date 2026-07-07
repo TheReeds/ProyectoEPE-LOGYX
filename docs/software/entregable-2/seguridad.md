@@ -665,4 +665,20 @@ server_idle_timeout = 600
 
 ---
 
+## 7. Cumplimiento Normativo (Ley N° 29733 y PCI-DSS)
+
+Las obligaciones identificadas en el análisis de Gobierno de TI bajo COBIT 2019 (Gestión TI, Entregable 1, sección 1.7, y Entregable 3, sección 3.7) se satisfacen a nivel de datos con los siguientes controles:
+
+| Obligación (Ley N° 29733) | Control a nivel de base de datos / backend |
+|---|---|
+| Consentimiento informado para tratamiento de datos (Art. 13) | Columna `consent_accepted_at` en la tabla de usuarios, poblada obligatoriamente durante el onboarding (RNF18, ver SRS sección 7.2); ningún registro se activa sin este campo |
+| Registro de actividades de tratamiento (Art. 39, Reglamento) | La tabla `audit_log` (sección 4) registra creación, modificación y acceso a datos personales sensibles, con timestamp y usuario responsable |
+| Medidas de seguridad técnicas — cifrado, control de acceso (Art. 39, Reglamento) | Cifrado en reposo AES-256 (sección 2.1), TLS 1.3 en tránsito (sección 2.2), RBAC + RLS por organización (secciones 1.2 y 2.3) |
+| Notificación de brechas a la ANPD en ≤72 horas (Art. 39bis, Reglamento) | Procedimiento operativo documentado en Gestión TI (Entregable 3, sección 3.7); a nivel técnico, las alertas de integridad del log de auditoría (sección 4.3) son el disparador de detección temprana |
+| Designación de responsable del tratamiento (Art. 37, Reglamento) | Asignado formalmente al CISO funcional del equipo (Gestión TI, Entregable 3, sección 3.7) |
+
+**PCI-DSS.** LOGYX no almacena datos de tarjeta en ninguna tabla de la base de datos: el procesamiento de pagos se delega íntegramente a una pasarela certificada PCI-DSS (tokenización delegada). Esta restricción de diseño está reflejada en el RNF20 del SRS (Entregable 1, sección 7.2) y no requiere columnas ni cifrado adicional en el esquema, ya que el dato nunca llega al sistema.
+
+---
+
 *LOGYX · E2 Seguridad de Base de Datos · Competencia CE0224 · Versión 1.0 · Junio 2026*

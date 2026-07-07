@@ -31,6 +31,8 @@
 
 ## 3. Épicas del Producto
 
+*Nota de trazabilidad: esta tabla es el **backlog de ejecución**, actualizado durante los sprints. El cronograma **base (baseline)** planificado antes del inicio del proyecto se documenta en Gestión TI, Entregable 3, secciones 3.3 (Gestión del Cronograma) y 3.6.4 (evidencia de configuración en Azure DevOps); las variaciones puntuales entre ambos (p. ej. EP-03, EP-04, EP-06, EP-10) reflejan la re-priorización normal de Scrum durante la ejecución frente al plan predictivo inicial.*
+
 | ID | Épica | Sprint(s) |
 |----|-------|-----------|
 | EP-01 | Autenticación y gestión de organizaciones | S1 |

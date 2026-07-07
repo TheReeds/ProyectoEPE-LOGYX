@@ -100,7 +100,7 @@ Causa raíz: ausencia de un mecanismo que externalice y comparta el conocimiento
 | ¿Por qué? (3)             | Porque las soluciones enterprise existentes (SAP TM y similares) están diseñadas y valorizadas para grandes corporaciones, fuera del alcance económico y de complejidad operativa de una PYME.                    |
 | ¿Por qué? (4, causa raíz) | Porque no existía, hasta el desarrollo de este proyecto, una solución diseñada específicamente para el perfil de costo, escala y nivel de informalidad de las PYMEs y transportistas independientes del corredor. |
 
-Causa raíz: vacío de mercado —ausencia de una solución tecnológica diseñada para el segmento PYME/transportista independiente del corredor, a diferencia de las soluciones enterprise existentes. Solución asociada en LOGYX: arquitectura de monolito modular de bajo costo operativo (documentación técnica de la solución), con comisión escalonada 2%–7% accesible a la escala de la PYME.
+Causa raíz: vacío de mercado —ausencia de una solución tecnológica diseñada para el segmento PYME/transportista independiente del corredor, a diferencia de las soluciones enterprise existentes. Solución asociada en LOGYX: arquitectura de monolito modular de bajo costo operativo (documentación técnica de la solución), con comisión escalonada 2%–8% accesible a la escala de la PYME.
 
 **4.6.4.3 Árbol Causal — Procedimiento**
 

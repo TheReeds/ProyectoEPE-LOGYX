@@ -42,6 +42,7 @@ erDiagram
     varchar email UK
     varchar password_hash
     profile_role role
+    timestamp consent_accepted_at
     timestamp created_at
   }
 
@@ -473,6 +474,7 @@ CREATE TYPE suggestion_status AS ENUM ('pending', 'accepted', 'rejected', 'expir
 | `email` | VARCHAR(255) | NO | UK | Email de acceso al sistema |
 | `password_hash` | VARCHAR(255) | SÍ | — | Hash bcrypt de la contraseña (NULL si usa OAuth) |
 | `role` | profile_role | NO | — | Rol del usuario dentro de su organización |
+| `consent_accepted_at` | TIMESTAMP | SÍ | — | Fecha de aceptación del consentimiento informado de tratamiento de datos (Ley N° 29733, Art. 13); NULL bloquea la activación completa de la cuenta (RNF18, SRS sección 7.2) |
 | `created_at` | TIMESTAMP | NO | — | Fecha de registro |
 
 ---

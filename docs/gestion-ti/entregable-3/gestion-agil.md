@@ -4,6 +4,8 @@ La ejecución se gobierna con Scrum adaptado a un equipo de tres personas a tiem
 
 ## 3.6.1 Backlog del producto (resumen por épicas)
 
+*Nota de trazabilidad: esta tabla refleja la **línea base (baseline)** de planificación por sprint. El backlog de ejecución vigente, con los ajustes de re-priorización realizados durante el desarrollo, se documenta en Software, Entregable 4 (Backlog y Sprints).*
+
 | **Épica** | **Nombre**                   | **Alcance esencial**                              | **Sprint(s)** |
 |-----------|------------------------------|---------------------------------------------------|---------------|
 | EP-01     | Autenticación y verificación | Registro multi-rol, verificación legal de actores | 1             |
