@@ -1,34 +1,6 @@
 # E1 — Diagnóstico Organizacional y Alineamiento Estratégico
 > Competencia: CE0111–CE0115 · Proyecto: LOGYX
 
-**UNIVERSIDAD PERUANA UNIÓN**
-
-Facultad de Ingeniería y Arquitectura — Escuela de Ingeniería de Sistemas
-
-**LOGYX**
-
-*Infraestructura Digital Colaborativa para la Logística de PYMEs*
-
-**Entregable 1: Diagnóstico Organizacional y Alineamiento Estratégico**
-
-Evaluación del Perfil de Egreso (EPE) — Área de Gestión de Tecnologías de Información (GTI)
-
-*Línea evaluada: CE0111–CE0115*
-
-Docente:
-
-**Integrantes:**
-
-Fabrizio Yerald Alfonso Sánchez Saravia
-
-Alex Coila Jarita
-
-Jorge Luis Gutiérrez Miranda
-
-Migue Alexandre Huayhua Chambi
-
-Juliaca, Perú — Julio 2026
-
 ## Nota Metodológica
 
 Este documento es uno de los 4 entregables del área de Gestión de Tecnologías de Información (GTI) del Perfil de Egreso, conforme al índice de líneas evaluadas: Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico (CE0111–CE0115); Entregable 2 — Business Case del Proyecto (CE0113); Entregable 3 — Plan de Gestión del Proyecto (CE0121–CE0125); Entregable 4 — Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135). La línea CE014 (Solución Técnica Integrada) se evalúa en otro momento y no forma parte de esta entrega; las referencias a su contenido en este documento se declaran explícitamente como “fuera del alcance de esta ronda de evaluación”.
@@ -127,8 +99,6 @@ LOGYX no opera locales físicos de atención al público: es una plataforma digi
 
 - Jorge Luis Gutiérrez Miranda — CEO & Lead Developer
 
-- Migue Alexandre Huayhua Chambi — Integrante del equipo de desarrollo
-
 **Razón social y naturaleza jurídica**
 
 A la fecha de este documento, LOGYX opera como proyecto académico–emprendedor en fase de incubación, sin constitución legal formal. La forma societaria proyectada para la etapa de operación comercial es una Sociedad Anónima Cerrada (S.A.C.), conforme a la Ley General de Sociedades del Perú, a definirse formalmente al iniciar la fase de comercialización real (posterior al piloto de la solución).
@@ -205,7 +175,7 @@ El análisis interno se desarrolla siguiendo las seis áreas funcionales del mod
 
 **Finanzas (F).** El registro básico de gastos del proyecto existe (inversión de desarrollo, costos de infraestructura, Entregable 2, sección 2.6), lo cual es una base mínima de control financiero. La debilidad relevante es la ausencia de capital de inversión externo: el financiamiento del proyecto depende únicamente de recursos propios del equipo fundador, lo que limita la velocidad de escalamiento una vez validado el modelo y expone al proyecto a restricciones de flujo de caja si la fase de adopción (cold-start) se extiende más allá de lo proyectado.
 
-**Recursos humanos (H).** El equipo reducido de cuatro integrantes permite comunicación rápida y alineación constante —no hay pérdida de información por capas jerárquicas. La debilidad directa de ese mismo tamaño es la limitación de capacidad: el equipo debe escalar simultáneamente el desarrollo técnico del producto y la operación comercial (ventas, onboarding, soporte) sin personal dedicado a cada frente, lo que genera riesgo de cuellos de botella durante el arranque en frío (Entregable 1, riesgo RE2).
+**Recursos humanos (H).** El equipo reducido de tres integrantes permite comunicación rápida y alineación constante —no hay pérdida de información por capas jerárquicas. La debilidad directa de ese mismo tamaño es la limitación de capacidad: el equipo debe escalar simultáneamente el desarrollo técnico del producto y la operación comercial (ventas, onboarding, soporte) sin personal dedicado a cada frente, lo que genera riesgo de cuellos de botella durante el arranque en frío (Entregable 1, riesgo RE2).
 
 **Sistemas de información y tecnología (T e I).** Esta es el área de mayor fortaleza relativa de LOGYX: el equipo diseñó desde el inicio una arquitectura modular escalable (monolito modular migrable a microservicios, documentación técnica de la solución) y domina el stack tecnológico completo (backend, frontend web, móvil, infraestructura cloud). La debilidad, coherente con la fase del proyecto, es que el producto aún está en versión MVP: funcionalidades avanzadas como el escrow de pagos o las cooperativas de volumen (roadmap H2–H3, Entregable 1 sección 1.5) no están implementadas todavía.
 
@@ -244,7 +214,7 @@ Escala de calificación: 4 = fortaleza mayor, 3 = fortaleza menor, 2 = debilidad
 
 - **D4.** Validación de mercado pendiente de ejecución real: hipótesis de demanda no probada en campo con clientes pagantes.
 
-- **D5.** Equipo reducido (4 integrantes) para escalar simultáneamente desarrollo de producto y operación comercial.
+- **D5.** Equipo reducido (3 integrantes) para escalar simultáneamente desarrollo de producto y operación comercial.
 
 - **D6.** Producto en fase de MVP: funcionalidades avanzadas (escrow de pagos, cooperativas de volumen) aún no implementadas.
 
@@ -383,7 +353,7 @@ Escala de calificación: 4 = respuesta superior, 3 = superior a la media, 2 = me
 <p>D2. Sin historial de mercado ni marca reconocida</p>
 <p>D3. Sin experiencia previa en ventas B2B</p>
 <p>D4. Validación de mercado real aún pendiente de ejecución</p>
-<p>D5. Equipo reducido (4 integrantes) para escalar producto y comercial a la vez</p>
+<p>D5. Equipo reducido (3 integrantes) para escalar producto y comercial a la vez</p>
 <p>D6. Producto en fase MVP: funcionalidades avanzadas aún no implementadas</p></td>
 </tr>
 </tbody>

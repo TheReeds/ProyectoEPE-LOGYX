@@ -12,10 +12,24 @@
 | Campo | Detalle |
 |-------|---------|
 | **Herramienta** | Figma |
-| **Link al prototipo** | *(agregar URL de Figma aquí)* |
+| **Link al prototipo** | [Ver prototipo navegable en Figma](https://www.figma.com/proto/VPAgeR1zHUZCXKvBwKsYez/LOGYX-PROTOTIPOS?node-id=0-1&t=BFJbHyiHm6diGpam-1) |
 | **Plataformas cubiertas** | Web (Angular) · Mobile iOS/Android (Flutter) |
 | **Apps prototipadas** | LOGYX Business (PYME + Transportista) · LOGYX Driver · LOGYX Operator |
-| **Estado** | Pendiente de diseño en Figma — estructura definida en este documento |
+| **Estado** | Prototipo navegable publicado en Figma |
+
+---
+
+## 1.1 Prototipo Navegable (Figma)
+
+<div class="figma-embed" style="position: relative; width: 100%; height: 0; padding-bottom: 62%; margin: 1.5em 0;">
+  <iframe
+    src="https://www.figma.com/embed?embed_host=share&url=https%3A%2F%2Fwww.figma.com%2Fproto%2FVPAgeR1zHUZCXKvBwKsYez%2FLOGYX-PROTOTIPOS%3Fnode-id%3D0-1%26t%3DBFJbHyiHm6diGpam-1"
+    allowfullscreen
+    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 1px solid rgba(0,0,0,.1); border-radius: 8px;">
+  </iframe>
+</div>
+
+*Si el prototipo no carga (algunos bloqueadores de contenido o extensiones de navegador restringen iframes de terceros), usa el [link directo](https://www.figma.com/proto/VPAgeR1zHUZCXKvBwKsYez/LOGYX-PROTOTIPOS?node-id=0-1&t=BFJbHyiHm6diGpam-1).*
 
 ---
 
@@ -249,9 +263,9 @@ CARR-01 → CARR-08 (publicar viaje)
 | Diseño en Figma — Transportista (CARR-01 a CARR-16) | Pendiente |
 | Diseño en Figma — Driver App (DRV-01 a DRV-07) | Pendiente |
 | Diseño en Figma — Operator (OP-01 a OP-07) | Pendiente |
-| Prototipo navegable con conexiones entre pantallas | Pendiente |
+| Prototipo navegable con conexiones entre pantallas | Completado |
 | Validación con usuario real (feedback documentado) | Pendiente |
-| Link público de Figma actualizado en este documento | Pendiente |
+| Link público de Figma actualizado en este documento | Completado |
 
 ---
 

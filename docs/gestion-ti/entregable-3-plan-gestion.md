@@ -1,34 +1,6 @@
 # E3 — Plan de Gestión del Proyecto
 > Competencia: CE0121–CE0125 · Proyecto: LOGYX
 
-**UNIVERSIDAD PERUANA UNIÓN**
-
-Facultad de Ingeniería y Arquitectura — Escuela de Ingeniería de Sistemas
-
-**LOGYX**
-
-*Infraestructura Digital Colaborativa para la Logística de PYMEs*
-
-**Entregable 3: Plan de Gestión del Proyecto**
-
-Evaluación del Perfil de Egreso (EPE) — Área de Gestión de Tecnologías de Información (GTI)
-
-*Línea evaluada: CE0121–CE0125*
-
-Docente:
-
-**Integrantes:**
-
-Fabrizio Yerald Alfonso Sánchez Saravia
-
-Alex Coila Jarita
-
-Jorge Luis Gutiérrez Miranda
-
-Migue Alexandre Huayhua Chambi
-
-Juliaca, Perú — Julio 2026
-
 ## Nota Metodológica
 
 Este documento es uno de los 4 entregables del área de Gestión de Tecnologías de Información (GTI) del Perfil de Egreso, conforme al índice de líneas evaluadas: Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico (CE0111–CE0115); Entregable 2 — Business Case del Proyecto (CE0113); Entregable 3 — Plan de Gestión del Proyecto (CE0121–CE0125); Entregable 4 — Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135). La línea CE014 (Solución Técnica Integrada) se evalúa en otro momento y no forma parte de esta entrega; las referencias a su contenido en este documento se declaran explícitamente como “fuera del alcance de esta ronda de evaluación”.
@@ -48,13 +20,13 @@ El plan adopta un enfoque híbrido: los artefactos de gobierno del proyecto sigu
 | Nombre del proyecto          | LOGYX — Plataforma colaborativa de logística B2B para PYMEs del corredor Lima–Sierra Sur                                                                                                                                                                                                                                                      |
 | Sponsor                      | Docente responsable del EPE — área GTI, EP Ingeniería de Sistemas, UPeU \[confirmar nombre\]                                                                                                                                                                                                                                                  |
 | Director del proyecto        | Fabrizio Yerald Alfonso Sánchez Saravia                                                                                                                                                                                                                                                                                                       |
-| Equipo del proyecto          | Alex Coila Jarita · Jorge Luis Gutiérrez Miranda · Migue Alexandre Huayhua Chambi                                                                                                                                                                                                                                                             |
+| Equipo del proyecto          | Fabrizio Yerald Alfonso Sánchez Saravia · Alex Coila Jarita · Jorge Luis Gutiérrez Miranda                                                                                                                                                                                                                                                    |
 | Justificación                | Cerrar la brecha de costos logísticos que penaliza a las PYMEs del corredor (21.1% vs. 15.7% de las ventas, ComexPerú, 2022) mediante una plataforma de consolidación, transparencia y trazabilidad (Business Case, Entregable 2)                                                                                                             |
 | Objetivos                    | OP1–OP6 del Business Case (Entregable 2, sección 2.2): MVP operativo en 16 semanas; 20 transportistas verificados a la semana 4; 80 PYMEs y NPS ≥ 45 a la semana 12; 200 empresas y punto de equilibrio a la semana 24                                                                                                                        |
 | Alcance preliminar (incluye) | Módulos del MVP: autenticación multi-rol y verificación legal · gestión de flota y conductores · publicación de solicitudes y motor de costos · subasta inversa y ofertas · negociación · tracking multi-parada con evidencia · documentos · notificaciones · reputación básica · panel del operador · consolidación y cargas de retorno (v1) |
 | Fuera del alcance (MVP)      | Pagos integrados con escrow en producción · cooperativas con contratos de volumen · predicción con aprendizaje automático · expansión a otros corredores (horizontes H2/H3 del roadmap)                                                                                                                                                       |
 | Supuestos                    | Disponibilidad del equipo de 15 h/semana por integrante · acceso a gremios de transportistas de Juliaca/Puno para el arranque · infraestructura cloud en capas gratuita/educativa durante el desarrollo                                                                                                                                       |
-| Restricciones                | Plazo académico de 16 semanas para el MVP · presupuesto de S/ 27,566 (línea base) · equipo de 4 personas a tiempo parcial · cumplimiento de Ley 29733 y normativa MTC                                                                                                                                                                         |
+| Restricciones                | Plazo académico de 16 semanas para el MVP · presupuesto de S/ 20,966 (línea base) · equipo de 3 personas a tiempo parcial · cumplimiento de Ley 29733 y normativa MTC                                                                                                                                                                         |
 | Criterios de éxito           | MVP desplegado y demostrable · flujo completo publicar–ofertar–aceptar–entregar–calificar funcionando de extremo a extremo · cumplimiento de OP1 y avance verificable hacia OP2–OP4                                                                                                                                                           |
 | Hitos de alto nivel          | H1: arquitectura y módulos base (fin S2) · H2: marketplace y subastas operativas (fin S6) · H3: tracking y app del conductor (fin S10) · H4: MVP integrado en staging (fin S14) · H5: MVP en producción y demo final (fin S16)                                                                                                                |
 
@@ -112,19 +84,19 @@ Dependencias críticas de la ruta: 2.1 → 2.3 → 2.4 → 2.5 → 3.1 → 3.2 (
 
 ## 3.4 Gestión de Costos: presupuesto y línea base (CE0124)
 
-El presupuesto total del proyecto es de S/ 27,566 (detalle en Entregable 2, sección 2.6). La línea base de costos se distribuye por sprint conforme al esfuerzo planificado (120 horas por sprint del equipo completo):
+El presupuesto total del proyecto es de S/ 20,966 (detalle en Entregable 2, sección 2.6). La línea base de costos se distribuye por sprint conforme al esfuerzo planificado (90 horas por sprint del equipo completo):
 
 | **Periodo**             | **Costo de desarrollo (S/)** | **Otros costos (S/)** | **Acumulado (S/)** |
 |-------------------------|------------------------------|-----------------------|--------------------|
-| Sprint 1 (S1–S2)        | 3,000                        | 440 (infra + dominio) | 3,440              |
-| Sprint 2 (S3–S4)        | 3,000                        | 190                   | 6,630              |
-| Sprint 3 (S5–S6)        | 3,000                        | 190                   | 9,820              |
-| Sprint 4 (S7–S8)        | 3,000                        | 190                   | 13,010             |
-| Sprint 5 (S9–S10)       | 3,000                        | 190                   | 16,200             |
-| Sprint 6 (S11–S12)      | 3,000                        | 190                   | 19,390             |
-| Sprint 7 (S13–S14)      | 3,000                        | 190                   | 22,580             |
-| Sprint 8 (S15–S16)      | 3,000                        | 190                   | 25,770             |
-| Reserva de contingencia |                              | 1,796                 | 27,566             |
+| Sprint 1 (S1–S2)        | 2,250                        | 440 (infra + dominio) | 2,690              |
+| Sprint 2 (S3–S4)        | 2,250                        | 190                   | 5,130              |
+| Sprint 3 (S5–S6)        | 2,250                        | 190                   | 7,570              |
+| Sprint 4 (S7–S8)        | 2,250                        | 190                   | 10,010             |
+| Sprint 5 (S9–S10)       | 2,250                        | 190                   | 12,450             |
+| Sprint 6 (S11–S12)      | 2,250                        | 190                   | 14,890             |
+| Sprint 7 (S13–S14)      | 2,250                        | 190                   | 17,330             |
+| Sprint 8 (S15–S16)      | 2,250                        | 190                   | 19,770             |
+| Reserva de contingencia |                              | 1,196                 | 20,966             |
 
 <img src="media/image9.png" style="width:6.01487in;height:3.24038in" />
 
@@ -149,7 +121,7 @@ La matriz se revisa en la retrospectiva de cada sprint: los riesgos materializad
 
 ## 3.6 Gestión Ágil
 
-La ejecución se gobierna con Scrum adaptado a un equipo de cuatro personas a tiempo parcial: sprints de dos semanas, planificación y retrospectiva por sprint, sincronización asíncrona diaria, y tablero de trabajo en la plataforma del repositorio.
+La ejecución se gobierna con Scrum adaptado a un equipo de tres personas a tiempo parcial: sprints de dos semanas, planificación y retrospectiva por sprint, sincronización asíncrona diaria, y tablero de trabajo en la plataforma del repositorio.
 
 ### 3.6.1 Backlog del producto (resumen por épicas)
 

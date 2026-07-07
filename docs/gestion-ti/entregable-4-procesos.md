@@ -2,34 +2,6 @@
 > Competencia: CE0131–CE0135 · Proyecto: LOGYX
 
 
-**UNIVERSIDAD PERUANA UNIÓN**
-
-Facultad de Ingeniería y Arquitectura — Escuela de Ingeniería de Sistemas
-
-**LOGYX**
-
-*Infraestructura Digital Colaborativa para la Logística de PYMEs*
-
-**Entregable 4: Modelado de Procesos AS-IS / TO-BE**
-
-Evaluación del Perfil de Egreso (EPE) — Área de Gestión de Tecnologías de Información (GTI)
-
-*Línea evaluada: CE0131–CE0135*
-
-Docente:
-
-**Integrantes:**
-
-Fabrizio Yerald Alfonso Sánchez Saravia
-
-Alex Coila Jarita
-
-Jorge Luis Gutiérrez Miranda
-
-Migue Alexandre Huayhua Chambi
-
-Juliaca, Perú — Julio 2026
-
 ## Nota Metodológica
 
 Este documento es uno de los 4 entregables del área de Gestión de Tecnologías de Información (GTI) del Perfil de Egreso, conforme al índice de líneas evaluadas: Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico (CE0111–CE0115); Entregable 2 — Business Case del Proyecto (CE0113); Entregable 3 — Plan de Gestión del Proyecto (CE0121–CE0125); Entregable 4 — Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135). La línea CE014 (Solución Técnica Integrada) se evalúa en otro momento y no forma parte de esta entrega; las referencias a su contenido en este documento se declaran explícitamente como “fuera del alcance de esta ronda de evaluación”.

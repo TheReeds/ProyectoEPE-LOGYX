@@ -30,6 +30,6 @@ Este sitio reúne la documentación de la **Evaluación del Perfil de Egreso (EP
 
 ## Equipo
 
-Jorge Luis Gutiérrez Miranda · Fabrizio Yerald Alfonso Sánchez Saravia · Alex Coila Jarita · Migue Alexandre Huayhua Chambi
+Jorge Luis Gutiérrez Miranda · Fabrizio Yerald Alfonso Sánchez Saravia · Alex Coila Jarita
 
 Universidad Peruana Unión — Facultad de Ingeniería y Arquitectura, Escuela de Ingeniería de Sistemas · Juliaca, Perú

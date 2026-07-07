@@ -2,34 +2,6 @@
 > Competencia: CE0113 · Proyecto: LOGYX
 
 
-**UNIVERSIDAD PERUANA UNIÓN**
-
-Facultad de Ingeniería y Arquitectura — Escuela de Ingeniería de Sistemas
-
-**LOGYX**
-
-*Infraestructura Digital Colaborativa para la Logística de PYMEs*
-
-**Entregable 2: Business Case del Proyecto**
-
-Evaluación del Perfil de Egreso (EPE) — Área de Gestión de Tecnologías de Información (GTI)
-
-*Línea evaluada: CE0113*
-
-Docente:
-
-**Integrantes:**
-
-Fabrizio Yerald Alfonso Sánchez Saravia
-
-Alex Coila Jarita
-
-Jorge Luis Gutiérrez Miranda
-
-Migue Alexandre Huayhua Chambi
-
-Juliaca, Perú — Julio 2026
-
 ## Nota Metodológica
 
 Este documento es uno de los 4 entregables del área de Gestión de Tecnologías de Información (GTI) del Perfil de Egreso, conforme al índice de líneas evaluadas: Entregable 1 — Diagnóstico Organizacional y Alineamiento Estratégico (CE0111–CE0115); Entregable 2 — Business Case del Proyecto (CE0113); Entregable 3 — Plan de Gestión del Proyecto (CE0121–CE0125); Entregable 4 — Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135). La línea CE014 (Solución Técnica Integrada) se evalúa en otro momento y no forma parte de esta entrega; las referencias a su contenido en este documento se declaran explícitamente como “fuera del alcance de esta ronda de evaluación”.
@@ -84,17 +56,17 @@ La alternativa D (desarrollar LOGYX) obtiene el mayor puntaje, con ventaja decis
 
 ## 2.6 Estimación de Costos
 
-*Supuesto declarado del equipo: 4 integrantes × 15 h/semana × 16 semanas = 960 horas; tarifa de referencia S/ 25/hora.*
+*Supuesto declarado del equipo: 3 integrantes × 15 h/semana × 16 semanas = 720 horas; tarifa de referencia S/ 25/hora.*
 
 | **Concepto**                                  | **Monto (S/)** |
 |-----------------------------------------------|----------------|
-| Desarrollo del MVP (960 h × S/ 25)            | 24,000         |
+| Desarrollo del MVP (720 h × S/ 25)            | 18,000         |
 | Infraestructura cloud de desarrollo (4 meses) | 760            |
 | Dominio, certificados y servicios menores     | 300            |
-| Contingencia (10%)                            | 2,506          |
-| TOTAL INVERSIÓN INICIAL                       | 27,566         |
+| Contingencia (10%)                            | 1,906          |
+| TOTAL INVERSIÓN INICIAL                       | 20,966         |
 
-Costos operativos: ~S/ 2,000/mes. TCO a 24 meses: S/ 75,566.
+Costos operativos: ~S/ 2,000/mes. TCO a 24 meses: S/ 68,966.
 
 ## 2.7 Evaluación Financiera
 
@@ -103,15 +75,15 @@ Costos operativos: ~S/ 2,000/mes. TCO a 24 meses: S/ 75,566.
 | **Indicador**                      | **Escenario base**    | **Escenario conservador (50%)** |
 |------------------------------------|-----------------------|---------------------------------|
 | Ingresos acumulados 24 meses       | S/ 584,820            | S/ 292,410                      |
-| Flujo neto acumulado               | S/ 509,254            | S/ 216,844                      |
+| Flujo neto acumulado               | S/ 515,854            | S/ 223,444                      |
 | Payback                            | Mes 11–12             | Mes 15–16                       |
-| ROI a 24 meses                     | ≈ 6.7×                | ≈ 2.9×                          |
-| Valor Actual Neto (VAN, 18% anual) | S/ 364,229 (positivo) | S/ 149,932 (positivo)           |
-| Tasa Interna de Retorno (TIR)      | ≈ 417.8% anual        | ≈ 217.3% anual                  |
+| ROI a 24 meses                     | ≈ 7.5×                | ≈ 3.2×                          |
+| Valor Actual Neto (VAN, 18% anual) | S/ 370,829 (positivo) | S/ 156,532 (positivo)           |
+| Tasa Interna de Retorno (TIR)      | > 417.8% anual        | > 217.3% anual                  |
 
 Aun en el escenario conservador el proyecto recupera su inversión dentro del horizonte. La sensibilidad del modelo está en el volumen de operaciones, reforzando que el riesgo dominante es de adopción (RE1/RE2), no financiero.
 
-*Nota sobre la TIR: los valores obtenidos (417.8% en el escenario base, 217.3% en el conservador) son elevados porque la inversión inicial (S/ 27,566) es pequeña en relación con los ingresos proyectados a 24 meses —patrón típico de startups de software de bajo capital intensivo (“asset-light”). El VAN positivo en ambos escenarios (S/ 364,229 y S/ 149,932 respectivamente, descontados al 18% anual) es el indicador más robusto de viabilidad financiera; la TIR se reporta por completitud metodológica, pero su magnitud debe interpretarse con cautela y idealmente contrastarse con un análisis de sensibilidad antes de usarse como argumento independiente ante inversionistas.*
+*Nota sobre la TIR: los valores originales (417.8% en el escenario base, 217.3% en el conservador) fueron calculados sobre una inversión inicial de S/ 27,566; al reducir el equipo a 3 integrantes, la inversión inicial baja a S/ 20,966, por lo que la TIR real es modestamente superior a esas cifras (se reporta como cota inferior ">" porque el recálculo exacto requiere el modelo de flujo de caja mensual, no incluido en este resumen agregado). El VAN sí se recalculó de forma exacta, ya que solo depende linealmente de la reducción de la inversión inicial (S/ 364,229 + S/ 6,600 = S/ 370,829; S/ 149,932 + S/ 6,600 = S/ 156,532, descontados al 18% anual) y es el indicador más robusto de viabilidad financiera; la TIR se reporta por completitud metodológica, pero su magnitud debe interpretarse con cautela y idealmente contrastarse con un análisis de sensibilidad antes de usarse como argumento independiente ante inversionistas.*
 
 ## 2.8 Riesgos Iniciales del Proyecto
 
