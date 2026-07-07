@@ -9,10 +9,10 @@
 
 | Entregable | Línea evaluada | Contenido |
 |---|---|---|
-| [E1 — Diagnóstico Organizacional y Alineamiento Estratégico](entregable-1-diagnostico.md) | CE0111–CE0115 | Análisis interno (AMOFHIT, EFI, FODA/CAME) y externo (Porter, PESTEL, EFE) del ecosistema logístico PYME–transportista, gobierno de TI (COBIT 2019) |
+| [E1 — Diagnóstico Organizacional y Alineamiento Estratégico](entregable-1/index.md) | CE0111–CE0115 | Análisis interno (AMOFHIT, EFI, FODA/CAME) y externo (Porter, PESTEL, EFE) del ecosistema logístico PYME–transportista, gobierno de TI (COBIT 2019) |
 | [E2 — Business Case del Proyecto](entregable-2-business-case.md) | CE0113 | Caso de negocio: viabilidad económica y justificación de la inversión en LOGYX |
-| [E3 — Plan de Gestión del Proyecto](entregable-3-plan-gestion.md) | CE0121–CE0125 | Project Charter, plan de alcance/tiempo/costo/recursos, WBS, cronograma, análisis económico, plan de riesgos (PMBOK / ágil) |
-| [E4 — Modelado de Procesos AS-IS / TO-BE](entregable-4-procesos.md) | CE0131–CE0135 | Identificación y caracterización de procesos, modelado AS-IS y TO-BE, propuesta de automatización/mejora vía TIC, indicadores de desempeño |
+| [E3 — Plan de Gestión del Proyecto](entregable-3/index.md) | CE0121–CE0125 | Project Charter, plan de alcance/tiempo/costo/recursos, WBS, cronograma, análisis económico, plan de riesgos (PMBOK / ágil) |
+| [E4 — Modelado de Procesos AS-IS / TO-BE](entregable-4/index.md) | CE0131–CE0135 | Identificación y caracterización de procesos, modelado AS-IS y TO-BE, propuesta de automatización/mejora vía TIC, indicadores de desempeño |
 
 ## Metodología del diagnóstico
 

@@ -1,6 +1,6 @@
 site_name: LOGYX — Documentación EPE
 site_description: Documentación de la Evaluación del Perfil de Egreso (EPE) de LOGYX — Software, Gestión de TI e Infraestructura
-site_author: Jorge Gutiérrez Miranda, Fabrizio Sánchez Saravia, Alex Coila Jarita, Migue Huayhua Chambi
+site_author: Jorge Gutiérrez Miranda, Fabrizio Sánchez Saravia, Alex Coila Jarita
 site_url: https://thereeds.github.io/ProyectoEPE-LOGYX/
 repo_name: TheReeds/ProyectoEPE-LOGYX
 repo_url: https://github.com/TheReeds/ProyectoEPE-LOGYX
@@ -101,10 +101,33 @@ nav:
           - Sustentación: software/entregable-5/sustentacion.md
   - Área de Gestión de TI:
       - gestion-ti/index.md
-      - "E1 · Diagnóstico Organizacional (CE0111–CE0115)": gestion-ti/entregable-1-diagnostico.md
+      - "E1 · Diagnóstico Organizacional (CE0111–CE0115)":
+          - gestion-ti/entregable-1/index.md
+          - "1.1 Contexto Organizacional (CE0111)": gestion-ti/entregable-1/contexto-organizacional.md
+          - "1.2 Análisis Estratégico (CE0112)": gestion-ti/entregable-1/analisis-estrategico.md
+          - "1.3 Diagnóstico Digital / TI": gestion-ti/entregable-1/diagnostico-digital-ti.md
+          - "1.4 Identificación del Problema": gestion-ti/entregable-1/identificacion-problema.md
+          - "1.5 Roadmap de Tecnología (CE0114)": gestion-ti/entregable-1/roadmap-tecnologia.md
+          - "1.6 Matriz de Riesgos Estratégicos (CE0115)": gestion-ti/entregable-1/matriz-riesgos.md
+          - "1.7 Gobierno de TI (COBIT 2019)": gestion-ti/entregable-1/gobierno-ti-cobit.md
       - "E2 · Business Case (CE0113)": gestion-ti/entregable-2-business-case.md
-      - "E3 · Plan de Gestión del Proyecto (CE0121–CE0125)": gestion-ti/entregable-3-plan-gestion.md
-      - "E4 · Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135)": gestion-ti/entregable-4-procesos.md
+      - "E3 · Plan de Gestión del Proyecto (CE0121–CE0125)":
+          - gestion-ti/entregable-3/index.md
+          - "3.1 Project Charter (CE0121)": gestion-ti/entregable-3/project-charter.md
+          - "3.2 Alcance: EDT/WBS (CE0122)": gestion-ti/entregable-3/alcance-edt-wbs.md
+          - "3.3 Cronograma (CE0123)": gestion-ti/entregable-3/cronograma.md
+          - "3.4 Costos (CE0124)": gestion-ti/entregable-3/costos.md
+          - "3.5 Riesgos del Proyecto (CE0125)": gestion-ti/entregable-3/riesgos.md
+          - "3.6 Gestión Ágil": gestion-ti/entregable-3/gestion-agil.md
+          - "3.7 Cumplimiento Normativo": gestion-ti/entregable-3/cumplimiento-normativo.md
+      - "E4 · Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135)":
+          - gestion-ti/entregable-4/index.md
+          - "4.1 Identificación del Proceso (CE0131)": gestion-ti/entregable-4/identificacion-proceso.md
+          - "4.2 Proceso AS-IS (CE0132)": gestion-ti/entregable-4/as-is.md
+          - "4.3 Proceso TO-BE (CE0133)": gestion-ti/entregable-4/to-be.md
+          - "4.4 Automatización TIC (CE0134)": gestion-ti/entregable-4/automatizacion.md
+          - "4.5 Indicadores de Desempeño (CE0135)": gestion-ti/entregable-4/indicadores.md
+          - "4.6 Toolkit Lean Six Sigma": gestion-ti/entregable-4/toolkit-lean-six-sigma.md
   - Área de Infraestructura:
       - infraestructura/index.md
       - "Semestre 1 · Diseño":
