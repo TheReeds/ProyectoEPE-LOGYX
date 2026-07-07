@@ -8,6 +8,11 @@ Organizado por las tres áreas evaluadas del programa:
 - **Área de Gestión de TI** — Entregables E1–E4 (CE0111–CE0135)
 - **Área de Infraestructura** — Semestre 1 (diseño) y Semestre 2 (implementación) (C1–C3)
 
+## Recursos
+
+- Entregables PDF/DOCX — [Software](https://drive.google.com/drive/folders/1i53tJRzGlQJKzFkyocFTw7BqKLGSR9pS?usp=sharing) · [Gestión de TI](https://drive.google.com/drive/folders/1u4SWkKHHsdrup8Ap_6_YBXLzr1Vq7CHd?usp=sharing) · [Infraestructura](https://drive.google.com/drive/folders/1Up9sKYe7uLqgN7L3EcqbCTTgAxQTGWVz?usp=sharing)
+- Prototipo navegable — [Figma](https://www.figma.com/proto/VPAgeR1zHUZCXKvBwKsYez/LOGYX-PROTOTIPOS?node-id=0-1&t=BFJbHyiHm6diGpam-1)
+
 ## Desarrollo local
 
 ```bash

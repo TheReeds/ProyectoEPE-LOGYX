@@ -28,6 +28,15 @@ Este sitio reúne la documentación de la **Evaluación del Perfil de Egreso (EP
 
 </div>
 
+## Recursos
+
+| Recurso | Link |
+|---|---|
+| :material-file-document-multiple: Entregables PDF/DOCX — Software | [Drive](https://drive.google.com/drive/folders/1i53tJRzGlQJKzFkyocFTw7BqKLGSR9pS?usp=sharing) |
+| :material-file-document-multiple: Entregables PDF/DOCX — Gestión de TI | [Drive](https://drive.google.com/drive/folders/1u4SWkKHHsdrup8Ap_6_YBXLzr1Vq7CHd?usp=sharing) |
+| :material-file-document-multiple: Entregables PDF/DOCX — Infraestructura | [Drive](https://drive.google.com/drive/folders/1Up9sKYe7uLqgN7L3EcqbCTTgAxQTGWVz?usp=sharing) |
+| :material-vector-square: Prototipo navegable (Figma) | [Ver en Figma](https://www.figma.com/proto/VPAgeR1zHUZCXKvBwKsYez/LOGYX-PROTOTIPOS?node-id=0-1&t=BFJbHyiHm6diGpam-1) |
+
 ## Equipo
 
 Jorge Luis Gutiérrez Miranda · Fabrizio Yerald Alfonso Sánchez Saravia · Alex Coila Jarita
