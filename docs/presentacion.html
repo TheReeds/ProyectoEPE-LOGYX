@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LOGYX — Evaluación del Perfil de Egreso</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'sans-serif'] },
+        colors: {
+          brand: {
+            50: '#eef2ff', 100:'#e0e7ff', 300:'#a5b4fc', 400:'#818cf8',
+            500:'#6366f1', 600:'#4f46e5', 700:'#4338ca', 900:'#312e81'
+          }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', sans-serif; }
+  .snap-container { scroll-snap-type: y mandatory; }
+  .slide { scroll-snap-align: start; scroll-snap-stop: always; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 999px; }
+  .dot { transition: all .3s ease-out; }
+  .dot.active { background-color: #6366f1; height: 1.75rem; }
+  .fade-up { animation: fadeUp .8s ease-out both; }
+  @keyframes fadeUp { from { opacity:0; transform: translateY(16px);} to {opacity:1; transform:translateY(0);} }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased">
+
+  <!-- Floating Navbar -->
+  <nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-slate-950/60 border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-6 md:px-10 h-16 flex items-center justify-between">
+      <a href="#slide-1" class="flex items-center gap-2 group">
+        <span class="w-7 h-7 rounded-md bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-xs font-extrabold">L</span>
+        <span class="font-extrabold tracking-tight text-lg">LOGYX</span>
+        <span class="hidden sm:inline text-xs font-medium text-slate-400 ml-1 border-l border-white/10 pl-2">EPE 2026-I</span>
+      </a>
+      <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+        <a href="#slide-2" class="hover:text-white transition-all duration-300">Documentación</a>
+        <a href="#slide-6" class="hover:text-white transition-all duration-300">Gestión TI</a>
+        <a href="#slide-11" class="hover:text-white transition-all duration-300">Software</a>
+        <a href="#slide-12" class="hover:text-white transition-all duration-300">Infraestructura</a>
+      </div>
+      <a href="https://thereeds.github.io/ProyectoEPE-LOGYX/" target="_blank" rel="noopener"
+         class="text-sm font-semibold px-4 py-2 rounded-full bg-brand-600 hover:bg-brand-500 transition-all duration-300 shadow-lg shadow-brand-600/20">
+        Ver sitio completo
+      </a>
+    </div>
+  </nav>
+
+  <!-- Side dot navigation -->
+  <div id="dotnav" class="fixed right-5 md:right-8 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
+    <!-- filled by JS -->
+  </div>
+
+  <!-- Scroll container -->
+  <main id="scrollroot" class="h-screen overflow-y-scroll snap-container">
+
+    <!-- ================= SLIDE 1 — HERO ================= -->
+    <section id="slide-1" class="slide relative w-full min-h-screen flex items-center justify-center bg-slate-950 overflow-hidden">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.18),transparent_45%),radial-gradient(circle_at_80%_75%,rgba(99,102,241,0.12),transparent_40%)]"></div>
+      <div class="relative max-w-5xl mx-auto px-6 text-center fade-up">
+        <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold tracking-wide text-brand-300 mb-8">
+          Evaluación del Perfil de Egreso · Ingeniería de Sistemas · UPeU
+        </span>
+        <h1 class="text-6xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[0.95] mb-6">
+          LOGYX
+        </h1>
+        <p class="text-lg sm:text-2xl font-light text-slate-300 max-w-3xl mx-auto mb-10">
+          Infraestructura digital colaborativa para la logística de PYMEs del corredor
+          <span class="font-medium text-white">Lima – Arequipa – Juliaca – Puno – Cusco</span>.
+        </p>
+        <div class="flex flex-wrap justify-center gap-4">
+          <a href="#slide-3" class="px-6 py-3 rounded-full bg-brand-600 hover:bg-brand-500 font-semibold transition-all duration-300 shadow-lg shadow-brand-600/30">
+            Ver el problema →
+          </a>
+          <a href="#slide-6" class="px-6 py-3 rounded-full border border-white/15 hover:border-white/40 hover:bg-white/5 font-semibold transition-all duration-300">
+            Ir a Gestión de TI
+          </a>
+        </div>
+        <p class="mt-14 text-sm text-slate-500 font-medium">
+          Fabrizio Sánchez Saravia · Alex Coila Jarita · Jorge Gutiérrez Miranda
+        </p>
+      </div>
+      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-slate-500 animate-bounce">
+        <span class="text-xs uppercase tracking-widest">Desliza</span>
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 2 — DOCUMENTACIÓN ================= -->
+    <section id="slide-2" class="slide w-full min-h-screen flex items-center bg-slate-50 text-slate-900">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 py-24 w-full">
+        <span class="text-sm font-bold tracking-widest text-brand-600 uppercase">Cómo navegar esta evidencia</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-4">Toda la documentación, en un solo lugar</h2>
+        <p class="text-lg font-light text-slate-600 max-w-2xl mb-12">
+          El detalle completo de los tres entregables (Software, Gestión de TI e Infraestructura) vive en un sitio
+          MkDocs versionado en GitHub, con respaldo en PDF/DOCX por área y el prototipo navegable en Figma.
+        </p>
+
+        <div class="grid md:grid-cols-3 gap-6">
+          <a href="https://thereeds.github.io/ProyectoEPE-LOGYX/" target="_blank" rel="noopener"
+             class="group rounded-2xl bg-white border border-slate-200 p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div class="w-11 h-11 rounded-xl bg-brand-600 text-white flex items-center justify-center mb-5 font-bold">M</div>
+            <h3 class="font-bold text-lg mb-2">Sitio MkDocs</h3>
+            <p class="text-sm text-slate-500 leading-relaxed">Documentación técnica navegable por entregable y sub-competencia, con tabla de contenidos y búsqueda.</p>
+            <span class="inline-block mt-4 text-sm font-semibold text-brand-600 group-hover:translate-x-1 transition-all duration-300">Abrir sitio →</span>
+          </a>
+          <a href="https://github.com/TheReeds/ProyectoEPE-LOGYX" target="_blank" rel="noopener"
+             class="group rounded-2xl bg-white border border-slate-200 p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div class="w-11 h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center mb-5 font-bold">G</div>
+            <h3 class="font-bold text-lg mb-2">Repositorio GitHub</h3>
+            <p class="text-sm text-slate-500 leading-relaxed">Fuente versionada de todo el contenido, historial de cambios y el pipeline de despliegue automático.</p>
+            <span class="inline-block mt-4 text-sm font-semibold text-brand-600 group-hover:translate-x-1 transition-all duration-300">Ver repositorio →</span>
+          </a>
+          <a href="https://www.figma.com/proto/VPAgeR1zHUZCXKvBwKsYez/LOGYX-PROTOTIPOS?node-id=0-1&t=BFJbHyiHm6diGpam-1" target="_blank" rel="noopener"
+             class="group rounded-2xl bg-white border border-slate-200 p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div class="w-11 h-11 rounded-xl bg-fuchsia-600 text-white flex items-center justify-center mb-5 font-bold">F</div>
+            <h3 class="font-bold text-lg mb-2">Prototipo Figma</h3>
+            <p class="text-sm text-slate-500 leading-relaxed">Prototipo navegable de las tres apps del ecosistema: LOGYX Business, Driver y Operator.</p>
+            <span class="inline-block mt-4 text-sm font-semibold text-brand-600 group-hover:translate-x-1 transition-all duration-300">Ver prototipo →</span>
+          </a>
+        </div>
+
+        <div class="mt-8 grid sm:grid-cols-3 gap-4">
+          <a href="https://drive.google.com/drive/folders/1i53tJRzGlQJKzFkyocFTw7BqKLGSR9pS?usp=sharing" target="_blank" rel="noopener"
+             class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-5 py-4 hover:border-brand-400 transition-all duration-300">
+            <span class="text-sm font-semibold">Drive · Software</span>
+            <span class="text-slate-400">↗</span>
+          </a>
+          <a href="https://drive.google.com/drive/folders/1u4SWkKHHsdrup8Ap_6_YBXLzr1Vq7CHd?usp=sharing" target="_blank" rel="noopener"
+             class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-5 py-4 hover:border-brand-400 transition-all duration-300">
+            <span class="text-sm font-semibold">Drive · Gestión de TI</span>
+            <span class="text-slate-400">↗</span>
+          </a>
+          <a href="https://drive.google.com/drive/folders/1Up9sKYe7uLqgN7L3EcqbCTTgAxQTGWVz?usp=sharing" target="_blank" rel="noopener"
+             class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-5 py-4 hover:border-brand-400 transition-all duration-300">
+            <span class="text-sm font-semibold">Drive · Infraestructura</span>
+            <span class="text-slate-400">↗</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 3 — EL PROBLEMA (split) ================= -->
+    <section id="slide-3" class="slide w-full min-h-screen flex items-center bg-slate-950">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 items-center w-full">
+        <div>
+          <span class="text-sm font-bold tracking-widest text-brand-400 uppercase">El problema</span>
+          <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-6 leading-tight">
+            La logística fragmentada le cuesta más caro al pequeño
+          </h2>
+          <p class="text-lg font-light text-slate-300 leading-relaxed mb-6">
+            Las PYMEs del corredor Lima–Sierra Sur coordinan su transporte de manera informal —WhatsApp,
+            llamadas, Excel— sin poder de negociación frente a intermediarios y "hombres-camión" que
+            atomizan la oferta.
+          </p>
+          <p class="text-lg font-light text-slate-300 leading-relaxed">
+            La tesis del proyecto: la colaboración entre PYMEs fragmentadas puede replicar el poder de
+            negociación logístico de una gran corporación.
+          </p>
+        </div>
+        <div class="grid grid-cols-2 gap-5">
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6">
+            <p class="text-4xl font-extrabold text-brand-400">21.1%</p>
+            <p class="text-sm text-slate-400 mt-2">de las ventas se va en costos logísticos para microempresas (ComexPerú, 2022)</p>
+          </div>
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6">
+            <p class="text-4xl font-extrabold text-brand-400">3.0/5</p>
+            <p class="text-sm text-slate-400 mt-2">Logistics Performance Index del Perú (Banco Mundial, 2023)</p>
+          </div>
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6">
+            <p class="text-4xl font-extrabold text-brand-400">2.3M+</p>
+            <p class="text-sm text-slate-400 mt-2">MIPYMEs formales en el Perú (PRODUCE, 2025)</p>
+          </div>
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6">
+            <p class="text-4xl font-extrabold text-brand-400">15.3%</p>
+            <p class="text-sm text-slate-400 mt-2">margen típico de un broker logístico tradicional</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 4 — LA SOLUCIÓN (bento) ================= -->
+    <section id="slide-4" class="slide w-full min-h-screen flex items-center bg-slate-50 text-slate-900">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 py-24 w-full">
+        <span class="text-sm font-bold tracking-widest text-brand-600 uppercase">La solución</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-12">Un marketplace B2B con reglas claras</h2>
+        <div class="grid md:grid-cols-4 md:grid-rows-2 gap-5">
+          <div class="md:col-span-2 md:row-span-2 rounded-2xl bg-slate-900 text-white p-8 flex flex-col justify-between hover:-translate-y-1 transition-all duration-300">
+            <div>
+              <h3 class="text-2xl font-bold mb-3">Marketplace + Subasta Inversa</h3>
+              <p class="text-slate-300 font-light">PYMEs publican solicitudes de carga; transportistas verificados compiten por precio y calidad en una ventana de tiempo controlada.</p>
+            </div>
+            <span class="text-xs font-semibold text-brand-300 mt-6">Módulo AUCTION</span>
+          </div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-6 hover:-translate-y-1 transition-all duration-300">
+            <h3 class="font-bold mb-2">Motor de Costos</h3>
+            <p class="text-sm text-slate-500 font-light">Precio de referencia con distancias reales antes de publicar.</p>
+          </div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-6 hover:-translate-y-1 transition-all duration-300">
+            <h3 class="font-bold mb-2">Tracking Multi-Parada</h3>
+            <p class="text-sm text-slate-500 font-light">Estados en tiempo real con evidencia fotográfica y firma.</p>
+          </div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-6 hover:-translate-y-1 transition-all duration-300">
+            <h3 class="font-bold mb-2">Smart Load Planner</h3>
+            <p class="text-sm text-slate-500 font-light">Consolidación de cargas y aprovechamiento de retornos.</p>
+          </div>
+          <div class="rounded-2xl bg-brand-600 text-white p-6 hover:-translate-y-1 transition-all duration-300">
+            <h3 class="font-bold mb-2">Reputación</h3>
+            <p class="text-sm text-brand-100 font-light">Trust Score compuesto por cumplimiento, puntualidad y calidad.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 5 — MODELO DE NEGOCIO (split) ================= -->
+    <section id="slide-5" class="slide w-full min-h-screen flex items-center bg-slate-950">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 items-center w-full">
+        <div class="order-2 md:order-1 grid grid-cols-3 gap-4">
+          <div class="col-span-3 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-900 p-6">
+            <p class="text-sm text-brand-100 font-medium mb-1">Comisión escalonada por lealtad</p>
+            <p class="text-5xl font-extrabold">2%–8%</p>
+          </div>
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
+            <p class="text-xs text-slate-400 mb-1">TAM</p>
+            <p class="text-lg font-bold">2.3M+</p>
+          </div>
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
+            <p class="text-xs text-slate-400 mb-1">SAM</p>
+            <p class="text-lg font-bold">~50k</p>
+          </div>
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
+            <p class="text-xs text-slate-400 mb-1">SOM</p>
+            <p class="text-lg font-bold">200</p>
+          </div>
+        </div>
+        <div class="order-1 md:order-2">
+          <span class="text-sm font-bold tracking-widest text-brand-400 uppercase">Modelo de negocio</span>
+          <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-6 leading-tight">
+            Ingresos por transacción, no por suscripción
+          </h2>
+          <p class="text-lg font-light text-slate-300 leading-relaxed">
+            LOGYX cobra una comisión escalonada de 2% a 8% sobre cada transacción completada — muy por
+            debajo del margen de un broker tradicional (15.3%). El mercado objetivo son las PYMEs y
+            transportistas del corredor Lima–Arequipa–Juliaca–Puno–Cusco, con una meta de 200 empresas
+            activas y punto de equilibrio hacia la semana 24 del MVP.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 6 — GESTIÓN DE TI (section divider) ================= -->
+    <section id="slide-6" class="slide w-full min-h-screen flex items-center bg-gradient-to-br from-brand-900 via-slate-950 to-slate-950">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 w-full">
+        <span class="text-sm font-bold tracking-widest text-brand-300 uppercase">Foco de esta presentación</span>
+        <h2 class="text-5xl md:text-6xl font-extrabold tracking-tight mt-3 mb-6">Área de Gestión de TI</h2>
+        <p class="text-lg font-light text-slate-300 max-w-2xl mb-14">
+          Competencia CE01 — Gestión e Innovación de TI. Diagnostica brechas, prioriza iniciativas,
+          justifica inversiones y orienta la tecnología hacia resultados organizacionales, bajo el
+          modelo CDIO y estándares PMBOK / Gobierno de TI / Gestión de Procesos.
+        </p>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6 hover:border-brand-400 hover:-translate-y-1 transition-all duration-300">
+            <span class="text-xs font-bold text-brand-300">CE0111–CE0115</span>
+            <h3 class="font-bold text-lg mt-2 mb-1">E1 · Diagnóstico</h3>
+            <p class="text-sm text-slate-400 font-light">Alineamiento estratégico y organizacional</p>
+          </div>
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6 hover:border-brand-400 hover:-translate-y-1 transition-all duration-300">
+            <span class="text-xs font-bold text-brand-300">CE0113</span>
+            <h3 class="font-bold text-lg mt-2 mb-1">E2 · Business Case</h3>
+            <p class="text-sm text-slate-400 font-light">Viabilidad económica del proyecto</p>
+          </div>
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6 hover:border-brand-400 hover:-translate-y-1 transition-all duration-300">
+            <span class="text-xs font-bold text-brand-300">CE0121–CE0125</span>
+            <h3 class="font-bold text-lg mt-2 mb-1">E3 · Plan de Gestión</h3>
+            <p class="text-sm text-slate-400 font-light">PMBOK + Ágil, WBS, riesgos</p>
+          </div>
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6 hover:border-brand-400 hover:-translate-y-1 transition-all duration-300">
+            <span class="text-xs font-bold text-brand-300">CE0131–CE0135</span>
+            <h3 class="font-bold text-lg mt-2 mb-1">E4 · Procesos</h3>
+            <p class="text-sm text-slate-400 font-light">Modelado AS-IS / TO-BE</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 7 — E1 DIAGNÓSTICO ================= -->
+    <section id="slide-7" class="slide w-full min-h-screen flex items-center bg-slate-50 text-slate-900">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 items-center w-full py-24">
+        <div>
+          <span class="text-sm font-bold tracking-widest text-brand-600 uppercase">Gestión TI · E1</span>
+          <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-6 leading-tight">
+            Diagnóstico bajo doble lente
+          </h2>
+          <p class="text-lg font-light text-slate-600 leading-relaxed mb-6">
+            El análisis interno evalúa a LOGYX como organización (equipo, finanzas, tecnología);
+            el análisis externo evalúa el ecosistema logístico PYME–transportista representado
+            mediante una PYME arquetipo.
+          </p>
+          <p class="text-lg font-light text-slate-600 leading-relaxed">
+            Se cierra con un análisis de Gobierno de TI bajo <span class="font-semibold text-slate-900">COBIT 2019</span>,
+            que identifica las obligaciones normativas (Ley N° 29733, PCI-DSS) que la solución técnica
+            debe satisfacer desde su diseño.
+          </p>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="rounded-2xl bg-white border border-slate-200 p-6"><h3 class="font-bold mb-1">AMOFHIT</h3><p class="text-xs text-slate-500">Análisis interno por áreas funcionales</p></div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-6"><h3 class="font-bold mb-1">EFI / EFE</h3><p class="text-xs text-slate-500">Matrices de factores internos y externos</p></div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-6"><h3 class="font-bold mb-1">Porter</h3><p class="text-xs text-slate-500">Cinco fuerzas del microentorno</p></div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-6"><h3 class="font-bold mb-1">PESTEL</h3><p class="text-xs text-slate-500">Macroentorno político, social, tecnológico</p></div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-6"><h3 class="font-bold mb-1">FODA / CAME</h3><p class="text-xs text-slate-500">Cruce estratégico y plan de acción</p></div>
+          <div class="rounded-2xl bg-brand-600 text-white p-6"><h3 class="font-bold mb-1">COBIT 2019</h3><p class="text-xs text-brand-100">Gobierno de TI y riesgo normativo</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 8 — E2 BUSINESS CASE ================= -->
+    <section id="slide-8" class="slide w-full min-h-screen flex items-center bg-slate-950">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 w-full py-24">
+        <span class="text-sm font-bold tracking-widest text-brand-400 uppercase">Gestión TI · E2</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-4">Business Case: viabilidad financiera clara</h2>
+        <p class="text-lg font-light text-slate-300 max-w-2xl mb-12">
+          Inversión inicial acotada frente a un modelo de ingresos de bajo capital intensivo
+          ("asset-light"), típico de startups de software.
+        </p>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6">
+            <p class="text-xs text-slate-400 mb-2">Inversión inicial</p>
+            <p class="text-3xl font-extrabold text-white">S/ 20,966</p>
+          </div>
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6">
+            <p class="text-xs text-slate-400 mb-2">TCO a 24 meses</p>
+            <p class="text-3xl font-extrabold text-white">S/ 68,966</p>
+          </div>
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-6">
+            <p class="text-xs text-slate-400 mb-2">Payback</p>
+            <p class="text-3xl font-extrabold text-white">Mes 11–12</p>
+          </div>
+          <div class="rounded-2xl bg-brand-600 p-6">
+            <p class="text-xs text-brand-100 mb-2">VAN (18% anual)</p>
+            <p class="text-3xl font-extrabold text-white">S/ 370,829</p>
+          </div>
+        </div>
+        <p class="text-sm text-slate-500 font-light mt-8 max-w-2xl">
+          Incluso en el escenario conservador (50% del volumen proyectado) el proyecto recupera su
+          inversión dentro del horizonte de 24 meses: VAN de S/ 156,532 y payback en el mes 15–16.
+        </p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 9 — E3 PLAN DE GESTIÓN (split) ================= -->
+    <section id="slide-9" class="slide w-full min-h-screen flex items-center bg-slate-50 text-slate-900">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 items-center w-full py-24">
+        <div>
+          <span class="text-sm font-bold tracking-widest text-brand-600 uppercase">Gestión TI · E3</span>
+          <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-6 leading-tight">
+            PMBOK para el gobierno, Scrum para la ejecución
+          </h2>
+          <p class="text-lg font-light text-slate-600 leading-relaxed mb-6">
+            El plan adopta un enfoque híbrido: Project Charter, EDT/WBS y línea base de costos bajo
+            buenas prácticas PMBOK, mientras el desarrollo se ejecuta en 8 sprints de dos semanas con
+            métricas de velocidad — con evidencia real de configuración en Azure DevOps.
+          </p>
+          <div class="flex gap-3 flex-wrap">
+            <span class="px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold">16 semanas</span>
+            <span class="px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold">8 sprints</span>
+            <span class="px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold">5 hitos H1–H5</span>
+            <span class="px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold">Equipo de 3</span>
+          </div>
+        </div>
+        <div class="rounded-2xl bg-white border border-slate-200 p-8">
+          <h3 class="font-bold mb-4">Hitos de alto nivel</h3>
+          <ol class="space-y-3 text-sm">
+            <li class="flex gap-3"><span class="font-bold text-brand-600">H1</span><span class="text-slate-600 font-light">Arquitectura y módulos base</span></li>
+            <li class="flex gap-3"><span class="font-bold text-brand-600">H2</span><span class="text-slate-600 font-light">Marketplace y subastas operativas</span></li>
+            <li class="flex gap-3"><span class="font-bold text-brand-600">H3</span><span class="text-slate-600 font-light">Tracking y app del conductor</span></li>
+            <li class="flex gap-3"><span class="font-bold text-brand-600">H4</span><span class="text-slate-600 font-light">MVP integrado en staging</span></li>
+            <li class="flex gap-3"><span class="font-bold text-brand-600">H5</span><span class="text-slate-600 font-light">MVP en producción y demo final</span></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 10 — E4 MODELADO DE PROCESOS ================= -->
+    <section id="slide-10" class="slide w-full min-h-screen flex items-center bg-slate-950">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 w-full py-24">
+        <span class="text-sm font-bold tracking-widest text-brand-400 uppercase">Gestión TI · E4</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-12">De la informalidad al proceso trazable</h2>
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-8">
+            <span class="text-xs font-bold text-red-400 uppercase">AS-IS</span>
+            <h3 class="text-xl font-bold mt-2 mb-3">Coordinación informal</h3>
+            <p class="text-slate-400 font-light">WhatsApp, llamadas y Excel; sin trazabilidad ni verificación del transportista, con visibilidad nula del estado del envío.</p>
+          </div>
+          <div class="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-900 p-8">
+            <span class="text-xs font-bold text-brand-200 uppercase">TO-BE</span>
+            <h3 class="text-xl font-bold mt-2 mb-3">Plataforma digital LOGYX</h3>
+            <p class="text-brand-100 font-light">Marketplace con verificación legal, tracking en tiempo real y trazabilidad completa del proceso logístico.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <span class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">5W2H</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">Swimlane VA/NVA</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">Ishikawa</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">Árboles causales</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">Pareto</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">Brainstorming</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">Plan de Acción</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">Formato A3</span>
+        </div>
+        <p class="text-sm text-slate-500 font-light mt-6 max-w-2xl">Toolkit completo de Lean Six Sigma aplicado al caso LOGYX (sección 4.6).</p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 11 — ÁREA DE SOFTWARE (brief) ================= -->
+    <section id="slide-11" class="slide w-full min-h-screen flex items-center bg-slate-50 text-slate-900">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 w-full py-24">
+        <span class="text-sm font-bold tracking-widest text-brand-600 uppercase">Área de Software</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-4">De los requerimientos al sistema desplegado</h2>
+        <p class="text-lg font-light text-slate-600 max-w-2xl mb-10">
+          Backend en Quarkus, frontend web en Angular y tres apps móviles en Flutter, sobre PostgreSQL.
+        </p>
+        <div class="grid sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">CE021</span><h3 class="font-bold mt-1">E1 · Sistema</h3><p class="text-xs text-slate-500 mt-1">SRS, prototipos, C4, UML</p></div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">CE022</span><h3 class="font-bold mt-1">E2 · Base de Datos</h3><p class="text-xs text-slate-500 mt-1">Modelo, SQL, seguridad</p></div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">CE023</span><h3 class="font-bold mt-1">E3 · Sistema</h3><p class="text-xs text-slate-500 mt-1">Implementación y despliegue</p></div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">CE024</span><h3 class="font-bold mt-1">E4 · Validado</h3><p class="text-xs text-slate-500 mt-1">Pruebas, CI/CD, auditoría</p></div>
+          <div class="rounded-2xl bg-slate-900 text-white p-5"><span class="text-xs font-bold text-brand-300">CE0217</span><h3 class="font-bold mt-1">E5 · Sustentación</h3><p class="text-xs text-slate-300 mt-1">Video pitch y defensa</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 12 — ÁREA DE INFRAESTRUCTURA (brief) ================= -->
+    <section id="slide-12" class="slide w-full min-h-screen flex items-center bg-slate-950">
+      <div class="max-w-6xl mx-auto px-6 md:px-10 w-full py-24">
+        <span class="text-sm font-bold tracking-widest text-brand-400 uppercase">Área de Infraestructura</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-4">Del diseño a la operación confiable</h2>
+        <p class="text-lg font-light text-slate-300 max-w-2xl mb-10">Dos semestres: diseño primero, implementación y control después.</p>
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-8">
+            <h3 class="font-bold text-lg mb-4">Semestre 1 · Diseño</h3>
+            <ul class="space-y-2 text-sm text-slate-300 font-light">
+              <li><span class="font-semibold text-brand-300">C1.1</span> — Diseño de red (VLAN, DMZ, redundancia)</li>
+              <li><span class="font-semibold text-brand-300">C2.1</span> — Planificación de seguridad (ISO 27005 / NIST)</li>
+              <li><span class="font-semibold text-brand-300">C3.1</span> — Diseño de centro de datos (Tier I–IV)</li>
+            </ul>
+          </div>
+          <div class="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-900 p-8">
+            <h3 class="font-bold text-lg mb-4">Semestre 2 · Implementación</h3>
+            <ul class="space-y-2 text-sm text-brand-50 font-light">
+              <li><span class="font-semibold text-white">C1.2/C1.3</span> — Configuración y testing de red</li>
+              <li><span class="font-semibold text-white">C2.2–C2.4</span> — Controles, monitoreo y ética ACM</li>
+              <li><span class="font-semibold text-white">C3.2/C3.3</span> — Servidores, almacenamiento y SLA</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 13 — EQUIPO / CIERRE ================= -->
+    <section id="slide-13" class="slide relative w-full min-h-screen flex items-center justify-center bg-slate-950 overflow-hidden">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(99,102,241,0.18),transparent_50%)]"></div>
+      <div class="relative max-w-4xl mx-auto px-6 text-center">
+        <span class="text-sm font-bold tracking-widest text-brand-400 uppercase">Equipo</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-10">
+          Fabrizio Sánchez · Alex Coila · Jorge Gutiérrez
+        </h2>
+        <p class="text-lg font-light text-slate-300 max-w-2xl mx-auto mb-12">
+          Universidad Peruana Unión — Facultad de Ingeniería y Arquitectura, Escuela de Ingeniería
+          de Sistemas · Juliaca, Perú
+        </p>
+        <div class="flex flex-wrap justify-center gap-4">
+          <a href="https://thereeds.github.io/ProyectoEPE-LOGYX/" target="_blank" rel="noopener"
+             class="px-6 py-3 rounded-full bg-brand-600 hover:bg-brand-500 font-semibold transition-all duration-300 shadow-lg shadow-brand-600/30">
+            Explorar la documentación completa
+          </a>
+          <a href="https://github.com/TheReeds/ProyectoEPE-LOGYX" target="_blank" rel="noopener"
+             class="px-6 py-3 rounded-full border border-white/15 hover:border-white/40 hover:bg-white/5 font-semibold transition-all duration-300">
+            Repositorio en GitHub
+          </a>
+        </div>
+        <button onclick="document.getElementById('scrollroot').scrollTo({top:0,behavior:'smooth'})"
+                class="mt-16 text-sm text-slate-500 hover:text-slate-300 transition-all duration-300">
+          ↑ Volver al inicio
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const dotnav = document.getElementById('dotnav');
+    slides.forEach((s, i) => {
+      const dot = document.createElement('a');
+      dot.href = '#' + s.id;
+      dot.className = 'dot w-2 h-2 rounded-full bg-white/25 hover:bg-white/60';
+      dot.setAttribute('aria-label', 'Ir a sección ' + (i + 1));
+      dotnav.appendChild(dot);
+    });
+    const dots = Array.from(dotnav.children);
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const idx = slides.indexOf(entry.target);
+        if (entry.isIntersecting) {
+          dots.forEach(d => d.classList.remove('active'));
+          dots[idx].classList.add('active');
+        }
+      });
+    }, { root: document.getElementById('scrollroot'), threshold: 0.55 });
+
+    slides.forEach(s => observer.observe(s));
+  </script>
+</body>
+</html>
