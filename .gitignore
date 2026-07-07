@@ -1,0 +1,10 @@
+site/
+.venv/
+__pycache__/
+.cache/
+
+# Claude Code / agent artifacts — never publish these
+.claude/
+**/.claude/
+.mcp.json
+CLAUDE.md

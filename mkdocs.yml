@@ -1,0 +1,119 @@
+site_name: LOGYX — Documentación EPE
+site_description: Documentación de la Evaluación del Perfil de Egreso (EPE) de LOGYX — Software, Gestión de TI e Infraestructura
+site_author: Jorge Gutiérrez Miranda, Fabrizio Sánchez Saravia, Alex Coila Jarita, Migue Huayhua Chambi
+site_url: https://thereeds.github.io/ProyectoEPE-LOGYX/
+repo_name: TheReeds/ProyectoEPE-LOGYX
+repo_url: https://github.com/TheReeds/ProyectoEPE-LOGYX
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: es
+  icon:
+    logo: material/truck-fast-outline
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Cambiar a modo oscuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Cambiar a modo claro
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+plugins:
+  - search
+
+extra:
+  social: []
+
+nav:
+  - Inicio: index.md
+  - Área de Software:
+      - software/index.md
+      - "E1 · Documento del Sistema (CE021)":
+          - software/entregable-1/index.md
+          - SRS (IEEE 29148): software/entregable-1/srs.md
+          - Prototipos: software/entregable-1/prototipos.md
+          - Arquitectura (IEEE 42010 / C4): software/entregable-1/arquitectura.md
+          - Modelado UML: software/entregable-1/uml.md
+      - "E2 · Base de Datos del Sistema (CE022)":
+          - software/entregable-2/index.md
+          - Modelo de Datos: software/entregable-2/modelo-datos.md
+          - Scripts SQL: software/entregable-2/scripts.md
+          - Seguridad y Administración BD: software/entregable-2/seguridad.md
+      - "E3 · Sistema Desarrollado (CE023)":
+          - software/entregable-3/index.md
+          - Sistema Implementado: software/entregable-3/sistema.md
+          - Arquitectura Frontend: software/entregable-3/arquitectura-frontend.md
+      - "E4 · Sistema Validado y Gestionado (CE024)":
+          - software/entregable-4/index.md
+          - Backlog y Sprints: software/entregable-4/backlog.md
+          - Plan de Pruebas: software/entregable-4/plan-pruebas.md
+          - CI/CD: software/entregable-4/cicd.md
+          - Auditoría y Evolución: software/entregable-4/auditoria.md
+      - "E5 · Video Pitch y Sustentación (CE0217)":
+          - software/entregable-5/index.md
+          - Sustentación: software/entregable-5/sustentacion.md
+  - Área de Gestión de TI:
+      - gestion-ti/index.md
+      - "E1 · Diagnóstico Organizacional (CE0111–CE0115)": gestion-ti/entregable-1-diagnostico.md
+      - "E2 · Business Case (CE0113)": gestion-ti/entregable-2-business-case.md
+      - "E3 · Plan de Gestión del Proyecto (CE0121–CE0125)": gestion-ti/entregable-3-plan-gestion.md
+      - "E4 · Modelado de Procesos AS-IS/TO-BE (CE0131–CE0135)": gestion-ti/entregable-4-procesos.md
+  - Área de Infraestructura:
+      - infraestructura/index.md
+      - "Semestre 1 · Diseño":
+          - infraestructura/semestre-1/index.md
+          - "C1.1 Diseño de Red": infraestructura/semestre-1/diseno-red.md
+          - "C2.1 Planificación de Seguridad": infraestructura/semestre-1/planificacion-seguridad.md
+          - "C3.1 Diseño de Centro de Datos": infraestructura/semestre-1/diseno-datacenter.md
+      - "Semestre 2 · Implementación":
+          - infraestructura/semestre-2/index.md
+          - "C1.2/C1.3 Implementación y Testing de Red": infraestructura/semestre-2/implementacion-red.md
+          - "C2.2–C2.4 Implementación, Monitoreo y Ética": infraestructura/semestre-2/implementacion-seguridad.md
+          - "C3.2/C3.3 Implementación y Control de Datacenter": infraestructura/semestre-2/implementacion-datacenter.md
