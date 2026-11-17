@@ -1,633 +1,517 @@
 # E1 — Modelado Técnico UML
 > Competencia CE0214 · Diagramas estructurales y de comportamiento  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Herramienta: Mermaid (exportar a imagen para entrega formal)  
-> Versión: 1.0 · Junio 2026
+> Herramienta: Mermaid  
+> Versión: 2.0 (alineada con el código) · Noviembre 2026 · Versión original 1.0, junio 2026
+
+!!! info "Alineación con el sistema construido"
+    Los diagramas de la v1.0 se rehicieron a partir del código del backend (`pe.logyx.*`), de las migraciones Flyway V1–V12 y del contrato OpenAPI. Los nombres de clases, estados y endpoints son los reales. Lo que el diseño inicial planteaba y no se construyó (Google OAuth, ORS, email, código `LGX-XXXXX`, estado de envío `ISSUE`) ya no aparece, o se marca como pendiente.
 
 ---
 
-## 1. Diagrama de Casos de Uso
+## 1. Diagramas de Casos de Uso
 
-### 1.1 Sistema Completo — Vista General
+### 1.1 Sistema completo por actor
 
 ```mermaid
 graph LR
-  subgraph Sistema LOGYX
-    UC1[Registrarse y verificar RUC]
-    UC2[Iniciar sesión]
-    UC3[Publicar solicitud de carga]
-    UC4[Ver subasta y recibir ofertas]
-    UC5[Negociar precio]
-    UC6[Aceptar oferta]
-    UC7[Ver tracking del envío]
-    UC8[Calificar contraparte]
-    UC9[Gestionar documentos]
-    UC10[Reportar incidencia]
+  PYME((PYME))
+  CAR((Transportista))
+  DRV((Conductor))
+  OPE((Operador))
 
-    UC11[Ver marketplace de cargas]
-    UC12[Ofertar en subasta]
-    UC13[Publicar viaje disponible]
-    UC14[Ver Smart Load Plan]
-    UC15[Ver cargas de retorno]
-    UC16[Actualizar estado del envío]
-    UC17[Subir evidencia de entrega]
+  subgraph OnCargo["Sistema OnCargo (casos de uso implementados)"]
+    A1[Registrarse con consentimiento Ley 29733]
+    A2[Iniciar sesión]
+    A3[Publicar solicitud con cotización en vivo]
+    A4[Comparar ofertas y aceptar]
+    A5[Negociar: chat y contraoferta]
+    A6[Seguir el envío en mapa y en vivo]
+    A7[Calificar al transportista]
+    A8[Reportar incidencia]
+    A9[Buscar viajes y reservar espacio]
 
-    UC18[Ver dashboard global]
-    UC19[Asignar carrier manualmente]
-    UC20[Gestionar incidencias]
+    B1[Ver marketplace con filtros]
+    B2[Ofertar a la subasta]
+    B3[Gestionar flota y conductores]
+    B4[Asignar conductor al envío]
+    B5[Publicar viaje y confirmar reservas]
+    B6[Cargas de retorno]
+    B7[Aceptar sugerencia Smart Load]
 
-    UC21[Ver ruta asignada]
-    UC22[Actualizar parada]
-    UC23[Capturar firma y foto]
+    C1[Ver viaje activo]
+    C2[Marcar llegada y completar parada]
+    C3[Subir foto de entrega y firma]
+
+    D1[Ver métricas y alertas SLA]
+    D2[Asignar transportista manualmente RN10]
+    D3[Gestionar incidencias]
   end
 
-  PYME((PYME)) --> UC1
-  PYME --> UC2
-  PYME --> UC3
-  PYME --> UC4
-  PYME --> UC5
-  PYME --> UC6
-  PYME --> UC7
-  PYME --> UC8
-  PYME --> UC9
-  PYME --> UC10
-
-  Carrier((Transportista)) --> UC1
-  Carrier --> UC2
-  Carrier --> UC11
-  Carrier --> UC12
-  Carrier --> UC13
-  Carrier --> UC14
-  Carrier --> UC15
-  Carrier --> UC5
-  Carrier --> UC8
-  Carrier --> UC9
-
-  Driver((Conductor)) --> UC2
-  Driver --> UC21
-  Driver --> UC22
-  Driver --> UC23
-  Driver --> UC10
-
-  Operator((Operador)) --> UC18
-  Operator --> UC19
-  Operator --> UC20
-  Operator --> UC16
+  PYME --- A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9
+  CAR --- A1 & A2 & A5 & A8 & B1 & B2 & B3 & B4 & B5 & B6 & B7
+  DRV --- A2 & C1 & C2 & C3 & A8
+  OPE --- A2 & D1 & D2 & D3
 ```
+
+Ver notificaciones, documentos del envío y el perfil público de reputación son casos de uso transversales (PYME, transportista y operador). El conductor solo usa la app Android o la página `/conductor` de la web; el operador usa solo la web.
+
+### 1.2 Casos de uso — Marketplace y subastas (detalle)
+
+| Caso de uso | Actor | Precondiciones | Reglas | Módulo |
+|---|---|---|---|---|
+| Publicar solicitud | PYME | RUC verificado | RN01, cotización RN03 | `marketplace.PublishRequestUseCase` |
+| Ofertar | Transportista | Subasta abierta, vehículo propio con capacidad | RN02, RN03, RN04 | `marketplace.PlaceBidUseCase` |
+| Cierre automático | Sistema | 20 min o 5 ofertas | RN04 | `CloseExpiredAuctionsUseCase`, `AuctionScheduler` |
+| Aceptar oferta | PYME | Oferta `PENDING` | RN05 | `marketplace.AcceptBidUseCase` |
+| Contraofertar | PYME / Transportista | Oferta pendiente; mensaje sin contacto | RN07, RN03 (≥ piso) | `negotiation.NegotiationService` |
+| Asignación manual | Operador | Solicitud sin ofertas ≥ 24 h | RN10 | `marketplace.ManualAssignmentUseCase` |
+
+### 1.3 Casos de uso — Ejecución y evidencia (detalle)
+
+| Caso de uso | Actor | Reglas | Módulo |
+|---|---|---|---|
+| Asignar conductor | Transportista | conductor de su organización | `shipment.AssignDriverUseCase` |
+| Marcar llegada / completar parada | Conductor | RN08 (orden), RN11 (sin incidencia activa), foto obligatoria en la entrega (`LOGYX-TRK-006`) | `shipment.TrackStopsUseCase` |
+| Subir evidencia | Conductor / partes | firma binaria jpg/png/pdf, ≤ 10 MB | `documents` |
+| Reportar incidencia | Partes y conductor | RN11 | `incident.IncidentService` |
+| Resolver incidencia | Operador | notas de resolución obligatorias | `incident.IncidentStatusPolicy` |
+| Calificar | PYME / transportista | RN06 (entregado + foto) | `reputation.ReviewService` |
 
 ---
 
-### 1.2 Casos de Uso — Módulo Marketplace y Subastas (detalle)
+## 2. Diagrama de Clases (dominio real)
 
-```mermaid
-graph LR
-  subgraph Marketplace y Subastas
-    A[Publicar solicitud de carga]
-    B[Sistema calcula precio sugerido]
-    C[Sistema abre subasta automática]
-    D[Ver solicitudes en marketplace]
-    E[Ofertar en subasta]
-    F[Validar price floor]
-    G[Validar capacidad disponible]
-    H[Ver ranking de ofertas]
-    I[Negociar con contra-oferta]
-    J[Aceptar oferta]
-    K[Sistema cierra subasta y notifica]
-  end
-
-  PYME((PYME)) --> A
-  A -.include.-> B
-  A -.include.-> C
-  D -.include.-> F
-  D -.include.-> G
-  Carrier((Transportista)) --> D
-  Carrier --> E
-  E -.include.-> F
-  E -.include.-> G
-  PYME --> H
-  PYME --> I
-  Carrier --> I
-  PYME --> J
-  J -.include.-> K
-```
-
----
-
-### 1.3 Casos de Uso — Módulo Tracking y Driver (detalle)
-
-```mermaid
-graph LR
-  subgraph Tracking y Ejecución
-    T1[Ver ruta asignada]
-    T2[Navegar a parada]
-    T3[Marcar estado de parada]
-    T4[Tomar foto de entrega]
-    T5[Capturar firma digital]
-    T6[Reportar incidencia en ruta]
-    T7[Ver tracking en mapa]
-    T8[Ver historial de estados]
-  end
-
-  Driver((Conductor)) --> T1
-  Driver --> T2
-  Driver --> T3
-  T3 -.include.-> T4
-  T3 -.include.-> T5
-  Driver --> T6
-  PYME((PYME)) --> T7
-  PYME --> T8
-  Operator((Operador)) --> T7
-  Operator --> T8
-```
-
----
-
-## 2. Diagrama de Clases (Alto Nivel)
+### 2.1 Organizaciones, flota y marketplace
 
 ```mermaid
 classDiagram
   class Organization {
-    +UUID id
-    +String name
-    +String ruc
-    +OrgType type
-    +Boolean verified
-    +LocalDateTime verifiedAt
-    +Integer trustScore
-    +LocalDateTime createdAt
-    +verify() void
-    +calculateTrustScore() Integer
+    UUID id
+    OrgType type [PYME, CARRIER, OPERATOR]
+    String legalName
+    String ruc
+    RucVerification rucVerification [NONE, CHECKSUM, SUNAT]
+    String city
   }
-
   class Profile {
-    +UUID id
-    +UUID organizationId
-    +String fullName
-    +String phone
-    +ProfileRole role
-    +LocalDateTime createdAt
+    UUID id
+    UUID organizationId
+    String email
+    String fullName
+    Role role [ADMIN, OPS, VIEWER, DRIVER]
+    boolean active
+    Instant consentAcceptedAt
   }
-
   class Vehicle {
-    +UUID id
-    +UUID carrierOrgId
-    +String plate
-    +VehicleType vehicleType
-    +Double maxWeightKg
-    +Double maxVolumeM3
-    +Double currentWeightKg
-    +VehicleStatus status
-    +Double availableCapacity()
+    UUID id
+    UUID organizationId
+    String plate
+    Type type
+    BigDecimal maxWeightKg
+    Status status [AVAILABLE, IN_ROUTE, MAINTENANCE]
   }
-
   class Driver {
-    +UUID id
-    +UUID carrierOrgId
-    +String fullName
-    +String licenseNumber
-    +UUID currentVehicleId
-    +DriverStatus status
+    UUID id
+    UUID organizationId
+    UUID profileId
+    String licenseNumber
+    Status status
   }
-
   class ShipmentRequest {
-    +UUID id
-    +UUID requesterOrgId
-    +String originAddress
-    +Double originLat
-    +Double originLng
-    +String destinationAddress
-    +Double destinationLat
-    +Double destinationLng
-    +Double weightKg
-    +CargoType cargoType
-    +LocalDate requiredDate
-    +RequestStatus status
-    +Double suggestedPrice
-    +LocalDateTime createdAt
-    +open() void
-    +match() void
+    UUID id
+    UUID requesterOrgId
+    Cargo cargo
+    Pricing pricing [distanceKm, suggestedPrice, priceFloor]
+    Status status [PUBLISHED, MATCHED, CANCELLED]
+    UUID assignedCarrierOrgId
+    publish()
+    matchTo(carrierOrgId)
+    cancel()
   }
-
   class Auction {
-    +UUID id
-    +UUID requestId
-    +LocalDateTime opensAt
-    +LocalDateTime closesAt
-    +Integer maxBids
-    +AuctionStatus status
-    +close() void
-    +isExpired() Boolean
+    UUID id
+    UUID requestId
+    OffsetDateTime closesAt
+    int maxBids
+    Status status [OPEN, CLOSED, CANCELLED]
+    CloseReason closeReason
+    acceptsBids(now)
+    close(reason, now)
   }
-
   class Bid {
-    +UUID id
-    +UUID auctionId
-    +UUID carrierOrgId
-    +UUID vehicleId
-    +Double amount
-    +String notes
-    +BidStatus status
-    +LocalDateTime submittedAt
-    +accept() void
-    +reject() void
-    +validatePriceFloor(Double minPrice) Boolean
+    UUID id
+    UUID auctionId
+    UUID carrierOrgId
+    UUID vehicleId
+    BigDecimal amount
+    Status status [PENDING, ACCEPTED, REJECTED]
+    boolean assignedByOperator
+    place()
+    accept()
+    reject()
+    reviseAmount(newAmount)
   }
-
-  class CounterOffer {
-    +UUID id
-    +UUID bidId
-    +UUID offeredByOrgId
-    +Double amount
-    +String message
-    +CounterOfferStatus status
-    +LocalDateTime createdAt
-    +accept() void
-  }
-
-  class CarrierTrip {
-    +UUID id
-    +UUID carrierOrgId
-    +UUID vehicleId
-    +String originAddress
-    +String destinationAddress
-    +LocalDateTime departureAt
-    +Double availableWeightKg
-    +Double pricePerKg
-    +TripStatus status
-    +addBooking(TripBooking) void
-    +remainingCapacity() Double
-  }
-
-  class Shipment {
-    +UUID id
-    +UUID requestId
-    +UUID bidId
-    +UUID carrierOrgId
-    +UUID vehicleId
-    +UUID driverId
-    +String trackingCode
-    +ShipmentStatus status
-    +LocalDateTime startedAt
-    +LocalDateTime deliveredAt
-    +advanceStatus(ShipmentStatus) void
-    +generateTrackingCode() String
-  }
-
-  class ShipmentStop {
-    +UUID id
-    +UUID shipmentId
-    +Integer sequence
-    +String location
-    +Double lat
-    +Double lng
-    +LocalDateTime eta
-    +LocalDateTime actualArrival
-    +StopStatus status
-    +UUID requestId
-    +confirm(String photoUrl, String signatureUrl) void
-  }
-
-  class Message {
-    +UUID id
-    +UUID requestId
-    +UUID carrierOrgId
-    +UUID senderOrgId
-    +String body
-    +Double proposedPrice
-    +LocalDateTime createdAt
-    +containsContactInfo() Boolean
-  }
-
-  class Review {
-    +UUID id
-    +UUID shipmentId
-    +UUID reviewerOrgId
-    +UUID reviewedOrgId
-    +Integer rating
-    +Integer punctuality
-    +String comment
-    +Boolean deliverySuccess
-    +Integer delayMinutes
-    +LocalDateTime createdAt
-  }
-
-  class ReputationScore {
-    +UUID orgId
-    +Double deliverySuccessRate
-    +Double avgDelayMinutes
-    +Double cargoDamageRate
-    +Double cancellationRate
-    +Double avgRating
-    +Integer compositeScore
-    +LocalDateTime updatedAt
-    +recalculate() void
-  }
-
-  class Document {
-    +UUID id
-    +UUID shipmentId
-    +UUID stopId
-    +DocumentType type
-    +String fileUrl
-    +UUID uploadedBy
-    +LocalDateTime createdAt
-  }
-
-  class Notification {
-    +UUID id
-    +UUID orgId
-    +NotificationType type
-    +String title
-    +String body
-    +UUID relatedId
-    +Boolean read
-    +LocalDateTime createdAt
-    +markAsRead() void
-  }
-
-  class Incident {
-    +UUID id
-    +UUID shipmentId
-    +UUID reportedByOrgId
-    +IncidentCategory category
-    +String description
-    +IncidentStatus status
-    +LocalDateTime createdAt
-    +resolve(ShipmentStatus finalStatus) void
-  }
-
-  class CostCalculation {
-    +UUID id
-    +UUID requestId
-    +Double distanceKm
-    +Double durationMin
-    +Double tollCost
-    +Double fuelCost
-    +Double baseTransportCost
-    +Double totalEstimate
-    +LocalDateTime calculatedAt
-  }
-
-  Organization "1" --> "*" Profile : tiene
-  Organization "1" --> "*" Vehicle : posee
-  Organization "1" --> "*" Driver : emplea
-  Organization "1" --> "*" ShipmentRequest : crea
-  Organization "1" --> "*" CarrierTrip : publica
-  Organization "1" --> "1" ReputationScore : tiene
-  ShipmentRequest "1" --> "1" Auction : genera
-  ShipmentRequest "1" --> "1" CostCalculation : tiene
-  Auction "1" --> "*" Bid : recibe
-  Bid "1" --> "*" CounterOffer : genera
-  Bid "1" --> "0..1" Shipment : origina
-  Shipment "1" --> "*" ShipmentStop : tiene
-  Shipment "1" --> "*" Document : contiene
-  Shipment "1" --> "0..1" Incident : puede tener
-  Shipment "1" --> "0..2" Review : genera
-  ShipmentRequest "1" --> "*" Message : tiene hilo
-  Incident "1" --> "*" Message : tiene hilo
-  Review "*" --> "1" ReputationScore : actualiza
+  Organization "1" --> "*" Profile
+  Organization "1" --> "*" Vehicle : CARRIER
+  Organization "1" --> "*" Driver : CARRIER
+  Driver "1" --> "1" Profile
+  Organization "1" --> "*" ShipmentRequest : PYME
+  ShipmentRequest "1" --> "1" Auction
+  Auction "1" --> "*" Bid
+  Bid "*" --> "1" Vehicle
+  Bid "*" --> "1" Organization : carrier
 ```
+
+### 2.2 Ejecución, confianza y comunicación
+
+```mermaid
+classDiagram
+  class Shipment {
+    UUID id
+    UUID requestId
+    UUID bidId
+    UUID requesterOrgId
+    UUID carrierOrgId
+    UUID vehicleId
+    UUID driverId
+    BigDecimal agreedPrice
+    String vehiclePlate
+    String driverName
+    Status status [PENDING, IN_TRANSIT, DELIVERED, CANCELLED]
+  }
+  class ShipmentStop {
+    UUID id
+    int sequence
+    Type type [PICKUP, DELIVERY]
+    Status status [PENDING, ARRIVED, COMPLETED]
+    arrive(now)
+    complete(now)
+  }
+  class Document {
+    UUID id
+    UUID shipmentId
+    UUID stopId
+    DocumentType type [SERVICE_ORDER, REMISSION_GUIDE, RECEIPT, DELIVERY_PHOTO, SIGNATURE...]
+    String storageKey
+    String sha256
+  }
+  class Incident {
+    UUID id
+    UUID shipmentId
+    Category category
+    IncidentStatus status [OPEN, IN_REVIEW, RESOLVED, CLOSED]
+    isActive()
+  }
+  class IncidentComment
+  class Review {
+    UUID id
+    Direction direction [PYME_TO_CARRIER, CARRIER_TO_PYME]
+    int punctuality
+    int cargoCondition
+    int communication
+    BigDecimal rating
+  }
+  class ReputationScore {
+    UUID organizationId
+    BigDecimal trustScore [prior 75]
+  }
+  class Message {
+    UUID requestId
+    UUID carrierOrgId
+    String body
+  }
+  class CounterOffer {
+    UUID bidId
+    BigDecimal amount
+    Status status [PENDING, ACCEPTED, REJECTED, EXPIRED]
+    propose()
+  }
+  class Notification {
+    UUID orgId
+    NotificationType type
+    Instant readAt
+  }
+  Shipment "1" --> "2..*" ShipmentStop
+  Shipment "1" --> "*" Document
+  Shipment "1" --> "*" Incident
+  Incident "1" --> "*" IncidentComment
+  Shipment "1" --> "0..2" Review
+  Review ..> ReputationScore : recalcula
+  Message ..> CounterOffer : misma negociación
+  Notification ..> Shipment : relacionada
+```
+
+### 2.3 Viajes publicados, reservas y Smart Load
+
+```mermaid
+classDiagram
+  class CarrierTrip {
+    UUID id
+    UUID carrierOrgId
+    UUID vehicleId
+    String originCity
+    String destinationCity
+    OffsetDateTime departureAt
+    BigDecimal capacityKg
+    BigDecimal confirmedWeightKg
+    PricingMode pricingMode [PER_KG, PER_TRIP]
+    Status status [OPEN, FILLING, CLOSED, COMPLETED, CANCELLED]
+  }
+  class TripBooking {
+    UUID id
+    UUID tripId
+    UUID requesterOrgId
+    BigDecimal weightKg
+    BigDecimal price
+    Status status [PENDING, CONFIRMED, REJECTED, CANCELLED]
+    UUID requestId
+    UUID shipmentId
+  }
+  class SmartLoadSuggestion {
+    UUID id
+    UUID carrierOrgId
+    BigDecimal combinedIncome
+    BigDecimal occupancyPct
+    Status status [PENDING, ACCEPTED, REJECTED, EXPIRED]
+  }
+  class SmartLoadItem {
+    UUID requestId
+    int pickupOrder
+    int deliveryOrder
+  }
+  CarrierTrip "1" --> "*" TripBooking
+  SmartLoadSuggestion "1" --> "2..*" SmartLoadItem
+  TripBooking ..> Shipment : al confirmar (DirectContractUseCase)
+  SmartLoadItem ..> ShipmentRequest
+```
+
+Las reglas de negocio viven en clases de dominio sin estado (políticas): `PriceFloorPolicy` (RN03), `BidEligibilityPolicy` (RN02/RN03), `AuctionClosingPolicy` (RN04), `StopSequencePolicy` (RN08), `TrustScoreCalculator` (RN09), `ManualAssignmentPolicy` (RN10), `IncidentStatusPolicy` (RN11), `TripCapacityPolicy` (RN12), `ContactInfoPolicy` (RN07) y `ReviewEligibilityPolicy` (RN06).
 
 ---
 
 ## 3. Diagramas de Secuencia
 
-### 3.1 Flujo: PYME publica solicitud y se abre la subasta
+### 3.1 Flujo principal: publicar → ofertar → aceptar → envío → entrega con evidencia
 
 ```mermaid
 sequenceDiagram
   actor PYME
-  participant Web as Angular Web
-  participant API as Quarkus API
-  participant Pricing as pricing-module
-  participant ORS as OpenRouteService
-  participant DB as PostgreSQL
-  participant Notif as notification-module
-  participant Carrier as Transportista
+  actor CAR as Transportista
+  actor DRV as Conductor
+  participant API as API Quarkus
+  participant DB as PostgreSQL (RLS)
+  participant OB as Outbox / realtime_events
+  participant S3 as Cloudflare R2 (API S3)
 
-  PYME->>Web: Completa formulario de solicitud
-  Web->>API: POST /api/shipments/requests
-  API->>ORS: GET /directions?origin=Lima&dest=Juliaca
-  ORS-->>API: {distance_km: 1294, duration_min: 1245, geometry: [...]}
-  API->>Pricing: calculateSuggestedPrice(distance, weight, cargoType)
-  Pricing-->>API: {suggestedPrice: 1200, priceFloor: 900}
-  API->>DB: INSERT shipment_request (status='open', suggested_price=1200)
-  API->>DB: INSERT auction (closes_at=NOW()+20min, max_bids=5, status='open')
-  API->>DB: INSERT cost_calculation (distance=1294, fuel=180, tolls=120, total=1200)
-  API-->>Web: 201 {requestId, suggestedPrice: 1200, auctionId, closesAt}
-  Web-->>PYME: Muestra solicitud creada con precio referencial y subasta activa
+  PYME->>API: POST /pricing/calculate (cotización en vivo)
+  API-->>PYME: distancia por carretera (RoadDistanceProvider), precio sugerido, piso 75 %
+  PYME->>API: POST /shipment-requests
+  Note over API: RN01 RUC verificado · PublishRequestUseCase
+  API->>DB: INSERT shipment_requests (PUBLISHED) + auctions (OPEN, 20 min, 5 ofertas)
 
-  API->>Notif: notifyCompatibleCarriers(requestId, route)
-  Notif->>DB: Query carriers con zonas compatibles
-  Notif-->>Carrier: Push/Email: "Nueva carga Lima→Juliaca · 2 ton · S/ 1,200 ref."
+  CAR->>API: POST /shipment-requests/{id}/bids
+  Note over API: RN02 vehículo propio con capacidad · RN03 monto ≥ piso
+  API->>DB: INSERT bids (PENDING)
+  API->>OB: BidPlaced (misma transacción)
+  OB-->>PYME: SSE bid.placed + notificación NEW_BID
+
+  alt 5 ofertas o vencen 20 min (RN04)
+    API->>DB: auction CLOSED (MAX_BIDS / TIMEOUT)
+  end
+
+  PYME->>API: POST /bids/{id}/accept
+  Note over API: AcceptBidUseCase · RN05
+  API->>DB: bid ACCEPTED, resto REJECTED, request MATCHED
+  API->>DB: INSERT shipments (PENDING) + shipment_stops (PICKUP, DELIVERY)
+  API->>OB: BidAccepted -> aviso al transportista
+
+  CAR->>API: PUT /shipments/{id}/driver
+  DRV->>API: POST /shipments/{id}/stops/{stopId}/arrive
+  Note over API: RN08 orden secuencial · RN11 sin incidencia activa
+  API->>DB: shipment IN_TRANSIT (primera llegada)
+  DRV->>API: POST /shipments/{id}/documents (DELIVERY_PHOTO, multipart)
+  API->>S3: put(shipments/{id}/{docId}.jpg), SHA-256
+  DRV->>API: POST /shipments/{id}/stops/{stopId}/complete
+  Note over API: DeliveryEvidencePolicy: exige foto (LOGYX-TRK-006)
+  API->>DB: parada COMPLETED, y si es la última: shipment DELIVERED
+  API->>OB: ShipmentStatusChanged -> SSE shipment.* a PYME y transportista
+
+  PYME->>API: POST /shipments/{id}/reviews
+  Note over API: RN06 entregado + foto
+  API->>OB: ReviewSubmitted -> ReputationRecalculator (RN09)
 ```
 
----
-
-### 3.2 Flujo: Transportista oferta y PYME acepta
-
-```mermaid
-sequenceDiagram
-  actor Carrier as Transportista
-  actor PYME
-  participant App as Flutter Business
-  participant API as Quarkus API
-  participant Auction as auction-module
-  participant DB as PostgreSQL
-  participant Notif as notification-module
-
-  Carrier->>App: Ve marketplace, selecciona solicitud
-  App->>API: GET /api/marketplace (filtrado por perfil del carrier)
-  API-->>App: Lista rankeada de solicitudes abiertas con score de matching
-
-  Carrier->>App: Envía oferta: S/ 1,100, vehículo ABC-123
-  App->>API: POST /api/auctions/{auctionId}/bids
-  API->>Auction: validateBid(price=1100, vehicleId, requestWeight)
-  Auction->>DB: Query vehicle capacity vs request weight
-  Auction-->>API: valid (1100 >= priceFloor 900, capacity OK)
-  API->>DB: INSERT bid (amount=1100, status='pending')
-  API->>Notif: notifyPyme(requestId, "Nueva oferta: S/ 1,100")
-  Notif-->>PYME: Notificación in-app: "Carrier A ofertó S/ 1,100"
-
-  PYME->>App: Ve detalle de solicitud con ofertas
-  App->>API: GET /api/shipments/requests/{id}/bids
-  API-->>App: [{carrier, amount:1100, trustScore:94, punctuality:97%}, ...]
-  PYME->>App: Acepta oferta de Carrier A
-  App->>API: POST /api/bids/{bidId}/accept
-
-  API->>DB: UPDATE bid SET status='accepted' WHERE id=bidId
-  API->>DB: UPDATE bids SET status='rejected' WHERE auctionId=X AND id!=bidId
-  API->>DB: UPDATE auction SET status='closed'
-  API->>DB: UPDATE shipment_request SET status='matched'
-  API->>DB: INSERT shipment (tracking_code='LGX-48291', status='pending')
-  API->>Notif: notifyCarrier(carrierId, "Tu oferta fue aceptada · LGX-48291")
-  API-->>App: 200 {shipmentId, trackingCode: 'LGX-48291'}
-  App-->>PYME: Muestra tracking code y estado del envío
-```
-
----
-
-### 3.3 Flujo: Conductor actualiza estado de parada
-
-```mermaid
-sequenceDiagram
-  actor Driver as Conductor
-  participant DriverApp as Flutter Driver
-  participant API as Quarkus API
-  participant DB as PostgreSQL
-  participant Storage as MinIO/S3
-  participant Notif as notification-module
-  actor PYME
-
-  Driver->>DriverApp: Abre app, ve ruta asignada
-  DriverApp->>API: GET /api/driver/shipments/active
-  API->>DB: Query shipment con stops asignadas al driver
-  API-->>DriverApp: {shipment, stops: [{seq:1, location, eta, status}, ...]}
-
-  Driver->>DriverApp: Llega a parada 1 (Arequipa), marca "Entregado"
-  DriverApp->>DriverApp: Solicita foto de entrega
-  Driver->>DriverApp: Toma foto con cámara
-  Driver->>DriverApp: Captura firma del receptor
-  DriverApp->>API: POST /api/driver/stops/{stopId}/confirm
-  Note over DriverApp,API: {photo: base64, signature: base64, status: 'delivered'}
-
-  API->>Storage: Upload photo → "shipments/{id}/stop1_evidence.jpg"
-  Storage-->>API: {fileUrl: "https://..."}
-  API->>Storage: Upload signature → "shipments/{id}/stop1_signature.png"
-  Storage-->>API: {fileUrl: "https://..."}
-  API->>DB: UPDATE shipment_stop SET status='delivered', actual_arrival=NOW()
-  API->>DB: INSERT document (shipment_id, type='evidence', file_url=...)
-  API->>Notif: notifyPyme(requestId_parcela, "Tu carga fue entregada en Arequipa")
-  API-->>DriverApp: 200 OK
-  Notif-->>PYME: Notificación: "Carga entregada en Arequipa · 14:32"
-```
-
----
-
-### 3.4 Flujo: Negociación bidireccional con contra-oferta
+### 3.2 Flujo: negociación con contraoferta y bloqueo de contacto (RN07)
 
 ```mermaid
 sequenceDiagram
   actor PYME
-  actor Carrier as Transportista
-  participant API as Quarkus API
-  participant Neg as negotiation-module
+  actor CAR as Transportista
+  participant API as API Quarkus
   participant DB as PostgreSQL
-  participant WS as WebSocket / Redis Pub-Sub
 
-  Carrier->>API: POST /api/messages (requestId, body="Puedo hacerlo por S/ 1,150")
-  API->>Neg: moderateMessage(body)
-  Neg-->>API: {ok: true, noContactInfo: true}
-  API->>DB: INSERT message (sender=carrier, body="Puedo hacerlo por S/ 1,150")
-  API->>WS: PUBLISH "chat:{requestId}:{carrierId}" → PYME
-  WS-->>PYME: Mensaje recibido en tiempo real
-
-  PYME->>API: POST /api/messages (body="Te pago máximo S/ 1,000", proposed_price=1000)
-  API->>Neg: moderateMessage(body)
-  Neg-->>API: ok
-  API->>DB: INSERT message (sender=pyme, proposed_price=1000)
-  API->>WS: PUBLISH → Carrier
-  WS-->>Carrier: Counter-offer de PYME: S/ 1,000
-
-  Carrier->>API: POST /api/messages (body="Acepto en S/ 1,080", proposed_price=1080)
-  API->>DB: INSERT message (sender=carrier, proposed_price=1080)
-  API->>WS: PUBLISH → PYME
-
-  PYME->>API: POST /api/counter-offers/{bidId}/accept (accepted_price=1080)
-  API->>DB: UPDATE bid SET amount=1080
-  API->>DB: INSERT message (sender=system, body="Precio acordado: S/ 1,080")
-  API-->>PYME: 200 OK - Precio actualizado
+  CAR->>API: POST /shipment-requests/{id}/threads/{org}/messages "llámame al 987 654 321"
+  API-->>CAR: 400 LOGYX-NEG-001 (field body) - RN07 ContactInfoPolicy
+  CAR->>API: mensaje sin datos de contacto
+  API->>DB: INSERT messages
+  PYME->>API: POST /bids/{id}/counter-offers {amount, message}
+  Note over API: CounterOffer.propose: monto ≥ piso (RN03), una pendiente por oferta
+  API->>DB: INSERT counter_offers (PENDING)
+  CAR->>API: POST /counter-offers/{id}/accept
+  API->>DB: counter PENDING a ACCEPTED y bid.reviseAmount(amount)
 ```
 
----
-
-### 3.5 Flujo: Smart Load Planner sugiere combinación de cargas
+### 3.3 Flujo: tiempo real (outbox → SSE)
 
 ```mermaid
 sequenceDiagram
-  participant Scheduler as Quarkus Scheduler
-  participant Routing as routing-module
+  participant UC as Caso de uso (transacción)
+  participant OB as outbox_events
+  participant DSP as OutboxDispatcher (SystemTx)
+  participant PRJ as RealtimeProjector
+  participant RT as realtime_events
+  participant LST as PgRealtimeListener (LISTEN)
+  participant HUB as RealtimeHub
+  participant CLI as Cliente SSE (web/Android)
+
+  UC->>OB: INSERT evento (misma transacción de negocio)
+  UC-->>DSP: commit -> despacho inmediato (y job cada 5 s)
+  DSP->>PRJ: @Outboxed -> proyecta una fila por destinatario
+  PRJ->>RT: INSERT (org / usuario / difusión por tipo)
+  RT-->>LST: pg_notify('logyx_realtime', seq) al confirmar
+  LST->>HUB: seq
+  HUB->>RT: lee la fila real (SystemTx)
+  HUB-->>CLI: event (solo si cumple RealtimeAudiencePolicy)
+  CLI->>CLI: refresca por REST (aviso, no dato)
+```
+
+### 3.4 Flujo: reserva de espacio en un viaje publicado
+
+```mermaid
+sequenceDiagram
+  actor CAR as Transportista
+  actor PYME
+  participant API as API Quarkus
   participant DB as PostgreSQL
-  participant Notif as notification-module
-  actor Carrier as Transportista
 
-  Scheduler->>Routing: findCompatibleLoads() [cada 30 min]
-  Routing->>DB: SELECT open requests WHERE required_date BETWEEN NOW() AND NOW()+48h
-  DB-->>Routing: [RequestA: Lima→Puno 2t, RequestB: Lima→Juliaca 1t, RequestC: Lima→Puno 1.2t]
-
-  Routing->>Routing: clusterByRoute(requests, radius=50km origin, 80km dest)
-  Routing->>Routing: filterByCapacity(cluster, vehicle.maxWeight=8t)
-  Routing-->>Routing: Compatible: [A+C] Lima→Puno (3.2t), candidato vehículo XYZ-789
-
-  Routing->>DB: INSERT smart_load_suggestion (requests=[A,C], vehicle=XYZ, route, combinedIncome=2800)
-  Routing->>Notif: notifyCarrier(carrierId, "Smart Load: 2 cargas compatibles Lima→Puno · S/ 2,800")
-  Notif-->>Carrier: Notificación: "Puedes tomar 2 cargas · 3.2 ton · S/ 2,800 · 80% capacidad"
-
-  Carrier->>DB: GET /api/smart-load/suggestions
-  DB-->>Carrier: [{requests:[A,C], vehicle, route, income:2800, occupancy:80%}]
-  Carrier->>DB: POST /api/smart-load/{suggestionId}/accept
-  DB->>DB: INSERT shipment_multi (stops=[Lima, Puno x2], tracking='LGX-48292')
-  DB->>Notif: notify PYME_A + PYME_C "Tu carga fue incluida en ruta compartida"
+  CAR->>API: POST /trips (RN12 capacidad ≤ maxWeightKg del vehículo)
+  PYME->>API: POST /trips/{id}/bookings {weightKg, cargo...}
+  Note over API: BookingService.book: TripCapacityPolicy.ensureFits
+  API->>DB: INSERT trip_bookings (PENDING)
+  CAR->>API: POST /trip-bookings/{id}/confirm
+  Note over API: DirectContractUseCase
+  API->>DB: request MATCHED + bid + shipment, trip FILLING o CLOSED
 ```
 
 ---
 
-## 4. Diagrama de Estados — Ciclo de Vida del Envío
+## 4. Diagramas de Estados
+
+### 4.1 Solicitud y subasta
 
 ```mermaid
 stateDiagram-v2
-  [*] --> open : PYME publica solicitud
+  [*] --> PUBLISHED : PYME publica (RN01)
+  PUBLISHED --> MATCHED : PYME acepta oferta / contraoferta / asignación del operador
+  PUBLISHED --> CANCELLED : PYME cancela
+  MATCHED --> [*]
+  CANCELLED --> [*]
 
-  open --> auction_open : Sistema abre subasta
-  auction_open --> matched : PYME acepta oferta
-  auction_open --> cancelled : Subasta vence sin ofertas (operador interviene)
-
-  matched --> pending : Contrato generado y tracking code asignado
-  pending --> picked_up : Conductor confirma recogida en punto de origen
-  picked_up --> in_transit : Primer tramo iniciado
-  in_transit --> in_transit : Paradas intermedias completadas
-  in_transit --> delivered : Última parada confirmada con evidencia
-  in_transit --> issue : Se reporta incidencia
-
-  issue --> in_transit : Operador resuelve y reencauza
-  issue --> delivered : Operador confirma entrega pese a incidencia
-  issue --> cancelled : Operador cancela por incidencia grave
-
-  delivered --> [*]
-  cancelled --> [*]
+  state "Subasta" as SUB {
+    [*] --> OPEN
+    OPEN --> CLOSED : TIMEOUT (20 min) o MAX_BIDS (5)
+    OPEN --> CLOSED : ACCEPTED
+    OPEN --> CANCELLED : solicitud cancelada
+  }
 ```
+
+Una oferta (`Bid`) pasa de `PENDING` a `ACCEPTED` o `REJECTED` (RN05).
+
+### 4.2 Envío y parada
+
+```mermaid
+stateDiagram-v2
+  [*] --> PENDING : oferta aceptada, paradas planificadas
+  PENDING --> IN_TRANSIT : conductor marca la primera llegada
+  IN_TRANSIT --> DELIVERED : última parada completada con foto (RN06)
+  PENDING --> CANCELLED
+  DELIVERED --> [*]
+  CANCELLED --> [*]
+  note right of IN_TRANSIT
+    Con una incidencia OPEN o IN_REVIEW el estado
+    no avanza (RN11, LOGYX-TRK-005). No existe
+    un estado ISSUE: se expone ShipmentView.hasActiveIncident.
+  end note
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> PENDING
+  PENDING --> ARRIVED : arrive (RN08, solo la siguiente en orden)
+  ARRIVED --> COMPLETED : complete (entrega exige DELIVERY_PHOTO)
+  COMPLETED --> [*]
+```
+
+### 4.3 Incidencia, reserva y sugerencia
+
+```mermaid
+stateDiagram-v2
+  [*] --> OPEN : parte o conductor reporta
+  OPEN --> IN_REVIEW : operador
+  OPEN --> RESOLVED : operador (notas obligatorias)
+  IN_REVIEW --> RESOLVED
+  OPEN --> CLOSED : descartada
+  IN_REVIEW --> CLOSED
+  RESOLVED --> CLOSED
+  CLOSED --> [*]
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> PENDING : PYME reserva
+  PENDING --> CONFIRMED : transportista confirma (crea envío)
+  PENDING --> REJECTED : transportista rechaza o BookingSweeper
+  PENDING --> CANCELLED : PYME cancela / viaje cancelado
+  CONFIRMED --> CANCELLED : PYME cancela
+```
+
+Los viajes (`CarrierTrip`) recorren `OPEN → FILLING → CLOSED → COMPLETED` o `CANCELLED`; las sugerencias Smart Load, `PENDING → ACCEPTED | REJECTED | EXPIRED`.
 
 ---
 
-## 5. Diagrama de Componentes — Aplicación Angular
+## 5. Diagrama de Componentes — Web (Astro) y Android
 
 ```mermaid
 graph TD
-  subgraph Angular Web App
-    CoreModule[Core Module\n- AuthGuard\n- RoleGuard\n- AuthInterceptor\n- AuthService]
-    SharedModule[Shared Module\n- Components UI\n- Pipes\n- Directives]
-
-    subgraph Features
-      AuthFeature[auth/\n- login\n- register\n- onboarding]
-      MarketplaceFeature[marketplace/\n- listado cargas\n- filtros\n- oferta inline]
-      ShipmentsFeature[shipments/\n- mis solicitudes\n- detalle\n- nueva solicitud\n- tracking]
-      NegotiationFeature[negotiation/\n- chat RT\n- contra-oferta]
-      FleetFeature[fleet/\n- vehículos\n- conductores]
-      ReputationFeature[reputation/\n- perfil score\n- historial reviews]
-      OperatorFeature[operator/\n- dashboard\n- asignación\n- incidencias]
-      ReturnsFeature[returns/\n- cargas retorno\n- oferta directa]
-    end
+  subgraph Web["Web Astro SSR"]
+    MW["middleware.ts<br/>sesión, rol, 401 a /login"]
+    PG["pages/ (rutas finas por rol)"]
+    FT["features/*/server.ts + actions.ts"]
+    UI["components/{ui, domain, layout}<br/>islas React"]
+    LIB["lib/{api (openapi-fetch), session, realtime}"]
+    PX["proxies: /eventos (SSE), /documentos"]
   end
-
-  CoreModule --> AuthFeature
-  CoreModule --> MarketplaceFeature
-  CoreModule --> ShipmentsFeature
-  SharedModule --> MarketplaceFeature
-  SharedModule --> ShipmentsFeature
-  SharedModule --> OperatorFeature
+  subgraph Android["Android multi-módulo"]
+    APP[":app (navegación por rol, Koin)"]
+    FEA[":feature:* (Screen + ViewModel + UiState)"]
+    DATA[":core:data (repositorios, sesión DataStore)"]
+    NET[":core:network (Ktor, DTOs, SSE)"]
+    MOD[":core:model (Kotlin puro)"]
+    DS[":core:designsystem (Compose)"]
+  end
+  MW --> PG --> FT --> LIB
+  PG --> UI
+  LIB -->|OpenAPI| API[("API Quarkus")]
+  PX --> API
+  APP --> FEA --> DATA --> NET --> API
+  NET --> MOD
+  FEA --> DS
 ```
+
+Detalle de ambos clientes en [Arquitectura Frontend](../entregable-3/arquitectura-frontend.md).
 
 ---
 
-*LOGYX · E1 Modelado Técnico UML · Competencia CE0214 · Versión 1.0 · Junio 2026*
+*OnCargo · E1 Modelado Técnico UML · Competencia CE0214 · Versión 2.0 · Noviembre 2026*

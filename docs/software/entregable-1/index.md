@@ -2,14 +2,18 @@
 
 **Competencia evaluada:** CE021 (Ingeniería de Requerimientos)
 
-Este entregable integra la especificación completa del sistema: requerimientos, prototipos, arquitectura y modelado, **antes** de su construcción. La rúbrica **no** evalúa implementación ni funcionamiento — evalúa si el sistema está correctamente concebido y diseñado.
+Este entregable integra la especificación completa del sistema: requerimientos, prototipos, arquitectura y modelado, **antes** de su construcción (SRS v1.0). La rúbrica **no** evalúa implementación ni funcionamiento — evalúa si el sistema está correctamente concebido y diseñado.
+
+!!! info "Revisión posterior a la construcción"
+    Tras construir el sistema, los documentos de este entregable se revisaron (SRS v1.1, Arquitectura v2.0, UML v2.0): conservan los requerimientos originales y agregan el estado de implementación y las decisiones reales (ADR 0001–0007).
 
 ## Contenido
 
 - [**SRS** (IEEE 29148)](srs.md) — Requerimientos funcionales y no funcionales
 - [**Prototipos**](prototipos.md) — Prototipos navegables y validados
-- [**Arquitectura** (IEEE 42010 / Modelo C4)](arquitectura.md) — Estilo arquitectónico, ADRs, diagramas C4
-- [**Modelado UML**](uml.md) — Casos de uso, clases, secuencia
+- [**Arquitectura** (IEEE 42010 / Modelo C4)](arquitectura.md) — Estilo arquitectónico, ADR 0001–0007, evaluación de multitenancy, diagramas C4
+- [**Modelado UML**](uml.md) — Casos de uso, clases, secuencia, estados
+- [**Cambios respecto al diseño inicial**](../cambios-diseno-inicial.md) — qué cambió al construir el sistema y por qué
 
 ## Rúbrica Nivel 3 — CE021 (EPE)
 

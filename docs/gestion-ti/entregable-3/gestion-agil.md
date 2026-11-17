@@ -43,37 +43,58 @@ Cada épica se descompone en historias con el formato estándar Como / Quiero / 
 
 - Calidad: cobertura de pruebas del backend y estado del pipeline como criterio de terminado; ningún incremento se integra con el pipeline en rojo.
 
-El backlog completo —historias por épica con criterios y puntos, planificación detallada por sprint y métricas— se adjunta como evidencia en el Anexo C.
+El backlog completo —historias por épica con criterios y puntos, planificación detallada por sprint y métricas— se documenta en Software, Entregable 4 (Backlog y Sprints).
 
 ## 3.6.4 Evidencia de Configuración en Azure DevOps
 
-La planificación ágil descrita en las secciones 2.6.1 a 2.6.3 se implementó y configuró en Azure DevOps (organización fabriziosanchezs, proyecto LOGYX), como evidencia verificable de que el plan de sprints no es únicamente teórico. A continuación se documenta la configuración real de la herramienta: creación del proyecto, programación de los 8 sprints con sus fechas exactas, carga del backlog de épicas e historias de usuario, y su distribución en el Sprint Backlog y Taskboard.
+La planificación ágil descrita en las secciones 3.6.1 a 3.6.3 se implementó y configuró en Azure DevOps (organización fabriziosanchezs, proyecto LOGYX, nombre previo al rebrand), como evidencia verificable de que el plan de sprints no es únicamente teórico. A continuación se documenta la configuración real de la herramienta: creación del proyecto, programación de los 8 sprints con sus fechas exactas, carga del backlog de épicas e historias de usuario, y su distribución en el Sprint Backlog y Taskboard.
 
-<img src="media/image10.png" style="width:6.45232in;height:1.96401in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (captura de pantalla de Azure DevOps: Proyecto LOGYX creado en Azure DevOps) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
 
 *Figura 8. Proyecto LOGYX creado en Azure DevOps (organización fabriziosanchezs).*
 
-<img src="media/image11.png" style="width:6.45232in;height:2.76096in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (captura de pantalla de Azure DevOps: Iterations configuradas: 8 sprints) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
 
 *Figura 9. Iterations configuradas: 8 sprints con fechas de inicio y fin (03/08/2026 – 20/11/2026).*
 
-<img src="media/image12.png" style="width:6.45232in;height:2.77649in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (captura de pantalla de Azure DevOps: Iterations activadas para el equipo) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
 
 *Figura 10. Iterations activadas para el equipo LOGYX Team.*
 
-<img src="media/image13.png" style="width:6.45232in;height:3.30441in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (captura de pantalla de Azure DevOps: Backlog de Épicas EP-01 a EP-16 en Azure Boards) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
 
 *Figura 11. Backlog de Épicas (EP-01 a EP-16) cargado en Azure Boards.*
 
-<img src="media/image14.png" style="width:6.45232in;height:1.3977in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (captura de pantalla de Azure DevOps: Historias de usuario asignadas a sprints) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
 
 *Figura 12. Historias de usuario (HU-021, HU-034, HU-058) asignadas a sus sprints correspondientes.*
 
-<img src="media/image15.png" style="width:6.45232in;height:1.11455in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (captura de pantalla de Azure DevOps: Sprint Backlog del Sprint 3) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
 
 *Figura 13. Sprint Backlog del Sprint 3 (31 ago – 11 sep 2026), con HU-021 y HU-034.*
 
-<img src="media/image16.png" style="width:6.45232in;height:2.0239in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (captura de pantalla de Azure DevOps: Taskboard del Sprint 3) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
 
 *Figura 14. Taskboard del Sprint 3: columnas To Do / In Progress / Done.*
 

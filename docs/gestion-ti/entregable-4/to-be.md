@@ -30,7 +30,7 @@ Durante la ejecución, el conductor gestiona su ruta desde la aplicación móvil
 <p>6. Evento: contrato digital generado</p></td>
 </tr>
 <tr class="even">
-<td>Plataforma LOGYX</td>
+<td>Plataforma OnCargo</td>
 <td><p>7. Tarea de servicio: notificar a transportistas compatibles (matching)</p>
 <p>8. Tarea de servicio: cerrar subasta automáticamente (tiempo o máximo de ofertas)</p>
 <p>9. Tarea de servicio: moderar mensajes de negociación</p>
@@ -52,7 +52,11 @@ Durante la ejecución, el conductor gestiona su ruta desde la aplicación móvil
 </tbody>
 </table>
 
-<img src="media/image4.png" style="width:6.4625in;height:2.38264in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (diagrama BPMN TO-BE; el flujo completo está en la especificación textual de la sección 4.3.2) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
+
 
 ## 4.3.3 Nuevos indicadores del proceso
 

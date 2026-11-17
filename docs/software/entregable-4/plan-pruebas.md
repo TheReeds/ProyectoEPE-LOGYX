@@ -1,8 +1,11 @@
 # E4 — Plan de Pruebas y Suite Automatizada
 > Competencia CE0241 · Pruebas unitarias, de integración y funcionales  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Versión: 1.0 · Junio 2026
+> Versión: 2.0 (suite real) · Noviembre 2026 · Versión original 1.0, junio 2026
+
+!!! info "Plan original vs. suite real"
+    La v1.0 planificaba Jasmine/Karma, Cypress y flutter_test, ligados al diseño inicial. La suite real usa **JUnit 5 + Quarkus Test** (backend), **Playwright + axe-core** (web) y **JUnit + Compose UI Test** (Android). Esta versión documenta lo que existe, los números verificables y cómo ejecutarlo. Los casos TC-XXX de la v1.0 se mantienen como intención de cobertura; su equivalente real está en la tabla de la sección 6.
 
 ---
 
@@ -10,550 +13,151 @@
 
 | Campo | Detalle |
 |-------|---------|
-| **Framework de pruebas (backend)** | JUnit 5 + Quarkus Test + Mockito + RestAssured |
-| **Framework de pruebas (frontend web)** | Jasmine + Karma (unit) · Cypress (E2E) |
-| **Framework de pruebas (Flutter)** | flutter_test (unit + widget) · integration_test |
-| **Base de datos de pruebas** | PostgreSQL 16 en Docker (Testcontainers) — ver nota de implementación abajo |
-| **Cobertura objetivo** | ≥ 70% en módulos de negocio críticos |
-| **Integración** | GitHub Actions (ver E4_CICD.md) |
+| **Backend** | JUnit 5 + `@QuarkusTest` (PostgreSQL 16 real vía Dev Services/Testcontainers) + RestAssured; `S3DocumentStorageTest` con MinIO real (Testcontainers, imagen `chainguard/minio`) |
+| **Web** | Playwright (Chromium) + `@axe-core/playwright` (WCAG 2.1 A/AA), contra el backend en perfil dev |
+| **Android** | Pruebas unitarias JUnit de ViewModels y parsing; pruebas instrumentadas con Compose UI Test y repositorios *fake* vía Koin |
+| **Contrato** | `scripts/test_openapi_compat.py` (pruebas del comparador) y `scripts/check-contract.sh` (compatibilidad contra la rama base) |
+| **Base de datos de pruebas** | PostgreSQL real, no H2: las pruebas de RLS y de roles solo tienen sentido contra el motor real |
+| **Integración continua** | GitHub Actions (ver [CI/CD](cicd.md)) |
+| **Cobertura** | **No se mide con una herramienta** (no hay JaCoCo ni equivalente configurado); la estrategia es cobertura por regla de negocio: RN01–RN12 tienen política de dominio con prueba unitaria y, donde cruza capas, prueba de flujo |
 
-> **Nota de implementación (agregada 2026-07-06):** los módulos ya construidos (Auth, Organizations,
-> Profiles, Vehicles, Drivers, Marketplace, Auctions, Bids, Pricing) **no usan Testcontainers ni
-> Mockito `@InjectMock`** como se planificó aquí. Se optó por `@QuarkusTest` contra el Postgres y
-> Redis reales de `docker-compose.yml` (los mismos contenedores de desarrollo, sin mocks de
-> repositorio), con fixtures de datos "find-or-create" por UUID fijo en cada `@BeforeEach` y
-> `@TestSecurity`/`@JwtSecurity` para simular el JWT. Los tests reales viven junto a cada módulo:
-> `src/test/java/pe/logyx/{auth,organization,profile,vehicle,driver,marketplace,auction,bid,pricing}/`.
-> Los casos TC-XXX de este documento describen la intención/cobertura correctamente, pero el código
-> Java de ejemplo (estilo `Uni<T>`, `Profile.builder()`, `@InjectMock`) no corresponde a cómo se
-> escribió el código real — ver los archivos `*ResourceTest.java` de cada paquete para la versión
-> vigente.
+## 2. Resumen de números reales
 
----
-
-## 2. Tipos de Pruebas
-
-### 2.1 Pruebas Unitarias
-Validan lógica aislada de servicios sin dependencias externas. Usan Mockito para inyecciones.
-
-### 2.2 Pruebas de Integración
-Validan el stack completo (API → Servicio → Repositorio → BD real via Testcontainers).
-
-### 2.3 Pruebas Funcionales / E2E
-Validan flujos completos desde la perspectiva del usuario (Cypress en web, integration_test en Flutter).
+| Suite | Clases / specs | Casos | Origen del dato |
+|---|---|---|---|
+| Backend (JUnit 5) | 42 clases | **182 casos verdes** (148 métodos `@Test`/`@ParameterizedTest`; las pruebas parametrizadas se expanden) | `docs/STATUS.md` fase 6; conteo del código |
+| Web e2e (Playwright) | 18 specs | **85 tests** (suite completa 85/86 en la corrida de fase 6; el fallo era un test frágil de `incidents.spec.ts`, corregido y re-ejecutado 6/6) incluyendo **axe** en 7 pantallas base + incidencias, reputación, operador, negociación, viajes y modo oscuro | `web/tests/e2e/`, `docs/STATUS.md` |
+| Android unitarias | 17 clases de test | **165 casos** (11 módulos `:feature:*`, `:core:network`, `:core:designsystem`) | conteo del código |
+| Android instrumentadas | 5 clases | **8 tests** (RoleHome ×3, BidFlow, DriverAdvance, Chat, TripsFlow ×2) | `android/app/src/androidTest` |
+| Contrato | 1 script + 1 test | Compatibilidad hacia atrás del OpenAPI | `scripts/` |
 
 ---
 
-## 3. Casos de Prueba — Backend (JUnit 5 + Quarkus Test)
+## 3. Tipos de Pruebas
 
-### 3.1 Módulo AUTH
+### 3.1 Pruebas unitarias de dominio (backend)
+
+Políticas puras sin Quarkus ni base de datos: una por regla de negocio. Ejemplo real de RN07 (bloqueo de contacto), con casos que deben bloquearse y casos que deben pasar:
 
 ```java
-// AuthServiceTest.java
-@QuarkusTest
-class AuthServiceTest {
+@ParameterizedTest
+@ValueSource(strings = {"987654321", "llama al 987 654 321", "987-654-321", "+51 987654321",
+        "ventas@sur.com", "https://logyx.pe", "wa.me/51987", "@transportes_sur"})
+void bloqueaDatosDeContacto(String text) {
+    assertTrue(ContactInfoPolicy.containsContactInfo(text), text);
+}
 
-    @Inject AuthService authService;
-    @InjectMock ProfileRepository profileRepo;
-
-    @Test
-    @DisplayName("TC-AUTH-01: Login exitoso retorna par de tokens")
-    void loginSuccessReturnsTokenPair() {
-        Profile mockProfile = Profile.builder()
-            .email("test@logyx.pe")
-            .passwordHash(BCrypt.hashpw("Password1!", BCrypt.gensalt(12)))
-            .role(ProfileRole.ADMIN)
-            .build();
-
-        when(profileRepo.findByEmail("test@logyx.pe"))
-            .thenReturn(Uni.createFrom().item(mockProfile));
-
-        TokenPair result = authService
-            .authenticate("test@logyx.pe", "Password1!")
-            .await().indefinitely();
-
-        assertNotNull(result.accessToken());
-        assertNotNull(result.refreshToken());
-        assertTrue(result.accessToken().split("\\.").length == 3); // formato JWT
-    }
-
-    @Test
-    @DisplayName("TC-AUTH-02: Login con contraseña incorrecta lanza UnauthorizedException")
-    void loginWrongPasswordThrows() {
-        Profile mockProfile = Profile.builder()
-            .email("test@logyx.pe")
-            .passwordHash(BCrypt.hashpw("OtraPass", BCrypt.gensalt(12)))
-            .build();
-
-        when(profileRepo.findByEmail("test@logyx.pe"))
-            .thenReturn(Uni.createFrom().item(mockProfile));
-
-        assertThrows(UnauthorizedException.class, () ->
-            authService.authenticate("test@logyx.pe", "Password1!")
-                .await().indefinitely()
-        );
-    }
-
-    @Test
-    @DisplayName("TC-AUTH-03: Login con usuario inexistente lanza UnauthorizedException")
-    void loginUnknownEmailThrows() {
-        when(profileRepo.findByEmail(anyString()))
-            .thenReturn(Uni.createFrom().nullItem());
-
-        assertThrows(UnauthorizedException.class, () ->
-            authService.authenticate("noexiste@logyx.pe", "Pass")
-                .await().indefinitely()
-        );
-    }
+@Test
+void lanzaNeg001ConElCampo() {
+    var e = assertThrows(BusinessException.class,
+            () -> ContactInfoPolicy.ensureNoContactInfo("cel 987654321", "body"));
+    assertEquals("LOGYX-NEG-001", e.code());
+    assertEquals("body", e.field());
 }
 ```
 
-### 3.2 Módulo AUCTION
+### 3.2 Pruebas de flujo e integración (`@QuarkusTest`)
 
-```java
-// AuctionServiceTest.java
-@QuarkusTest
-class AuctionServiceTest {
+Recorren API → casos de uso → repositorios → PostgreSQL real con RLS: `MarketplaceFlowTest`, `NegotiationFlowTest`, `EvidenceAndReputationFlowTest`, `IncidentAndOperatorFlowTest`, `NotificationFlowTest`, `TripFlowTest`, `SmartLoadFlowTest`, `ContractAdditionsFlowTest`, `AuthRateLimitFlowTest`, `RealtimeStreamFlowTest` (cliente SSE real en `support/SseClient`).
 
-    @Inject AuctionService auctionService;
-    @InjectMock AuctionRepository auctionRepo;
-    @InjectMock BidRepository bidRepo;
-    @InjectMock VehicleRepository vehicleRepo;
+### 3.3 Pruebas de seguridad (RLS y privilegios)
 
-    @Test
-    @DisplayName("TC-AUC-01: Oferta válida se persiste correctamente")
-    void validBidIsPersisted() {
-        UUID auctionId = UUID.randomUUID();
-        UUID carrierId  = UUID.randomUUID();
-        UUID vehicleId  = UUID.randomUUID();
+Específicas de este sistema y de mayor valor para el jurado:
 
-        Auction auction = buildOpenAuction(auctionId, new BigDecimal("2800.00")); // price_floor=2100
-        Vehicle vehicle = buildVehicle(vehicleId, new BigDecimal("15000"), BigDecimal.ZERO);
+| Prueba | Qué demuestra |
+|---|---|
+| `RowLevelSecurityTest` (8 casos) | Una organización no lee filas de otra aunque la consulta omita el `WHERE`; un transportista nunca ve el monto de otra oferta; los datos públicos del marketplace sí son visibles |
+| `DatabasePrivilegesTest` (3 casos) | Con la conexión `logyx_api` y sentencias "inyectadas": `RESET ROLE`, `SET ROLE`, `ALTER`, `DROP POLICY` fallan con SQLSTATE 42501; el rol no es dueño ni `BYPASSRLS` |
+| `OutboxTest` (6 casos) | Entrega atómica, reintentos exponenciales, `FAILED` tras agotar intentos, `SKIP LOCKED` |
+| `RealtimeStreamFlowTest` (8 casos) | Otra PYME, otro transportista y otro conductor de la misma empresa no reciben nada; reanudación bajo RLS; `stream.resync`; 401/429; latido y expiración; `NOTIFY` forjado sin efecto |
+| `AuthRateLimitFlowTest`, `RateLimiterTest` | Rate limiting de login y registro (`LOGYX-AUTH-429`) |
+| `ModuleBoundariesTest` | Hexagonal: el dominio no importa Quarkus/JPA y nadie importa la `infrastructure` de otro módulo |
 
-        when(auctionRepo.findById(auctionId)).thenReturn(Uni.createFrom().item(auction));
-        when(vehicleRepo.findById(vehicleId)).thenReturn(Uni.createFrom().item(vehicle));
-        when(bidRepo.persist(any())).thenAnswer(inv -> Uni.createFrom().item(inv.getArgument(0)));
+### 3.4 Pruebas e2e (Playwright) y accesibilidad (axe)
 
-        PlaceBidRequest req = new PlaceBidRequest(vehicleId, new BigDecimal("2500.00"), "Disponible mañana");
+18 specs en `web/tests/e2e/`: `auth` (registro, validaciones, login, logout, roles), `flows` (publicar solicitud con cotización en vivo, marketplace con filtros y paginación, ofertar con error inline, comparar/aceptar, asignar conductor, seguimiento, cancelar), `negotiation`, `reputation`, `documents`, `incidents`, `notifications`, `operator`, `trips`, `realtime` (también contra el build de producción con CSP), y las specs `a11y*` que ejecutan **axe-core** y fallan ante violaciones `serious` o `critical` de WCAG 2.1 A/AA (incluido el modo oscuro). Fragmento real:
 
-        Bid result = auctionService.placeBid(auctionId, req, carrierId)
-            .await().indefinitely();
-
-        assertEquals(new BigDecimal("2500.00"), result.amount);
-        assertEquals(BidStatus.PENDING, result.status);
-    }
-
-    @Test
-    @DisplayName("TC-AUC-02: Oferta por debajo del price_floor lanza BusinessException")
-    void bidBelowPriceFloorThrows() {
-        UUID auctionId = UUID.randomUUID();
-        Auction auction = buildOpenAuction(auctionId, new BigDecimal("2800.00")); // floor=2100
-
-        when(auctionRepo.findById(auctionId)).thenReturn(Uni.createFrom().item(auction));
-        when(vehicleRepo.findById(any())).thenReturn(Uni.createFrom().item(buildVehicle(
-            UUID.randomUUID(), new BigDecimal("15000"), BigDecimal.ZERO)));
-
-        PlaceBidRequest req = new PlaceBidRequest(UUID.randomUUID(), new BigDecimal("1500.00"), "");
-
-        BusinessException ex = assertThrows(BusinessException.class, () ->
-            auctionService.placeBid(auctionId, req, UUID.randomUUID())
-                .await().indefinitely()
-        );
-        assertTrue(ex.getMessage().contains("LOGYX-BID-001"));
-    }
-
-    @Test
-    @DisplayName("TC-AUC-03: Oferta rechazada si vehículo no tiene capacidad")
-    void bidRejectedWhenVehicleAtCapacity() {
-        UUID auctionId = UUID.randomUUID();
-        Auction auction = buildOpenAuction(auctionId, new BigDecimal("2800.00"));
-        // Vehículo al 100% de capacidad
-        Vehicle vehicle = buildVehicle(UUID.randomUUID(),
-            new BigDecimal("8000"), new BigDecimal("8000"));
-
-        when(auctionRepo.findById(auctionId)).thenReturn(Uni.createFrom().item(auction));
-        when(vehicleRepo.findById(any())).thenReturn(Uni.createFrom().item(vehicle));
-
-        PlaceBidRequest req = new PlaceBidRequest(vehicle.id, new BigDecimal("2500.00"), "");
-
-        assertThrows(BusinessException.class, () ->
-            auctionService.placeBid(auctionId, req, UUID.randomUUID())
-                .await().indefinitely()
-        );
-    }
-
-    @Test
-    @DisplayName("TC-AUC-04: No se puede ofertar en subasta cerrada")
-    void cannotBidOnClosedAuction() {
-        UUID auctionId = UUID.randomUUID();
-        Auction auction = buildOpenAuction(auctionId, new BigDecimal("2800.00"));
-        auction.status = AuctionStatus.CLOSED;
-
-        when(auctionRepo.findById(auctionId)).thenReturn(Uni.createFrom().item(auction));
-
-        assertThrows(BusinessException.class, () ->
-            auctionService.placeBid(auctionId,
-                new PlaceBidRequest(UUID.randomUUID(), new BigDecimal("2500.00"), ""),
-                UUID.randomUUID())
-                .await().indefinitely()
-        );
-    }
+```ts
+async function expectNoSeriousViolations(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  const bad = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+  expect(bad.map((v) => `${v.id} (${v.impact})`)).toEqual([]);
 }
 ```
 
-### 3.3 Módulo PRICING
+### 3.5 Pruebas Android
 
-```java
-// PricingServiceTest.java
-@QuarkusTest
-class PricingServiceTest {
-
-    @Inject PricingService pricingService;
-    @InjectMock OpenRouteServiceClient orsClient;
-
-    @Test
-    @DisplayName("TC-PRICE-01: Cálculo correcto para carga general Lima-Arequipa")
-    void correctCalculationGeneralCargoLimaArequipa() {
-        OrsRoute mockRoute = new OrsRoute(
-            new BigDecimal("1014500"),   // 1014.5 km en metros
-            new BigDecimal("46800")      // 780 min en segundos
-        );
-        when(orsClient.getRoute(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
-            .thenReturn(Uni.createFrom().item(mockRoute));
-
-        ShipmentRequest req = ShipmentRequest.builder()
-            .weightKg(new BigDecimal("3500"))
-            .cargoType(CargoType.GENERAL)
-            .originLat(-12.0731).originLng(-77.0826)
-            .destinationLat(-16.3989).destinationLng(-71.5370)
-            .build();
-
-        CostCalculation result = pricingService.calculate(req).await().indefinitely();
-
-        assertTrue(result.distanceKm.compareTo(new BigDecimal("1014")) > 0);
-        assertTrue(result.totalEstimate.compareTo(BigDecimal.ZERO) > 0);
-        // Verificar que el total es la suma de los componentes
-        BigDecimal expectedTotal = result.fuelCost
-            .add(result.baseTransportCost)
-            .add(result.tollCost)
-            .add(result.handlingFee);
-        assertEquals(0, result.totalEstimate.compareTo(expectedTotal));
-    }
-
-    @Test
-    @DisplayName("TC-PRICE-02: Carga frágil aplica multiplicador 1.30")
-    void fragileCargoPriceMultiplierApplied() {
-        OrsRoute route = new OrsRoute(new BigDecimal("500000"), new BigDecimal("18000"));
-        when(orsClient.getRoute(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
-            .thenReturn(Uni.createFrom().item(route));
-
-        ShipmentRequest general = buildRequest(new BigDecimal("1000"), CargoType.GENERAL);
-        ShipmentRequest fragile = buildRequest(new BigDecimal("1000"), CargoType.FRAGILE);
-
-        CostCalculation calcGeneral = pricingService.calculate(general).await().indefinitely();
-        CostCalculation calcFragile = pricingService.calculate(fragile).await().indefinitely();
-
-        BigDecimal ratio = calcFragile.baseTransportCost
-            .divide(calcGeneral.baseTransportCost, 2, HALF_UP);
-
-        assertEquals(0, ratio.compareTo(new BigDecimal("1.30")));
-    }
-}
-```
-
-### 3.4 Módulo MODERATION (función fn_contains_contact_info)
-
-```java
-// MessageModerationServiceTest.java
-@QuarkusTest
-class MessageModerationServiceTest {
-
-    @Inject MessageModerationService moderator;
-
-    @ParameterizedTest
-    @DisplayName("TC-MOD-01: Detecta teléfonos peruanos de 9 dígitos")
-    @ValueSource(strings = {
-        "Llámame al 987654321",
-        "Mi cel es 912345678 para coordinar",
-        "987123456 precio mejor afuera"
-    })
-    void detectsPeruvianPhoneNumbers(String text) {
-        assertTrue(moderator.containsContactInfo(text),
-            "Debería detectar número de teléfono en: " + text);
-    }
-
-    @ParameterizedTest
-    @DisplayName("TC-MOD-02: Detecta emails")
-    @ValueSource(strings = {
-        "Escríbeme a carlos@transportes.com",
-        "correo: juan.perez@gmail.com para cotizar"
-    })
-    void detectsEmails(String text) {
-        assertTrue(moderator.containsContactInfo(text));
-    }
-
-    @ParameterizedTest
-    @DisplayName("TC-MOD-03: No bloquea mensajes legítimos")
-    @ValueSource(strings = {
-        "Puedo salir mañana con 3 toneladas",
-        "El precio incluye peajes en la ruta",
-        "Tengo disponibilidad para el 5 de julio"
-    })
-    void doesNotBlockLegitimateMessages(String text) {
-        assertFalse(moderator.containsContactInfo(text));
-    }
-}
-```
-
-### 3.5 Pruebas de Integración — API REST
-
-```java
-// ShipmentRequestResourceIT.java
-@QuarkusIntegrationTest
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class ShipmentRequestResourceIT {
-
-    static String accessToken;
-    static UUID createdRequestId;
-
-    @BeforeAll
-    static void login() {
-        accessToken = given()
-            .contentType(ContentType.JSON)
-            .body("""{"email":"maria.torres@textilesarequipa.pe","password":"Test1234!"}""")
-            .when().post("/api/v1/auth/login")
-            .then().statusCode(200)
-            .extract().path("data.accessToken");
-    }
-
-    @Test @Order(1)
-    @DisplayName("TC-IT-01: PYME puede publicar solicitud de carga")
-    void pymeCanPublishShipmentRequest() {
-        String requestBody = """
-            {
-              "originAddress": "Av. La Marina 1200, Lima",
-              "originLat": -12.0731, "originLng": -77.0826,
-              "destinationAddress": "Mercaderes 120, Arequipa",
-              "destinationLat": -16.3989, "destinationLng": -71.5370,
-              "weightKg": 2000,
-              "cargoType": "general",
-              "requiredDate": "2026-07-15"
-            }
-            """;
-
-        createdRequestId = given()
-            .header("Authorization", "Bearer " + accessToken)
-            .contentType(ContentType.JSON)
-            .body(requestBody)
-            .when().post("/api/v1/shipment-requests")
-            .then()
-            .statusCode(201)
-            .body("data.status", equalTo("open"))
-            .body("data.suggestedPrice", notNullValue())
-            .extract().path("data.id");
-
-        assertNotNull(createdRequestId);
-    }
-
-    @Test @Order(2)
-    @DisplayName("TC-IT-02: La solicitud aparece en el marketplace")
-    void requestAppearsInMarketplace() {
-        given()
-            .header("Authorization", "Bearer " + accessToken)
-            .when().get("/api/v1/shipment-requests?status=open")
-            .then()
-            .statusCode(200)
-            .body("data", hasSize(greaterThanOrEqualTo(1)));
-    }
-
-    @Test @Order(3)
-    @DisplayName("TC-IT-03: Solicitud sin token retorna 401")
-    void unauthenticatedRequestReturns401() {
-        given()
-            .when().get("/api/v1/shipment-requests")
-            .then().statusCode(401);
-    }
-}
-```
+- **Unitarias** (`testDebugUnitTest`, `:core:network:test`): ViewModels de cada feature (`TripsViewModelsTest` con 34 casos, `LoadsViewModelsTest` 14, `IncidentsViewModelsTest` 13…), parsing del contrato (`DtoParsingTest`, `Phase2/Phase4ParsingTest`), cliente y parser SSE (`RealtimeClientTest`, `SseParserTest`).
+- **Instrumentadas** (`connectedDebugAndroidTest`, requieren emulador): `RoleHomeTest` (login → home por rol), `BidFlowTest` (ofertar con piso), `DriverAdvanceTest` (conductor hasta Entregado con evidencia), `ChatTest` (RN07), `TripsFlowTest`.
+- QA manual en emulador (Pixel 7, API 36) contra el backend real, con capturas de referencia claro/oscuro y fuente 1.3x.
 
 ---
 
-## 4. Casos de Prueba — Flutter (flutter_test)
+## 4. Cómo ejecutar las pruebas
 
-```dart
-// auction_service_test.dart
-void main() {
-  group('AuctionService', () {
-    late AuctionService service;
-    late MockApiService mockApi;
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk        # Java 21
 
-    setUp(() {
-      mockApi  = MockApiService();
-      service  = AuctionService(api: mockApi);
-    });
+# Backend (requiere Docker: Dev Services levanta postgres:16-alpine)
+cd backend && ./mvnw test
+./mvnw package -DskipTests                           # regenera docs/api/openapi.yaml
 
-    test('TC-FL-01: placeBid retorna Bid al recibir 201', () async {
-      when(mockApi.post(any, any, any)).thenAnswer((_) async => {
-        'id': 'bid-uuid',
-        'amount': 2500.0,
-        'status': 'pending',
-      });
+# Web
+cd web && npm ci && npm run check && npm run build   # typecheck (astro check) + build
+npx playwright install chromium
+npm run test:e2e                                     # backend dev en E2E_API_URL (:8180) con -Dlogyx.operator.sla=PT0S
 
-      final bid = await service.placeBid(
-        auctionId: 'auction-uuid',
-        vehicleId: 'vehicle-uuid',
-        amount: 2500.0,
-        notes: 'Disponible hoy',
-      );
+# Android
+cd android && ./gradlew assembleDebug testDebugUnitTest :core:network:test
+./gradlew connectedDebugAndroidTest                  # con emulador encendido
 
-      expect(bid.amount, equals(2500.0));
-      expect(bid.status, equals('pending'));
-    });
-
-    test('TC-FL-02: Error 400 por precio bajo lanza BusinessException', () async {
-      when(mockApi.post(any, any, any))
-          .thenThrow(ApiException(statusCode: 400, code: 'LOGYX-BID-001'));
-
-      expect(
-        () => service.placeBid(
-          auctionId: 'auction-uuid',
-          vehicleId: 'vehicle-uuid',
-          amount: 500.0,
-          notes: '',
-        ),
-        throwsA(isA<BusinessException>()),
-      );
-    });
-  });
-}
+# Contrato
+python3 scripts/test_openapi_compat.py && scripts/check-contract.sh origin/main
 ```
 
-```dart
-// delivery_confirm_widget_test.dart
-void main() {
-  testWidgets('TC-FL-03: DeliveryConfirmScreen muestra botones de foto y firma',
-      (WidgetTester tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: DeliveryConfirmScreen(
-          stopId: 'stop-uuid',
-          location: 'Av. Test 123',
-        ),
-      ),
-    );
-
-    expect(find.text('Tomar foto'), findsOneWidget);
-    expect(find.text('Capturar firma'), findsOneWidget);
-    expect(find.text('Confirmar entrega'), findsOneWidget);
-  });
-
-  testWidgets('TC-FL-04: No se puede confirmar sin foto y firma',
-      (WidgetTester tester) async {
-    await tester.pumpWidget(
-      MaterialApp(home: DeliveryConfirmScreen(stopId: 'x', location: 'y')),
-    );
-
-    await tester.tap(find.text('Confirmar entrega'));
-    await tester.pump();
-
-    expect(find.text('Debes tomar la foto y capturar la firma'), findsOneWidget);
-  });
-}
-```
+Nota de recursos (máquina de 15 GB): un proceso pesado a la vez (Maven, Gradle, Docker, Playwright).
 
 ---
 
-## 5. Casos de Prueba E2E — Cypress (Web)
+## 5. Entorno de pruebas
 
-```javascript
-// cypress/e2e/pyme_publish_request.cy.js
-
-describe('PYME: Publicar solicitud de carga', () => {
-  beforeEach(() => {
-    cy.login('maria.torres@textilesarequipa.pe', 'Test1234!');
-  });
-
-  it('TC-E2E-01: PYME publica solicitud y ve cotización estimada', () => {
-    cy.visit('/pyme/requests/new');
-
-    // Paso 1: origen y destino
-    cy.get('[data-cy=origin-address]').type('Av. La Marina 1200, Lima');
-    cy.get('[data-cy=destination-address]').type('Mercaderes 120, Arequipa');
-    cy.get('[data-cy=next-step]').click();
-
-    // Paso 2: carga
-    cy.get('[data-cy=weight-kg]').type('2000');
-    cy.get('[data-cy=cargo-type]').select('general');
-    cy.get('[data-cy=required-date]').type('2026-07-15');
-    cy.get('[data-cy=next-step]').click();
-
-    // Paso 3: cotización
-    cy.get('[data-cy=estimated-price]').should('be.visible');
-    cy.get('[data-cy=distance-km]').should('contain.text', 'km');
-    cy.get('[data-cy=confirm-publish]').click();
-
-    // Verificar redirección a lista de solicitudes
-    cy.url().should('include', '/pyme/requests');
-    cy.get('[data-cy=request-status-badge]').first().should('contain', 'open');
-  });
-
-  it('TC-E2E-02: Carrier ve solicitud en marketplace y hace oferta', () => {
-    cy.loginAs('carlos@colcaexpress.pe', 'Test1234!');
-    cy.visit('/carrier/marketplace');
-
-    cy.get('[data-cy=bid-button]').first().click();
-    cy.get('[data-cy=bid-amount]').type('2400');
-    cy.get('[data-cy=bid-vehicle]').select('A3T-456');
-    cy.get('[data-cy=submit-bid]').click();
-
-    cy.get('[data-cy=success-toast]').should('contain', 'Oferta enviada');
-  });
-});
-```
+| Elemento | Detalle |
+|---|---|
+| Datos | Cada test registra sus propias cuentas (`api.registerAccount`, `Flows`); no depende de datos previos. El perfil dev del backend (cuentas demo, seed por casos de uso) lo usa el e2e |
+| Reloj y reglas | El e2e de asignación manual necesita `-Dlogyx.operator.sla=PT0S`; en dev la subasta dura 72 h (`%dev.logyx.auction.duration`) |
+| Rate limit | En dev/test el límite por IP se sube a 100000 (los tests registran cientos de cuentas desde 127.0.0.1); el límite por email sigue activo |
+| Aislamiento | `fullyParallel: false`, `workers: 1` en Playwright |
 
 ---
 
-## 6. Tabla de Casos de Prueba (Resumen)
+## 6. Tabla de casos de prueba — equivalencias con el plan original
 
-| ID | Funcionalidad | Tipo | Resultado esperado | Estado |
-|----|---------------|------|--------------------|--------|
-| TC-AUTH-01 | Login correcto | Unit | TokenPair no nulo | Pendiente |
-| TC-AUTH-02 | Login contraseña incorrecta | Unit | UnauthorizedException | Pendiente |
-| TC-AUTH-03 | Login usuario inexistente | Unit | UnauthorizedException | Pendiente |
-| TC-AUC-01 | Oferta válida | Unit | Bid persistida | Pendiente |
-| TC-AUC-02 | Oferta bajo price_floor | Unit | BusinessException LOGYX-BID-001 | Pendiente |
-| TC-AUC-03 | Oferta vehículo sin capacidad | Unit | BusinessException LOGYX-CAP-001 | Pendiente |
-| TC-AUC-04 | Oferta en subasta cerrada | Unit | BusinessException LOGYX-AUC-001 | Pendiente |
-| TC-PRICE-01 | Cálculo Lima-Arequipa general | Unit | Total > 0, suma coherente | Pendiente |
-| TC-PRICE-02 | Multiplicador carga frágil | Unit | ratio = 1.30 | Pendiente |
-| TC-MOD-01 | Detección teléfonos | Unit | containsContactInfo = true | Pendiente |
-| TC-MOD-02 | Detección emails | Unit | containsContactInfo = true | Pendiente |
-| TC-MOD-03 | Mensajes legítimos | Unit | containsContactInfo = false | Pendiente |
-| TC-IT-01 | Publicar solicitud (API) | Integración | HTTP 201, status='open' | Pendiente |
-| TC-IT-02 | Solicitud en marketplace | Integración | Lista no vacía | Pendiente |
-| TC-IT-03 | Sin token retorna 401 | Integración | HTTP 401 | Pendiente |
-| TC-FL-01 | placeBid Flutter OK | Unit Flutter | Bid retornada | Pendiente |
-| TC-FL-02 | Error 400 Flutter | Unit Flutter | BusinessException | Pendiente |
-| TC-FL-03 | UI confirmar entrega | Widget | Botones visibles | Pendiente |
-| TC-FL-04 | Confirmar sin evidencia | Widget | Mensaje de error visible | Pendiente |
-| TC-E2E-01 | PYME publica solicitud | E2E Cypress | Solicitud aparece en lista | Pendiente |
-| TC-E2E-02 | Carrier hace oferta | E2E Cypress | Toast de confirmación | Pendiente |
+| Caso original | Funcionalidad | Prueba real | Estado |
+|----|---------------|-------------|--------|
+| TC-AUTH-01..03 | Login correcto / contraseña incorrecta / usuario inexistente | `auth.spec.ts` (e2e) y flujos de identity | Implementado |
+| TC-AUC-01 | Oferta válida | `MarketplaceFlowTest`, `BidFlowTest` (Android) | Implementado |
+| TC-AUC-02 | Oferta bajo el piso (RN03) | `BidEligibilityPolicyTest`, `PriceFloorPolicyTest`, `flows.spec.ts` (error inline) | Implementado |
+| TC-AUC-03 | Vehículo sin capacidad (RN02) | `BidEligibilityPolicyTest` | Implementado |
+| TC-AUC-04 | Oferta en subasta cerrada / cierre RN04 | `AuctionClosingPolicyTest` | Implementado |
+| TC-PRICE-01..02 | Motor de costos | `TariffCalculatorTest`, `RoadDistanceProviderTest` | Implementado |
+| TC-MOD-01..03 | Detección de contacto (RN07) | `ContactInfoPolicyTest`, `ChatTest` | Implementado |
+| TC-IT-01..03 | Publicar solicitud, marketplace, 401 sin token | `MarketplaceFlowTest`, `ContractAdditionsFlowTest` | Implementado |
+| TC-FL-01..04 | Flujos móviles (ofertar, error 400, confirmar entrega, sin evidencia) | `BidFlowTest`, `DriverAdvanceTest`, `DriverViewModelTest` (Android, no Flutter) | Implementado |
+| TC-E2E-01..02 | PYME publica; transportista oferta | `flows.spec.ts` (Playwright, no Cypress) | Implementado |
+| (nuevo) | RLS, privilegios, outbox, tiempo real, WCAG AA, contrato | secciones 3.3 y 3.4 | Implementado |
 
----
+## 7. Cobertura y brechas
 
-## 7. Cobertura de Pruebas
-
-| Módulo | Pruebas unitarias | Pruebas de integración | Cobertura estimada |
-|--------|-----------------|----------------------|-------------------|
-| auth | 3 casos | 2 vía IT | ~80% |
-| auction | 4 casos | 1 vía IT | ~75% |
-| pricing | 2 casos | — | ~70% |
-| negotiation (moderation) | 3 casos | — | ~70% |
-| tracking | — | Pendiente | ~50% |
-| reputation | — | Pendiente | ~50% |
-| fleet | — | Pendiente | ~40% |
-| **Total estimado** | | | **≥ 65%** |
+| Área | Cobertura | Brecha |
+|---|---|---|
+| Reglas de negocio RN01–RN12 | Política de dominio con prueba unitaria + flujo | RN01 (consulta SUNAT) cubierta solo por Módulo 11 |
+| Seguridad de datos | RLS, privilegios, outbox y SSE probados contra PostgreSQL real | Sin pruebas de penetración ni escaneo de dependencias propio (Dependabot en CI) |
+| Web | e2e de los flujos por rol + axe en pantallas clave | Solo Chromium; sin pruebas de carga |
+| Android | 165 unitarias + 8 instrumentadas | Sin pruebas de firma digital ni PDF en dispositivo; flujo de publicar viaje sin test instrumentado |
+| Rendimiento (RNF01/02) | No medido | Pendiente: pruebas de carga |
+| Cobertura de líneas | No medida | Pendiente: integrar JaCoCo |
 
 ---
 
-*LOGYX · E4 Plan de Pruebas · Competencia CE0241 · Versión 1.0 · Junio 2026*
+*OnCargo · E4 Plan de Pruebas · Competencia CE0241 · Versión 2.0 · Noviembre 2026*

@@ -1,9 +1,12 @@
 # E2 — Modelo de Base de Datos
 > Competencia CE0221 · Modelo ER + Lógico + Diccionario de Datos  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
 > Motor: PostgreSQL 16  
-> Versión: 1.0 · Junio 2026
+> Versión: 2.0 (alineada con las migraciones V1–V12) · Noviembre 2026 · Versión original 1.0, junio 2026
+
+!!! info "Modelo diseñado vs. modelo implementado"
+    El modelo de la v1.0 (22 tablas, PostGIS, ENUM nativos, `cost_calculations`, códigos de tracking) se **reemplazó por el modelo real** que crean las migraciones Flyway `V1__schema.sql` a `V12__realtime.sql`: **24 tablas**, sin PostGIS (las ciudades son un vocabulario cerrado y la distancia se calcula en la aplicación), enums como `VARCHAR + CHECK` y columnas **denormalizadas a propósito** para que las políticas RLS no consulten otras tablas protegidas. Los scripts exactos están en [Scripts SQL](scripts.md).
 
 ---
 
@@ -11,870 +14,353 @@
 
 | Campo | Detalle |
 |-------|---------|
-| **Motor de base de datos** | PostgreSQL 16 con extensión PostGIS |
-| **Paradigma** | Relacional normalizado (3FN) |
-| **Total de tablas** | 22 tablas principales |
-| **Extensiones usadas** | `uuid-ossp` (generación de UUIDs), `postgis` (geoespacial), `pg_trgm` (búsqueda de texto) |
-| **Herramienta de migración** | Flyway |
+| **Motor de base de datos** | PostgreSQL 16 (`postgres:16-alpine` en contenedores y Dev Services) |
+| **Paradigma** | Relacional normalizado (3FN) con desnormalizaciones documentadas para RLS y lectura |
+| **Total de tablas** | 24 (más `flyway_schema_history`) |
+| **Extensiones** | Ninguna adicional: `gen_random_uuid()` es nativo desde PostgreSQL 13 |
+| **Herramienta de migración** | Flyway (`quarkus.flyway.migrate-at-start=true`), 12 migraciones versionadas |
+| **Identificadores** | UUID generados por el dominio (`gen_random_uuid()` como valor por omisión); `BIGSERIAL` solo para `audit_log`, `outbox_events.seq` y `realtime_events.seq` |
+| **Enums** | `VARCHAR(n) NOT NULL CHECK (col IN (...))`: agregar un valor es una migración trivial y Hibernate los mapea directo |
+| **Aislamiento** | Row-Level Security activada en las tablas de usuario; ver [Seguridad](seguridad.md) |
+
+### 1.1 Migraciones
+
+| Migración | Contenido |
+|---|---|
+| `V1__schema.sql` | `organizations`, `profiles`, `vehicles`, `drivers`, `shipment_requests`, `auctions`, `bids`, `shipments`, `shipment_stops`, `audit_log` |
+| `V2__row_level_security.sql` | Rol `logyx_app`, funciones `app_org()` / `app_org_type()`, RLS y políticas de V1 |
+| `V3__contract_additions.sql` | Denormaliza `vehicle_type` y `vehicle_plate` en `bids` |
+| `V4__negotiation.sql` | `messages`, `counter_offers` + RLS |
+| `V5__documents.sql` | `documents` + RLS (evidencia inmutable) |
+| `V6__reputation.sql` | `reviews`, `reputation_scores` + RLS |
+| `V7__incident.sql` | `incidents`, `incident_comments` + RLS, índice único de incidencia activa |
+| `V8__notification.sql` | `notifications` + RLS (sin INSERT para la app) |
+| `V9__operator.sql` | `bids.assigned_by_operator` + políticas de escritura acotadas al operador |
+| `V10__trip.sql` | `carrier_trips`, `trip_bookings`, `smart_load_suggestions`, `smart_load_items` + RLS; amplía tipos de notificación |
+| `V11__outbox.sql` | `outbox_events` (solo INSERT para la app) |
+| `V12__realtime.sql` | `realtime_events`, función y trigger `realtime_events_notify` |
 
 ---
 
 ## 2. Diagrama Entidad-Relación (ER)
 
+### 2.1 Núcleo: organizaciones, flota, marketplace y ejecución
+
 ```mermaid
 erDiagram
+  organizations ||--o{ profiles : "tiene usuarios"
+  organizations ||--o{ vehicles : "flota (CARRIER)"
+  organizations ||--o{ drivers : "conductores"
+  profiles ||--o| drivers : "perfil del conductor"
+  organizations ||--o{ shipment_requests : "requester_org_id (PYME)"
+  shipment_requests ||--|| auctions : "una subasta"
+  auctions ||--o{ bids : "ofertas"
+  vehicles ||--o{ bids : "vehicle_id"
+  organizations ||--o{ bids : "carrier_org_id"
+  shipment_requests ||--o| shipments : "al aceptar"
+  bids ||--o| shipments : "bid_id"
+  shipments ||--|{ shipment_stops : "paradas"
+  drivers ||--o{ shipments : "driver_id"
+
   organizations {
     uuid id PK
-    varchar name
+    varchar type "PYME CARRIER OPERATOR"
     varchar ruc UK
-    org_type type
-    boolean verified
-    timestamp verified_at
-    integer trust_score
-    timestamp created_at
+    varchar ruc_verification "NONE CHECKSUM SUNAT"
   }
-
   profiles {
     uuid id PK
     uuid organization_id FK
-    varchar full_name
-    varchar phone
     varchar email UK
-    varchar password_hash
-    profile_role role
-    timestamp consent_accepted_at
-    timestamp created_at
+    varchar role "ADMIN OPS VIEWER DRIVER"
+    timestamptz consent_accepted_at
   }
-
-  vehicles {
-    uuid id PK
-    uuid carrier_org_id FK
-    varchar plate UK
-    vehicle_type vehicle_type
-    decimal max_weight_kg
-    decimal max_volume_m3
-    decimal current_weight_kg
-    vehicle_status status
-    timestamp created_at
-  }
-
-  drivers {
-    uuid id PK
-    uuid carrier_org_id FK
-    varchar full_name
-    varchar dni UK
-    varchar license_number UK
-    varchar phone
-    uuid current_vehicle_id FK
-    driver_status status
-  }
-
   shipment_requests {
     uuid id PK
     uuid requester_org_id FK
-    varchar origin_address
-    decimal origin_lat
-    decimal origin_lng
-    varchar destination_address
-    decimal destination_lat
-    decimal destination_lng
-    decimal weight_kg
-    cargo_type cargo_type
-    date required_date
-    request_status status
-    decimal suggested_price
-    decimal price_floor
-    timestamp created_at
+    varchar status "PUBLISHED MATCHED CANCELLED"
+    numeric suggested_price
+    numeric price_floor
+    uuid assigned_carrier_org_id FK
   }
-
   auctions {
     uuid id PK
     uuid request_id FK
-    timestamp opens_at
-    timestamp closes_at
-    integer max_bids
-    auction_status status
+    timestamptz closes_at
+    int max_bids
+    varchar status "OPEN CLOSED CANCELLED"
   }
-
   bids {
     uuid id PK
     uuid auction_id FK
+    uuid requester_org_id "denormalizado"
     uuid carrier_org_id FK
-    uuid vehicle_id FK
-    decimal amount
-    text notes
-    bid_status status
-    timestamp submitted_at
-    timestamp expires_at
+    numeric amount
+    varchar vehicle_plate "denormalizado"
+    boolean assigned_by_operator
   }
-
-  counter_offers {
-    uuid id PK
-    uuid bid_id FK
-    uuid offered_by_org_id FK
-    decimal amount
-    text message
-    counter_offer_status status
-    timestamp created_at
-  }
-
-  carrier_trips {
-    uuid id PK
-    uuid carrier_org_id FK
-    uuid vehicle_id FK
-    varchar origin_address
-    decimal origin_lat
-    decimal origin_lng
-    varchar destination_address
-    decimal destination_lat
-    decimal destination_lng
-    timestamp departure_at
-    decimal available_weight_kg
-    decimal available_volume_m3
-    decimal price_per_kg
-    trip_status status
-    timestamp created_at
-  }
-
-  trip_bookings {
-    uuid id PK
-    uuid trip_id FK
-    uuid requester_org_id FK
-    uuid request_id FK
-    decimal booked_weight_kg
-    booking_status status
-    timestamp created_at
-  }
-
-  messages {
-    uuid id PK
-    uuid request_id FK
-    uuid carrier_org_id FK
-    uuid sender_org_id FK
-    text body
-    decimal proposed_price
-    boolean is_system
-    boolean is_blocked
-    timestamp created_at
-  }
-
   shipments {
     uuid id PK
     uuid request_id FK
     uuid bid_id FK
-    uuid carrier_org_id FK
-    uuid vehicle_id FK
-    uuid driver_id FK
-    varchar tracking_code UK
-    shipment_status status
-    escrow_status escrow_status
-    timestamp started_at
-    timestamp delivered_at
-    timestamp created_at
+    uuid requester_org_id
+    uuid carrier_org_id
+    varchar status "PENDING IN_TRANSIT DELIVERED CANCELLED"
   }
-
   shipment_stops {
     uuid id PK
     uuid shipment_id FK
-    uuid request_id FK
-    integer sequence
-    varchar location
-    decimal lat
-    decimal lng
-    timestamp eta
-    timestamp actual_arrival
-    stop_status status
-    varchar photo_url
-    varchar signature_url
-    decimal cargo_weight_kg
+    int sequence
+    varchar type "PICKUP DELIVERY"
+    varchar status "PENDING ARRIVED COMPLETED"
   }
+```
 
-  reviews {
+### 2.2 Negociación, confianza y comunicación
+
+```mermaid
+erDiagram
+  bids ||--o{ counter_offers : "contraofertas"
+  shipment_requests ||--o{ messages : "hilo (request, carrier)"
+  shipments ||--o{ documents : "evidencia"
+  shipment_stops ||--o{ documents : "stop_id opcional"
+  shipments ||--o{ incidents : "incidencias"
+  incidents ||--o{ incident_comments : "comentarios"
+  shipments ||--o{ reviews : "máx. 2 (una por parte)"
+  organizations ||--|| reputation_scores : "Trust Score"
+  organizations ||--o{ notifications : "org_id"
+  organizations ||--o{ realtime_events : "destinatario"
+  outbox_events }o--o| organizations : "actor_org_id"
+
+  counter_offers {
     uuid id PK
-    uuid shipment_id FK
-    uuid reviewer_org_id FK
-    uuid reviewed_org_id FK
-    smallint rating
-    smallint punctuality
-    text comment
-    boolean delivery_success
-    integer delay_minutes
-    boolean cargo_damage
-    timestamp created_at
+    uuid bid_id FK
+    numeric previous_amount
+    numeric amount
+    varchar status "PENDING ACCEPTED REJECTED EXPIRED"
   }
-
-  reputation_scores {
-    uuid org_id PK FK
-    decimal delivery_success_rate
-    decimal avg_delay_minutes
-    decimal cargo_damage_rate
-    decimal cancellation_rate
-    decimal avg_rating
-    integer composite_score
-    integer total_reviews
-    timestamp updated_at
-  }
-
   documents {
     uuid id PK
     uuid shipment_id FK
-    uuid stop_id FK
-    document_type type
-    varchar file_url
-    bigint file_size_bytes
-    uuid uploaded_by FK
-    timestamp created_at
+    varchar type "SERVICE_ORDER REMISSION_GUIDE RECEIPT DELIVERY_PHOTO SIGNATURE OTHER"
+    varchar sha256
+    varchar storage_key UK
   }
-
-  notifications {
-    uuid id PK
-    uuid org_id FK
-    notification_type type
-    varchar title
-    text body
-    uuid related_id
-    boolean read
-    timestamp created_at
-  }
-
   incidents {
     uuid id PK
     uuid shipment_id FK
-    uuid reported_by_org_id FK
-    incident_category category
-    text description
-    incident_status status
-    varchar resolution_notes
-    timestamp created_at
-    timestamp resolved_at
+    varchar category
+    varchar status "OPEN IN_REVIEW RESOLVED CLOSED"
   }
-
-  incident_comments {
+  reviews {
     uuid id PK
-    uuid incident_id FK
-    uuid author_org_id FK
-    text body
-    timestamp created_at
+    uuid shipment_id FK
+    varchar direction "PYME_TO_CARRIER CARRIER_TO_PYME"
+    smallint punctuality
+    smallint cargo_condition
+    smallint communication
   }
-
-  cost_calculations {
+  reputation_scores {
+    uuid org_id PK
+    numeric trust_score "prior 75"
+  }
+  outbox_events {
     uuid id PK
-    uuid request_id FK
-    decimal distance_km
-    decimal duration_min
-    decimal toll_cost
-    decimal fuel_cost
-    decimal base_transport_cost
-    decimal handling_fee
-    decimal total_estimate
-    timestamp calculated_at
+    bigint seq UK
+    jsonb payload
+    varchar status "PENDING DONE FAILED"
   }
+  realtime_events {
+    bigint seq PK
+    varchar event_type
+    uuid org_id
+    varchar org_type
+    uuid user_id
+  }
+```
 
+### 2.3 Viajes publicados y Smart Load
+
+```mermaid
+erDiagram
+  organizations ||--o{ carrier_trips : "carrier_org_id"
+  vehicles ||--o{ carrier_trips : "vehicle_id"
+  carrier_trips ||--o{ trip_bookings : "reservas"
+  trip_bookings }o--o| shipment_requests : "request_id al confirmar"
+  trip_bookings }o--o| shipments : "shipment_id al confirmar"
+  organizations ||--o{ smart_load_suggestions : "carrier_org_id"
+  smart_load_suggestions ||--|{ smart_load_items : "2 o más cargas"
+  smart_load_items }o--|| shipment_requests : "request_id"
+
+  carrier_trips {
+    uuid id PK
+    numeric capacity_kg
+    numeric confirmed_weight_kg
+    varchar pricing_mode "PER_KG PER_TRIP"
+    varchar status "OPEN FILLING CLOSED COMPLETED CANCELLED"
+  }
+  trip_bookings {
+    uuid id PK
+    uuid trip_id FK
+    numeric weight_kg
+    numeric price
+    varchar status "PENDING CONFIRMED REJECTED CANCELLED"
+  }
   smart_load_suggestions {
     uuid id PK
-    uuid carrier_org_id FK
-    uuid vehicle_id FK
-    uuid[] request_ids
-    decimal combined_income
-    decimal occupancy_pct
-    jsonb route_plan
-    suggestion_status status
-    timestamp created_at
-    timestamp expires_at
+    numeric combined_income
+    numeric occupancy_pct
+    varchar status "PENDING ACCEPTED REJECTED EXPIRED"
   }
-
-  audit_log {
-    uuid id PK
-    varchar table_name
-    varchar action
-    uuid record_id
-    uuid performed_by FK
-    jsonb old_values
-    jsonb new_values
-    timestamp performed_at
-  }
-
-  organizations ||--o{ profiles : "tiene"
-  organizations ||--o{ vehicles : "posee"
-  organizations ||--o{ drivers : "emplea"
-  organizations ||--o{ shipment_requests : "crea"
-  organizations ||--o{ carrier_trips : "publica"
-  organizations ||--|| reputation_scores : "tiene"
-  vehicles ||--o{ drivers : "asignado a"
-  shipment_requests ||--|| auctions : "genera"
-  shipment_requests ||--|| cost_calculations : "tiene"
-  shipment_requests ||--o{ messages : "tiene hilo"
-  shipment_requests ||--o{ trip_bookings : "puede tener"
-  auctions ||--o{ bids : "recibe"
-  bids ||--o{ counter_offers : "genera"
-  bids ||--o| shipments : "origina"
-  carrier_trips ||--o{ trip_bookings : "tiene"
-  shipments ||--o{ shipment_stops : "tiene"
-  shipments ||--o{ documents : "contiene"
-  shipments ||--o| incidents : "puede tener"
-  shipments ||--o{ reviews : "genera"
-  incidents ||--o{ incident_comments : "tiene"
-  reviews }o--|| reputation_scores : "actualiza"
 ```
 
 ---
 
-## 3. Modelo Lógico — Tablas y Tipos
+## 3. Modelo Lógico — Decisiones de modelado
 
-### Tipos Enumerados (ENUMs)
+### 3.1 Enums como `VARCHAR + CHECK`
 
-```sql
--- Tipo de organización
-CREATE TYPE org_type AS ENUM ('pyme', 'carrier', 'operator', 'admin');
+No se usan `CREATE TYPE ... AS ENUM`. Cada columna enumerada es `VARCHAR(n) NOT NULL CHECK (col IN (...))`. Ventajas: agregar un valor es un `ALTER TABLE ... DROP/ADD CONSTRAINT` (como hace V10 con `notifications.type`), sin los problemas de `ALTER TYPE` dentro de transacciones, y el mapeo a Hibernate/Java es directo.
 
--- Rol dentro de una organización
-CREATE TYPE profile_role AS ENUM ('admin', 'ops', 'viewer', 'driver');
+| Enum (columna) | Valores |
+|---|---|
+| `organizations.type` | `PYME`, `CARRIER`, `OPERATOR` |
+| `organizations.ruc_verification` | `NONE`, `CHECKSUM`, `SUNAT` |
+| `profiles.role` | `ADMIN`, `OPS`, `VIEWER`, `DRIVER` |
+| `vehicles.type` | `VAN`, `TRUCK_SMALL`, `TRUCK_MEDIUM`, `TRUCK_LARGE`, `PLATFORM`, `REFRIGERATED`, `TANKER` |
+| `vehicles.status` | `AVAILABLE`, `IN_ROUTE`, `MAINTENANCE` |
+| `drivers.status` | `AVAILABLE`, `ON_DUTY`, `OFF_DUTY` |
+| `shipment_requests.cargo_type` | `GENERAL`, `FRAGILE`, `PERISHABLE`, `HAZARDOUS`, `BULK`, `OVERSIZED` |
+| `shipment_requests.status` | `PUBLISHED`, `MATCHED`, `CANCELLED` |
+| `auctions.status` / `close_reason` | `OPEN`, `CLOSED`, `CANCELLED` / `TIMEOUT`, `MAX_BIDS`, `ACCEPTED`, `CANCELLED` |
+| `bids.status` | `PENDING`, `ACCEPTED`, `REJECTED` |
+| `shipments.status` | `PENDING`, `IN_TRANSIT`, `DELIVERED`, `CANCELLED` |
+| `shipment_stops.type` / `status` | `PICKUP`, `DELIVERY` / `PENDING`, `ARRIVED`, `COMPLETED` |
+| `counter_offers.status` | `PENDING`, `ACCEPTED`, `REJECTED`, `EXPIRED` |
+| `documents.type` | `SERVICE_ORDER`, `REMISSION_GUIDE`, `RECEIPT`, `DELIVERY_PHOTO`, `SIGNATURE`, `OTHER` |
+| `incidents.category` | `CARGO_DAMAGE`, `DELAY`, `LOST_CARGO`, `WRONG_DELIVERY`, `DRIVER_CONDUCT`, `OTHER` |
+| `incidents.status` | `OPEN`, `IN_REVIEW`, `RESOLVED`, `CLOSED` |
+| `reviews.direction` | `PYME_TO_CARRIER`, `CARRIER_TO_PYME` |
+| `carrier_trips.pricing_mode` / `status` | `PER_KG`, `PER_TRIP` / `OPEN`, `FILLING`, `CLOSED`, `COMPLETED`, `CANCELLED` |
+| `trip_bookings.status` | `PENDING`, `CONFIRMED`, `REJECTED`, `CANCELLED` |
+| `smart_load_suggestions.status` | `PENDING`, `ACCEPTED`, `REJECTED`, `EXPIRED` |
+| `outbox_events.status` | `PENDING`, `DONE`, `FAILED` |
+| `notifications.type` | 9 tipos de V8 + `TRIP_BOOKING_REQUESTED/CONFIRMED/REJECTED/CANCELLED`, `TRIP_CANCELLED`, `SMART_LOAD_SUGGESTED`, `SMART_LOAD_ACCEPTED` (V10) |
 
--- Tipo de vehículo
-CREATE TYPE vehicle_type AS ENUM (
-  'truck_small',    -- camión pequeño < 3 ton
-  'truck_medium',   -- camión mediano 3–8 ton
-  'truck_large',    -- camión grande 8–20 ton
-  'van',            -- furgoneta < 1.5 ton
-  'platform',       -- plataforma / cama baja
-  'refrigerated',   -- carga refrigerada
-  'tanker'          -- cisterna
-);
+### 3.2 Denormalizaciones para RLS y lectura
 
--- Estado del vehículo
-CREATE TYPE vehicle_status AS ENUM ('available', 'in_route', 'maintenance');
+El aislamiento por organización (ADR-0001) exige que cada política decida la visibilidad **sin consultar otra tabla protegida** (si no, las políticas se llaman entre sí y pueden recursar o filtrar mal). Por eso hay columnas copiadas a propósito:
 
--- Estado del conductor
-CREATE TYPE driver_status AS ENUM ('available', 'on_duty', 'off_duty');
+| Tabla | Columna(s) copiada(s) | Motivo |
+|---|---|---|
+| `shipment_requests` | `assigned_carrier_org_id` | El transportista adjudicado sigue viendo la solicitud después de `MATCHED` sin leer `bids` |
+| `bids` | `requester_org_id` | La PYME ve las ofertas de sus solicitudes sin leer `shipment_requests` |
+| `bids` | `vehicle_type`, `vehicle_plate` (V3) | La flota es privada (`vehicles_owner`); la PYME ve el vehículo ofertado sin acceso a `vehicles` |
+| `shipments`, `shipment_stops` | `requester_org_id`, `carrier_org_id`; `vehicle_plate`, `driver_name` | Las dos partes del contrato filtran por su propia organización; la PYME ve placa y conductor sin leer la flota |
+| `messages`, `counter_offers`, `documents`, `incidents`, `incident_comments`, `reviews` | `requester_org_id`, `carrier_org_id` (+ `CHECK` de que el autor pertenece al par) | Política "partes del contrato" directa |
+| `carrier_trips`, `trip_bookings` | `vehicle_type`, `vehicle_plate`; `requester_org_id`, `carrier_org_id`, ruta y fecha | La PYME lista viajes y reservas sin leer flota ni viaje |
+| `smart_load_items` | `carrier_org_id`, `requester_org_id` | Política del dueño de la sugerencia |
 
--- Tipo de carga
-CREATE TYPE cargo_type AS ENUM (
-  'general',        -- carga general
-  'fragile',        -- frágil
-  'perishable',     -- perecedero
-  'hazardous',      -- materiales peligrosos
-  'bulk',           -- granel
-  'oversized'       -- sobredimensionado
-);
+### 3.3 Integridad y reglas en la base de datos
 
--- Estado de la solicitud de carga
-CREATE TYPE request_status AS ENUM (
-  'open',           -- publicada, esperando ofertas
-  'auction_open',   -- subasta activa
-  'matched',        -- oferta aceptada
-  'in_transit',     -- en ejecución
-  'delivered',      -- entregado
-  'cancelled'       -- cancelado
-);
-
--- Estado de la subasta
-CREATE TYPE auction_status AS ENUM ('open', 'closed', 'cancelled');
-
--- Estado de la oferta
-CREATE TYPE bid_status AS ENUM ('pending', 'accepted', 'rejected', 'expired');
-
--- Estado de la contra-oferta
-CREATE TYPE counter_offer_status AS ENUM ('pending', 'accepted', 'rejected', 'expired');
-
--- Estado del viaje publicado por carrier
-CREATE TYPE trip_status AS ENUM ('open', 'filling', 'closed', 'completed', 'cancelled');
-
--- Estado de reserva en viaje
-CREATE TYPE booking_status AS ENUM ('confirmed', 'cancelled');
-
--- Estado del envío
-CREATE TYPE shipment_status AS ENUM (
-  'pending',        -- contrato generado, pendiente recogida
-  'picked_up',      -- carga recogida en origen
-  'in_transit',     -- en tránsito (puede tener paradas)
-  'delivered',      -- entregado completamente
-  'issue',          -- incidencia activa
-  'cancelled'
-);
-
--- Estado del escrow
-CREATE TYPE escrow_status AS ENUM ('held', 'released', 'disputed', 'refunded');
-
--- Estado de parada
-CREATE TYPE stop_status AS ENUM ('pending', 'in_route', 'arrived', 'delivered', 'issue');
-
--- Tipo de documento
-CREATE TYPE document_type AS ENUM (
-  'service_order',  -- orden de servicio
-  'remission_guide',-- guía de remisión
-  'receipt',        -- comprobante de pago
-  'delivery_photo', -- foto de evidencia de entrega
-  'signature',      -- firma digital
-  'other'
-);
-
--- Tipo de notificación
-CREATE TYPE notification_type AS ENUM (
-  'new_bid',
-  'bid_accepted',
-  'bid_rejected',
-  'shipment_status_change',
-  'new_review',
-  'new_message',
-  'counter_offer',
-  'incident_reported',
-  'incident_resolved',
-  'smart_load_suggestion',
-  'return_load_available',
-  'sla_warning',
-  'trip_booking'
-);
-
--- Categoría de incidencia
-CREATE TYPE incident_category AS ENUM (
-  'cargo_damage',   -- carga dañada
-  'delay',          -- retraso significativo
-  'lost_cargo',     -- extravío
-  'wrong_delivery', -- entrega incorrecta
-  'driver_conduct', -- conducta del conductor
-  'other'
-);
-
--- Estado de incidencia
-CREATE TYPE incident_status AS ENUM ('open', 'in_review', 'resolved', 'closed');
-
--- Estado de sugerencia Smart Load
-CREATE TYPE suggestion_status AS ENUM ('pending', 'accepted', 'rejected', 'expired');
-```
+- **Claves foráneas** en todas las relaciones; `UNIQUE` en `organizations.ruc`, `vehicles.plate`, `lower(profiles.email)`, `bids(auction_id, carrier_org_id)` (una oferta por transportista y subasta), `shipments.request_id` y `shipments.bid_id` (un envío por solicitud), `shipment_stops(shipment_id, sequence)`, `reviews(shipment_id, reviewer_org_id)` (una calificación por parte).
+- **`CHECK`** de dominio: pesos y montos positivos, `origin_city <> destination_city`, `price_floor <= suggested_price`, `confirmed_weight_kg <= capacity_kg`, calificaciones entre 1 y 5, `trust_score` entre 0 y 100, autor ∈ {PYME, transportista} del par.
+- **Índices únicos parciales** que codifican reglas: `ux_incidents_active` (una sola incidencia activa por envío, RN11) y `ux_counter_offers_pending` (una contraoferta pendiente por oferta).
+- **Consentimiento Ley 29733:** `profiles.consent_accepted_at TIMESTAMPTZ NOT NULL` (sin consentimiento no hay cuenta).
 
 ---
 
 ## 4. Diccionario de Datos
 
-### Tabla: `organizations`
-> Representa cualquier organización registrada: PYME, Transportista, Operador o Admin.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único, generado automáticamente |
-| `name` | VARCHAR(200) | NO | — | Nombre comercial o razón social |
-| `ruc` | VARCHAR(11) | NO | UK | RUC peruano (11 dígitos). Único en el sistema. |
-| `type` | org_type | NO | — | Tipo de organización (pyme, carrier, operator, admin) |
-| `verified` | BOOLEAN | NO | — | TRUE si el RUC fue validado contra SUNAT |
-| `verified_at` | TIMESTAMP | SÍ | — | Fecha y hora de la verificación |
-| `trust_score` | INTEGER | NO | — | Score de confianza compuesto (0–100). Default: 75 |
-| `created_at` | TIMESTAMP | NO | — | Fecha de registro. Default: NOW() |
-
----
-
-### Tabla: `profiles`
-> Usuario individual vinculado a una organización.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `organization_id` | UUID | NO | FK → organizations | Organización a la que pertenece |
-| `full_name` | VARCHAR(200) | NO | — | Nombre completo del usuario |
-| `phone` | VARCHAR(15) | SÍ | — | Teléfono de contacto |
-| `email` | VARCHAR(255) | NO | UK | Email de acceso al sistema |
-| `password_hash` | VARCHAR(255) | SÍ | — | Hash bcrypt de la contraseña (NULL si usa OAuth) |
-| `role` | profile_role | NO | — | Rol del usuario dentro de su organización |
-| `consent_accepted_at` | TIMESTAMP | SÍ | — | Fecha de aceptación del consentimiento informado de tratamiento de datos (Ley N° 29733, Art. 13); NULL bloquea la activación completa de la cuenta (RNF18, SRS sección 7.2) |
-| `created_at` | TIMESTAMP | NO | — | Fecha de registro |
-
----
-
-### Tabla: `vehicles`
-> Vehículo perteneciente a una empresa transportista.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `carrier_org_id` | UUID | NO | FK → organizations | Empresa propietaria (type='carrier') |
-| `plate` | VARCHAR(10) | NO | UK | Placa del vehículo |
-| `vehicle_type` | vehicle_type | NO | — | Tipo de vehículo |
-| `max_weight_kg` | DECIMAL(10,2) | NO | — | Capacidad máxima de carga en kg |
-| `max_volume_m3` | DECIMAL(8,2) | SÍ | — | Capacidad máxima en m³ |
-| `current_weight_kg` | DECIMAL(10,2) | NO | — | Peso actualmente comprometido. Default: 0 |
-| `status` | vehicle_status | NO | — | Estado actual del vehículo |
-| `created_at` | TIMESTAMP | NO | — | Fecha de registro |
-
-**Constraint:** `CHECK (current_weight_kg <= max_weight_kg)`
-
----
-
-### Tabla: `drivers`
-> Conductor vinculado a una empresa transportista.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `carrier_org_id` | UUID | NO | FK → organizations | Empresa empleadora |
-| `full_name` | VARCHAR(200) | NO | — | Nombre completo |
-| `dni` | VARCHAR(8) | NO | UK | DNI peruano (8 dígitos) |
-| `license_number` | VARCHAR(20) | NO | UK | Número de licencia de conducir |
-| `phone` | VARCHAR(15) | NO | — | Teléfono de contacto |
-| `current_vehicle_id` | UUID | SÍ | FK → vehicles | Vehículo actualmente asignado |
-| `status` | driver_status | NO | — | Estado del conductor |
-
----
-
-### Tabla: `shipment_requests`
-> Solicitud de transporte de carga publicada por una PYME.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `requester_org_id` | UUID | NO | FK → organizations | PYME que publica la solicitud |
-| `origin_address` | VARCHAR(500) | NO | — | Dirección de origen (texto libre) |
-| `origin_lat` | DECIMAL(10,7) | NO | — | Latitud del origen |
-| `origin_lng` | DECIMAL(10,7) | NO | — | Longitud del origen |
-| `destination_address` | VARCHAR(500) | NO | — | Dirección de destino |
-| `destination_lat` | DECIMAL(10,7) | NO | — | Latitud del destino |
-| `destination_lng` | DECIMAL(10,7) | NO | — | Longitud del destino |
-| `weight_kg` | DECIMAL(10,2) | NO | — | Peso de la carga en kg |
-| `cargo_type` | cargo_type | NO | — | Tipo de carga |
-| `cargo_description` | TEXT | SÍ | — | Descripción adicional de la carga |
-| `required_date` | DATE | NO | — | Fecha en que se necesita la entrega |
-| `status` | request_status | NO | — | Estado actual de la solicitud |
-| `suggested_price` | DECIMAL(10,2) | SÍ | — | Precio de referencia calculado por el motor de costos |
-| `price_floor` | DECIMAL(10,2) | SÍ | — | Precio mínimo permitido (75% del sugerido) |
-| `created_at` | TIMESTAMP | NO | — | Fecha de publicación |
-
----
-
-### Tabla: `auctions`
-> Subasta inversa asociada a una solicitud de carga.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `request_id` | UUID | NO | FK → shipment_requests | Solicitud asociada |
-| `opens_at` | TIMESTAMP | NO | — | Momento en que se abrió la subasta |
-| `closes_at` | TIMESTAMP | NO | — | Cierre programado (opens_at + 20 min por defecto) |
-| `max_bids` | INTEGER | NO | — | Máximo de ofertas permitidas. Default: 5 |
-| `status` | auction_status | NO | — | Estado de la subasta |
-
----
-
-### Tabla: `bids`
-> Oferta de un transportista en una subasta.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `auction_id` | UUID | NO | FK → auctions | Subasta en la que se oferta |
-| `carrier_org_id` | UUID | NO | FK → organizations | Empresa transportista que oferta |
-| `vehicle_id` | UUID | NO | FK → vehicles | Vehículo propuesto para el servicio |
-| `amount` | DECIMAL(10,2) | NO | — | Precio ofertado en soles |
-| `notes` | TEXT | SÍ | — | Notas adicionales del transportista |
-| `status` | bid_status | NO | — | Estado de la oferta |
-| `submitted_at` | TIMESTAMP | NO | — | Momento de envío de la oferta |
-| `expires_at` | TIMESTAMP | NO | — | Vencimiento de la oferta (48h por defecto) |
-
-**Constraint:** `UNIQUE (auction_id, carrier_org_id)` — Un carrier solo puede tener una oferta activa por subasta.
-
----
-
-### Tabla: `counter_offers`
-> Contra-oferta generada en el proceso de negociación bidireccional.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `bid_id` | UUID | NO | FK → bids | Oferta sobre la que se negocia |
-| `offered_by_org_id` | UUID | NO | FK → organizations | Organización que propone el nuevo precio |
-| `amount` | DECIMAL(10,2) | NO | — | Precio propuesto en la contra-oferta |
-| `message` | TEXT | SÍ | — | Mensaje que acompaña la contra-oferta |
-| `status` | counter_offer_status | NO | — | Estado de la contra-oferta |
-| `created_at` | TIMESTAMP | NO | — | Momento de creación |
-
----
-
-### Tabla: `carrier_trips`
-> Viaje publicado por un transportista con capacidad disponible (supply-side listing).
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `carrier_org_id` | UUID | NO | FK → organizations | Empresa transportista |
-| `vehicle_id` | UUID | NO | FK → vehicles | Vehículo asignado al viaje |
-| `origin_address` | VARCHAR(500) | NO | — | Punto de partida |
-| `origin_lat` | DECIMAL(10,7) | NO | — | Latitud del origen |
-| `origin_lng` | DECIMAL(10,7) | NO | — | Longitud del origen |
-| `destination_address` | VARCHAR(500) | NO | — | Destino final |
-| `destination_lat` | DECIMAL(10,7) | NO | — | Latitud del destino |
-| `destination_lng` | DECIMAL(10,7) | NO | — | Longitud del destino |
-| `departure_at` | TIMESTAMP | NO | — | Fecha y hora de salida |
-| `available_weight_kg` | DECIMAL(10,2) | NO | — | Capacidad disponible en kg |
-| `available_volume_m3` | DECIMAL(8,2) | SÍ | — | Capacidad disponible en m³ |
-| `price_per_kg` | DECIMAL(8,2) | NO | — | Precio por kg de carga |
-| `status` | trip_status | NO | — | Estado del viaje |
-| `created_at` | TIMESTAMP | NO | — | Fecha de publicación |
-
----
-
-### Tabla: `trip_bookings`
-> Reserva de espacio en un viaje disponible publicado por un transportista.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `trip_id` | UUID | NO | FK → carrier_trips | Viaje reservado |
-| `requester_org_id` | UUID | NO | FK → organizations | PYME que reserva el espacio |
-| `request_id` | UUID | NO | FK → shipment_requests | Solicitud de carga asociada |
-| `booked_weight_kg` | DECIMAL(10,2) | NO | — | Peso reservado en kg |
-| `status` | booking_status | NO | — | Estado de la reserva |
-| `created_at` | TIMESTAMP | NO | — | Fecha de la reserva |
-
----
-
-### Tabla: `messages`
-> Mensaje en el hilo de chat de negociación entre una PYME y un transportista.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `request_id` | UUID | NO | FK → shipment_requests | Solicitud a la que pertenece el hilo |
-| `carrier_org_id` | UUID | NO | FK → organizations | Transportista del hilo |
-| `sender_org_id` | UUID | NO | FK → organizations | Organización que envía el mensaje |
-| `body` | TEXT | NO | — | Contenido del mensaje |
-| `proposed_price` | DECIMAL(10,2) | SÍ | — | Precio propuesto si el mensaje es una contra-oferta |
-| `is_system` | BOOLEAN | NO | — | TRUE si es mensaje automático del sistema |
-| `is_blocked` | BOOLEAN | NO | — | TRUE si fue bloqueado por contener info de contacto |
-| `created_at` | TIMESTAMP | NO | — | Timestamp del mensaje |
-
----
-
-### Tabla: `shipments`
-> Envío activo generado al aceptar una oferta.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `request_id` | UUID | NO | FK → shipment_requests | Solicitud original |
-| `bid_id` | UUID | NO | FK → bids | Oferta que originó el envío |
-| `carrier_org_id` | UUID | NO | FK → organizations | Transportista asignado |
-| `vehicle_id` | UUID | NO | FK → vehicles | Vehículo asignado |
-| `driver_id` | UUID | SÍ | FK → drivers | Conductor asignado (asignado por el carrier) |
-| `tracking_code` | VARCHAR(12) | NO | UK | Código de tracking (formato: LGX-XXXXX) |
-| `status` | shipment_status | NO | — | Estado actual del envío |
-| `escrow_status` | escrow_status | NO | — | Estado del pago en escrow |
-| `started_at` | TIMESTAMP | SÍ | — | Momento en que el conductor recogió la carga |
-| `delivered_at` | TIMESTAMP | SÍ | — | Momento de la entrega final confirmada |
-| `created_at` | TIMESTAMP | NO | — | Momento de creación del envío |
-
----
-
-### Tabla: `shipment_stops`
-> Parada individual dentro de un envío multi-destino.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `shipment_id` | UUID | NO | FK → shipments | Envío al que pertenece |
-| `request_id` | UUID | SÍ | FK → shipment_requests | Solicitud de la PYME a entregar en esta parada |
-| `sequence` | INTEGER | NO | — | Orden de la parada (1, 2, 3...) |
-| `location` | VARCHAR(500) | NO | — | Dirección de la parada |
-| `lat` | DECIMAL(10,7) | NO | — | Latitud |
-| `lng` | DECIMAL(10,7) | NO | — | Longitud |
-| `eta` | TIMESTAMP | SÍ | — | Hora estimada de llegada |
-| `actual_arrival` | TIMESTAMP | SÍ | — | Hora real de llegada |
-| `status` | stop_status | NO | — | Estado de esta parada |
-| `photo_url` | VARCHAR(500) | SÍ | — | URL de la foto de evidencia |
-| `signature_url` | VARCHAR(500) | SÍ | — | URL de la firma digital del receptor |
-| `cargo_weight_kg` | DECIMAL(10,2) | NO | — | Peso de la carga entregada en esta parada |
-
----
-
-### Tabla: `reviews`
-> Calificación post-entrega entre los participantes de un envío.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `shipment_id` | UUID | NO | FK → shipments | Envío calificado |
-| `reviewer_org_id` | UUID | NO | FK → organizations | Organización que califica |
-| `reviewed_org_id` | UUID | NO | FK → organizations | Organización calificada |
-| `rating` | SMALLINT | NO | — | Calificación general (1–5) |
-| `punctuality` | SMALLINT | SÍ | — | Calificación de puntualidad (1–5) |
-| `comment` | TEXT | SÍ | — | Comentario adicional |
-| `delivery_success` | BOOLEAN | NO | — | TRUE si la entrega fue exitosa |
-| `delay_minutes` | INTEGER | NO | — | Minutos de retraso respecto al ETA. Default: 0 |
-| `cargo_damage` | BOOLEAN | NO | — | TRUE si se reportó daño en la carga |
-| `created_at` | TIMESTAMP | NO | — | Fecha de la calificación |
-
-**Constraint:** `UNIQUE (shipment_id, reviewer_org_id)` — Un participante solo califica una vez por envío.  
-**Constraint:** `CHECK (rating BETWEEN 1 AND 5)`
-
----
-
-### Tabla: `reputation_scores`
-> Score de reputación compuesto, calculado y mantenido por triggers.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `org_id` | UUID | NO | PK/FK → organizations | Organización evaluada |
-| `delivery_success_rate` | DECIMAL(5,2) | NO | — | % de entregas sin incidencia (0–100) |
-| `avg_delay_minutes` | DECIMAL(8,2) | NO | — | Retraso promedio en minutos |
-| `cargo_damage_rate` | DECIMAL(5,2) | NO | — | % de entregas con daño en carga (0–100) |
-| `cancellation_rate` | DECIMAL(5,2) | NO | — | % de aceptaciones que se cancelaron (0–100) |
-| `avg_rating` | DECIMAL(4,2) | NO | — | Rating promedio (Bayesiano, 0–5) |
-| `composite_score` | INTEGER | NO | — | Score compuesto (0–100). Default: 75 |
-| `total_reviews` | INTEGER | NO | — | Total de calificaciones recibidas. Default: 0 |
-| `updated_at` | TIMESTAMP | NO | — | Última actualización |
-
----
-
-### Tabla: `documents`
-> Archivo asociado a un envío (orden, guía, foto, firma).
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `shipment_id` | UUID | NO | FK → shipments | Envío al que pertenece |
-| `stop_id` | UUID | SÍ | FK → shipment_stops | Parada específica (si aplica) |
-| `type` | document_type | NO | — | Tipo de documento |
-| `file_url` | VARCHAR(1000) | NO | — | URL firmada del archivo en storage |
-| `file_size_bytes` | BIGINT | SÍ | — | Tamaño del archivo |
-| `uploaded_by` | UUID | NO | FK → profiles | Usuario que subió el archivo |
-| `created_at` | TIMESTAMP | NO | — | Fecha de subida |
-
----
-
-### Tabla: `notifications`
-> Notificación in-app para un usuario de una organización.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `org_id` | UUID | NO | FK → organizations | Organización destinataria |
-| `type` | notification_type | NO | — | Tipo de evento que generó la notificación |
-| `title` | VARCHAR(200) | NO | — | Título de la notificación |
-| `body` | TEXT | NO | — | Cuerpo del mensaje |
-| `related_id` | UUID | SÍ | — | ID del recurso relacionado (envío, oferta, etc.) |
-| `read` | BOOLEAN | NO | — | TRUE si fue leída. Default: FALSE |
-| `created_at` | TIMESTAMP | NO | — | Timestamp |
-
----
-
-### Tabla: `incidents`
-> Incidencia reportada durante o después de un envío.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `shipment_id` | UUID | NO | FK → shipments | Envío con incidencia |
-| `reported_by_org_id` | UUID | NO | FK → organizations | Quién reportó la incidencia |
-| `category` | incident_category | NO | — | Categoría de la incidencia |
-| `description` | TEXT | NO | — | Descripción detallada |
-| `status` | incident_status | NO | — | Estado actual |
-| `resolution_notes` | TEXT | SÍ | — | Notas de la resolución (llenado por el operador) |
-| `created_at` | TIMESTAMP | NO | — | Fecha del reporte |
-| `resolved_at` | TIMESTAMP | SÍ | — | Fecha de resolución |
-
----
-
-### Tabla: `incident_comments`
-> Comentario en el hilo de una incidencia.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `incident_id` | UUID | NO | FK → incidents | Incidencia a la que pertenece |
-| `author_org_id` | UUID | NO | FK → organizations | Organización que comenta |
-| `body` | TEXT | NO | — | Contenido del comentario |
-| `created_at` | TIMESTAMP | NO | — | Timestamp |
-
----
-
-### Tabla: `cost_calculations`
-> Registro del cálculo de costo logístico para una solicitud.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `request_id` | UUID | NO | FK → shipment_requests | Solicitud asociada |
-| `distance_km` | DECIMAL(8,2) | NO | — | Distancia por carretera real (ORS) |
-| `duration_min` | DECIMAL(8,2) | NO | — | Tiempo estimado de viaje en minutos |
-| `toll_cost` | DECIMAL(10,2) | NO | — | Estimado de peajes |
-| `fuel_cost` | DECIMAL(10,2) | NO | — | Estimado de combustible |
-| `base_transport_cost` | DECIMAL(10,2) | NO | — | Tarifa base de transporte |
-| `handling_fee` | DECIMAL(10,2) | NO | — | Tarifa de manipuleo |
-| `total_estimate` | DECIMAL(10,2) | NO | — | Total estimado (suma de todos los componentes) |
-| `calculated_at` | TIMESTAMP | NO | — | Momento del cálculo |
-
----
-
-### Tabla: `smart_load_suggestions`
-> Sugerencia de combinación de cargas generada por el Smart Load Planner.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `carrier_org_id` | UUID | NO | FK → organizations | Transportista al que se sugiere |
-| `vehicle_id` | UUID | NO | FK → vehicles | Vehículo propuesto |
-| `request_ids` | UUID[] | NO | — | Array de IDs de solicitudes compatibles |
-| `combined_income` | DECIMAL(10,2) | NO | — | Ingreso combinado estimado |
-| `occupancy_pct` | DECIMAL(5,2) | NO | — | % de ocupación del vehículo |
-| `route_plan` | JSONB | NO | — | Plan de ruta con paradas ordenadas |
-| `status` | suggestion_status | NO | — | Estado de la sugerencia |
-| `created_at` | TIMESTAMP | NO | — | Momento de generación |
-| `expires_at` | TIMESTAMP | NO | — | Vencimiento de la sugerencia (4h por defecto) |
-
----
-
-### Tabla: `audit_log`
-> Registro de auditoría de acciones críticas del sistema.
-
-| Columna | Tipo | Nulo | PK/FK/UK | Descripción |
-|---------|------|------|-----------|-------------|
-| `id` | UUID | NO | PK | Identificador único |
-| `table_name` | VARCHAR(100) | NO | — | Nombre de la tabla afectada |
-| `action` | VARCHAR(10) | NO | — | Tipo de acción: INSERT, UPDATE, DELETE |
-| `record_id` | UUID | NO | — | ID del registro afectado |
-| `performed_by` | UUID | SÍ | FK → profiles | Usuario que realizó la acción (NULL si es sistema) |
-| `old_values` | JSONB | SÍ | — | Valores anteriores al cambio |
-| `new_values` | JSONB | SÍ | — | Valores nuevos tras el cambio |
-| `performed_at` | TIMESTAMP | NO | — | Timestamp de la acción |
+Notación: PK clave primaria, FK clave foránea, UK única, **D** denormalizada. Todas las tablas usan `id UUID` y `created_at TIMESTAMPTZ` salvo indicación.
+
+### 4.1 Identidad y flota
+
+| Tabla | Columnas principales |
+|---|---|
+| `organizations` | `type`, `legal_name`, `ruc` (CHAR 11, UK), `ruc_verification`, `city`, `phone` |
+| `profiles` | `organization_id` FK, `email` (UK `lower(email)`), `password_hash`, `full_name`, `role`, `active`, `consent_accepted_at` |
+| `vehicles` | `organization_id` FK, `plate` UK, `type`, `max_weight_kg`, `max_volume_m3`, `status` |
+| `drivers` | `organization_id` FK, `profile_id` FK UK, `license_number`, `status` |
+
+### 4.2 Marketplace y ejecución
+
+| Tabla | Columnas principales |
+|---|---|
+| `shipment_requests` | `requester_org_id` FK, `created_by` FK, ciudades y direcciones de origen/destino, `cargo_type`, `cargo_description`, `weight_kg`, `volume_m3`, `pickup_date`, `distance_km`, `suggested_price`, `price_floor`, `status`, `assigned_carrier_org_id` **D** |
+| `auctions` | `request_id` FK UK, `opens_at`, `closes_at`, `max_bids`, `status`, `close_reason`, `closed_at` |
+| `bids` | `auction_id` FK, `request_id` FK, `requester_org_id` **D**, `carrier_org_id` FK, `vehicle_id` FK, `vehicle_type` **D**, `vehicle_plate` **D**, `amount`, `notes`, `status`, `assigned_by_operator` |
+| `shipments` | `request_id` FK UK, `bid_id` FK UK, `requester_org_id`, `carrier_org_id`, `vehicle_id`, `driver_id` FK, `agreed_price`, `vehicle_plate` **D**, `driver_name` **D**, `status`, `delivered_at` |
+| `shipment_stops` | `shipment_id` FK, `requester_org_id`, `carrier_org_id`, `sequence`, `type`, `city`, `address`, `status`, `arrived_at`, `completed_at` |
+
+### 4.3 Negociación, documentos, reputación e incidencias
+
+| Tabla | Columnas principales |
+|---|---|
+| `messages` | `request_id` FK, `requester_org_id`, `carrier_org_id`, `sender_org_id`, `body` (≤ 1000), `proposed_price`, `is_system` |
+| `counter_offers` | `bid_id` FK, `offered_by_org_id`, `previous_amount`, `amount`, `message`, `status`, `responded_at` |
+| `documents` | `shipment_id` FK, `stop_id` FK, `type`, `file_name`, `content_type`, `file_size_bytes`, `sha256`, `storage_key` UK, `uploaded_by`, `uploaded_by_org_id` |
+| `reviews` | `shipment_id` FK, `reviewer_org_id`, `reviewed_org_id`, `direction`, `punctuality`, `cargo_condition`, `communication`, `rating`, `comment` |
+| `reputation_scores` | `org_id` PK, `total_reviews`, `avg_rating`, `avg_*`, `trust_score` (prior 75, RN09), `updated_at` |
+| `incidents` | `shipment_id` FK, `reported_by_org_id`, `category`, `description`, `status`, `resolution_notes`, `resolved_at` |
+| `incident_comments` | `incident_id` FK, `author_org_id`, `body` |
+
+### 4.4 Viajes, avisos y plataforma
+
+| Tabla | Columnas principales |
+|---|---|
+| `carrier_trips` | `carrier_org_id` FK, `vehicle_id` FK, `vehicle_type` **D**, `vehicle_plate` **D**, ciudades, `departure_at`, `capacity_kg`, `confirmed_weight_kg`, `pricing_mode`, `rate`, `status` |
+| `trip_bookings` | `trip_id` FK, `requester_org_id`, `carrier_org_id`, ruta y fecha **D**, `weight_kg`, `cargo_type`, direcciones, `price`, `status`, `request_id` FK, `shipment_id` FK |
+| `smart_load_suggestions` | `carrier_org_id`, `vehicle_id`, `capacity_kg`, `total_weight_kg`, `combined_income`, `occupancy_pct`, `status`, `expires_at` |
+| `smart_load_items` | `suggestion_id` FK, `request_id` FK, `weight_kg`, `income`, `pickup_order`, `delivery_order` |
+| `notifications` | `org_id` FK, `type`, `title`, `body`, `related_type`, `related_id`, `read_at` |
+| `outbox_events` | `seq` BIGSERIAL UK, `event_type`, `payload` JSONB, `actor_org_id` (`DEFAULT app_org()`), `status`, `attempts`, `available_at`, `processed_at`, `last_error` |
+| `realtime_events` | `seq` BIGSERIAL PK, `event_type`, `org_id`, `org_type`, `user_id`, `payload` JSONB, `created_at` |
+| `audit_log` | `id` BIGSERIAL, `occurred_at`, `actor_profile_id`, `organization_id`, `action`, `entity`, `entity_id`, `detail` |
 
 ---
 
 ## 5. Índices Principales
 
-| Tabla | Columna(s) | Tipo | Propósito |
-|-------|-----------|------|-----------|
-| `shipment_requests` | `(status, required_date)` | B-tree | Filtrar solicitudes abiertas por fecha |
-| `shipment_requests` | `(origin_lat, origin_lng)` | B-tree | Búsqueda geoespacial de cargas cercanas |
-| `shipment_requests` | `requester_org_id` | B-tree | Mis solicitudes por organización |
-| `bids` | `(auction_id, status)` | B-tree | Ofertas por subasta |
-| `bids` | `(carrier_org_id, status)` | B-tree | Mis ofertas como carrier |
-| `shipments` | `tracking_code` | B-tree único | Búsqueda por tracking code |
-| `shipments` | `(carrier_org_id, status)` | B-tree | Mis envíos como carrier |
-| `notifications` | `(org_id, read, created_at)` | B-tree | Notificaciones no leídas por org |
-| `messages` | `(request_id, carrier_org_id)` | B-tree | Hilo de chat |
-| `reviews` | `reviewed_org_id` | B-tree | Reseñas de un actor |
-| `carrier_trips` | `(status, departure_at)` | B-tree | Viajes disponibles próximos |
-| `carrier_trips` | `(origin_lat, origin_lng)` | B-tree | Viajes cercanos al origen |
-| `audit_log` | `(table_name, record_id)` | B-tree | Historial de auditoría por registro |
+| Tabla | Índice | Propósito |
+|-------|--------|-----------|
+| `shipment_requests` | `ix_requests_requester (requester_org_id, created_at DESC)` | Mis solicitudes |
+| `shipment_requests` | `ix_requests_status (status, pickup_date)` | Marketplace: publicadas por fecha |
+| `auctions` | `ix_auctions_open (closes_at) WHERE status = 'OPEN'` | Job de cierre: solo subastas abiertas |
+| `bids` | `ix_bids_request (request_id, amount)` | Comparación de ofertas por monto |
+| `bids` | `ix_bids_carrier (carrier_org_id, created_at DESC)` | Mis ofertas |
+| `shipments` | `ix_shipments_requester` / `ix_shipments_carrier` `(org, created_at DESC)` | Envíos por parte |
+| `shipments` | `ix_shipments_driver (driver_id) WHERE driver_id IS NOT NULL` | Viaje activo del conductor |
+| `messages` | `ix_messages_thread (request_id, carrier_org_id, created_at DESC, id DESC)` | Chat paginado por cursor |
+| `counter_offers` | `ux_counter_offers_pending (bid_id) WHERE status = 'PENDING'` | Una contraoferta pendiente (único parcial) |
+| `incidents` | `ux_incidents_active (shipment_id) WHERE status IN ('OPEN','IN_REVIEW')` | Una incidencia activa por envío (RN11) |
+| `notifications` | `ix_notifications_unread (org_id) WHERE read_at IS NULL` | Contador de no leídas |
+| `carrier_trips` | `ix_trips_open (departure_at) WHERE status IN ('OPEN','FILLING')` | Búsqueda de viajes abiertos |
+| `outbox_events` | `outbox_events_pending (seq) WHERE status = 'PENDING'` | Despacho del outbox |
+| `realtime_events` | `ix_realtime_events_org (org_id, seq)`, `ix_realtime_events_broadcast (org_type, seq)` | Reanudación SSE |
+| `audit_log` | `ix_audit_entity (entity, entity_id)` | Historial por registro |
 
 ---
 
 ## 6. Consistencia con el Sistema
 
-| Componente del sistema | Tabla(s) que soporta |
+| Componente del sistema (módulo) | Tabla(s) que soporta |
 |------------------------|---------------------|
-| Auth y registro multi-rol | `organizations`, `profiles` |
-| Marketplace + Subasta inversa | `shipment_requests`, `auctions`, `bids` |
-| Publicación de viajes (supply-side) | `carrier_trips`, `trip_bookings` |
-| Negociación bidireccional | `messages`, `counter_offers` |
-| Motor de costos | `cost_calculations` |
-| Smart Load Planner | `smart_load_suggestions` |
-| Tracking multi-parada | `shipments`, `shipment_stops` |
-| Sistema de reputación | `reviews`, `reputation_scores` |
-| Gestión documental | `documents` |
-| Notificaciones | `notifications` |
-| Incidencias y disputas | `incidents`, `incident_comments` |
-| Panel del Operador | Consultas sobre todas las tablas (rol operator) |
-| Cargas de retorno | Consultas sobre `shipment_requests` + `shipments` |
-| Gestión de flota | `vehicles`, `drivers` |
-| Auditoría | `audit_log` |
+| `identity` | `organizations`, `profiles` |
+| `marketplace` | `shipment_requests`, `auctions`, `bids` |
+| `trip` (viajes, reservas, Smart Load) | `carrier_trips`, `trip_bookings`, `smart_load_suggestions`, `smart_load_items` |
+| `negotiation` | `messages`, `counter_offers` |
+| `pricing` | Sin tablas: el precio sugerido y el piso se guardan en `shipment_requests` (`distance_km`, `suggested_price`, `price_floor`) |
+| `shipment` | `shipments`, `shipment_stops` |
+| `reputation` | `reviews`, `reputation_scores` |
+| `documents` | `documents` (archivos en Cloudflare R2 / MinIO, API S3) |
+| `notification` | `notifications` |
+| `incident` | `incidents`, `incident_comments` |
+| `operator` | Sin tablas propias: políticas RLS del rol `OPERATOR` sobre las demás (V9) |
+| `fleet` | `vehicles`, `drivers` |
+| `shared` (auditoría, outbox) | `audit_log`, `outbox_events` |
+| `realtime` | `realtime_events` |
 
 ---
 
-*LOGYX · E2 Modelo de Base de Datos · Competencia CE0221 · Versión 1.0 · Junio 2026*
+*OnCargo · E2 Modelo de Base de Datos · Competencia CE0221 · Versión 2.0 · Noviembre 2026*

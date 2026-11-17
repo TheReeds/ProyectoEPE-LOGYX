@@ -1,756 +1,243 @@
-# Guía de Arquitectura y Desarrollo Frontend — LOGYX
-> Angular 22 · Tailwind CSS v4 · PrimeNG 21 · pnpm  
-> **Uso:** leer este documento al inicio de cada sesión antes de tocar código frontend.
+# Arquitectura Frontend — OnCargo (Web Astro y Android Compose)
+> Astro 7 (SSR) · React 19 islands · Tailwind 4 · shadcn/ui · Kotlin · Jetpack Compose  
+> Versión: 2.0 (reescrita sobre el sistema real) · Noviembre 2026 · Reemplaza la guía de Angular 22 + PrimeNG de la v1.0
+
+!!! info "Cambio de pila"
+    La v1.0 documentaba una SPA Angular 22 con PrimeNG y signal forms. El frontend real se construyó con **Astro SSR + islas React** (web) y **una app Android nativa en Compose** (ADR-0003); la justificación está en [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md). Esta guía describe lo implementado; la guía operativa viva para el equipo está en `web/AGENTS.md`, `android/AGENTS.md` y `docs/design/DESIGN.md` del repositorio del sistema.
 
 ---
 
-## 1. Stack y versiones instaladas
+## 1. Stack y versiones
 
-| Paquete | Versión | Ubicación |
-|---------|---------|-----------|
-| `@angular/core` | 22.0.4 | `Proyecto/frontend/logyx-web` |
-| `tailwindcss` | 4.3.2 | devDependency |
-| `@tailwindcss/postcss` | 4.3.2 | devDependency |
-| `primeng` | 21.1.9 | dependency |
-| `@primeng/themes` | 21.0.4 | dependency |
-| `@angular/animations` | 22.0.4 | dependency (requerido por PrimeNG) |
-| `pnpm` | 10.33 | gestor de paquetes — NO usar npm/yarn |
-| `ng` (CLI) | 22.0.4 | `~/.local/share/pnpm/ng` |
+### Web (`web/`)
 
-**Comandos de desarrollo:**
+| Paquete | Versión | Uso |
+|---------|---------|-----|
+| `astro` + `@astrojs/node` | 7.4 / 11.1 | SSR (modo standalone) |
+| `@astrojs/react`, `react`, `react-dom` | 7.1 / 19.3 | islas interactivas |
+| `tailwindcss` + `@tailwindcss/vite` | 4.3 | estilos con tokens en `@theme` |
+| Radix UI (`dialog`, `select`, `popover`, `tabs`, `tooltip`, …) | 1.x–2.x | primitivas accesibles de shadcn/ui |
+| `cmdk`, `react-day-picker` 10 + `date-fns`, `sonner` | — | Combobox, DatePicker, toasts |
+| `maplibre-gl` | 6.17 | mapas (teselas OpenFreeMap) |
+| `openapi-fetch` + `openapi-typescript` | 0.17 / 7.13 | cliente tipado desde el contrato |
+| `lucide-react` / `@lucide/astro`, Geist (fontsource) | — | iconos y tipografía |
+| `@playwright/test`, `@axe-core/playwright` | 1.65 / 4.14 | e2e y accesibilidad |
+
+### Android (`android/`)
+
+| Componente | Versión |
+|---|---|
+| Kotlin / AGP / Gradle | 2.4.21 / 9.5.1 / 9.8.2 |
+| Compose BOM / Material 3 | 2026.09.00 |
+| Ktor (OkHttp) / kotlinx.serialization | 3.6.1 |
+| Koin | 4.2.2 |
+| MapLibre Android | 13.7.1 |
+| `compileSdk` / `targetSdk` / `minSdk` | 37 / 36 / 29 |
+
+**Comandos:**
+
 ```bash
-cd Proyecto/frontend/logyx-web
-ng serve          # dev server :4200
-ng build          # build producción
-ng g c features/pyme/nueva-pantalla/nombre  # generar componente
+# Web
+cd web && npm install
+npm run dev                  # http://localhost:4321 (API_URL=http://localhost:8080)
+npm run check && npm run build
+npm run gen:api              # regenera src/lib/api/schema.d.ts desde docs/api/openapi.yaml
+npm run test:e2e             # Playwright + axe
+
+# Android
+cd android && ./gradlew assembleDebug testDebugUnitTest :core:network:test
+./gradlew installDebug       # emulador -> API en http://10.0.2.2:8080
 ```
 
 ---
 
-## 2. Reglas Angular 22 — lo que NUNCA se escribe
+## 2. Web: Astro SSR + islas React
 
-```typescript
-// ❌ NUNCA — standalone es default desde v20
-@Component({ standalone: true, ... })
+### 2.1 Principios
 
-// ❌ NUNCA — OnPush es default desde v22
-@Component({ changeDetection: ChangeDetectionStrategy.OnPush, ... })
+1. **Renderizado en servidor.** Las páginas `.astro` leen la sesión, cargan datos en el frontmatter con funciones de `features/*/server.ts` y entregan HTML; solo las partes interactivas se hidratan (islas con `client:load` o `client:only="react"` para mapas).
+2. **Solo el servidor habla con la API.** El JWT vive en la cookie `logyx_session` (`httpOnly`, `SameSite=Lax`, `Secure` en prod); nunca llega al JavaScript del navegador. El navegador no llama a la API (por eso CORS está desactivado en producción).
+3. **Mutaciones por Astro Actions.** Las islas llaman `actions.<feature>.<accion>(input)`; la acción valida con Zod, toma el token de la sesión y llama a la API; el error llega ya en español.
+4. **El contrato manda.** Los tipos se generan del OpenAPI; si el backend cambia, `npm run check` rompe en compilación.
+5. **Una carpeta por feature**, con la misma forma en todas.
 
-// ❌ NUNCA — usar inject() en su lugar
-constructor(private http: HttpClient) {}
+### 2.2 Estructura
 
-// ❌ NUNCA — usar input()/output()
-@Input() valor!: string;
-@Output() cambio = new EventEmitter();
-
-// ❌ NUNCA — usar [class] binding directo
-[ngClass]="{ 'activo': condicion }"
-[ngStyle]="{ color: valor }"
-
-// ❌ NUNCA — usar control flow nativo
-*ngIf="condicion"
-*ngFor="let x of lista"
-*ngSwitch
-
-// ❌ NUNCA — usar host object en el decorator
-@HostBinding('class.activo') isActive = false;
-@HostListener('click') onClick() {}
 ```
+web/src/
+├── pages/                 # rutas finas por rol
+│   ├── index, login, registro, privacidad, conductor, logout, eventos (proxy SSE)
+│   ├── pyme/              # panel, solicitudes/{index,nueva,[id]}, envíos, viajes, reservas
+│   ├── transportista/     # marketplace, ofertas, flota, envíos, viajes, retornos, smart-load
+│   ├── operador/          # panel, incidencias, solicitudes, envíos (solo OPERATOR)
+│   └── notificaciones, incidencias, organizaciones/[id], documentos/[id] (proxy de archivos), dev/ui (solo dev)
+├── features/<feature>/    # auth, catalog, requests, shipments, marketplace, fleet, dashboard,
+│   ├── server.ts          #   negotiation, reputation, documents, incidents, notifications, operator, trips…
+│   ├── actions.ts         #   Astro Actions (mutaciones)
+│   └── components/        #   islas React de la feature
+├── components/
+│   ├── ui/                # biblioteca compartida (shadcn/ui + Radix): button, field, select, combobox,
+│   │                      #   date-picker, confirm-dialog, toaster, dialog, sheet, tabs, table, pagination…
+│   ├── domain/            # StatusPill, RouteLine, KpiTile, EmptyState, Countdown, VerifiedBadge, TrustScore
+│   └── layout/            # AppShell (sidebar + topbar por rol), PageHeader, LiveIndicator
+├── layouts/               # Base.astro (Toaster + ConfirmHost), Public.astro
+├── lib/
+│   ├── api/               # schema.d.ts (GENERADO), client.ts (openapi-fetch + unwrap + ApiError)
+│   ├── session.ts         # cookie httpOnly, claims del JWT, homeFor(rol)
+│   ├── realtime.ts        # EventSource único por pestaña, useLiveRefresh
+│   └── format.ts          # S/ 1,850.00 · 28 nov · 08:00 · etiquetas de enums
+├── middleware.ts          # protección por rol, 401 a /login, CSP y cabeceras en prod
+└── styles/global.css      # tokens de DESIGN.md en @theme de Tailwind
+```
+
+### 2.3 Patrón de una pantalla (extracto real)
+
+Cliente de API tipado (`lib/api/client.ts`): una función `unwrap` desenvuelve `{ data }` o lanza `ApiError(status, code, message, field)`:
+
+```ts
+const data = await unwrap(apiFor(token).GET('/api/v1/vehicles'));
+```
+
+Pasos para agregar una pantalla: (1) `features/<f>/server.ts` con las llamadas; (2) `actions.ts` con `defineAction({ accept: 'json', input: z.object(...), handler })` registrado en `src/actions/index.ts`; (3) islas en `features/<f>/components/*.tsx`; (4) página `.astro` con `<AppShell>` + `<PageHeader>`; (5) enlace en `NAV` de `AppShell` y revisión del `middleware`; (6) estados vacío/carga/error en español y `npm run check && npm run build`.
+
+### 2.4 Estado, formularios y errores
+
+No hay un store global: el estado de servidor se vuelve a pedir (SSR o Astro Actions) y el estado de UI es local a cada isla. Los errores de negocio traen `field` y se muestran **bajo el campo** (`Field` con `role="alert"`); el resto, como toast (`sonner`). Los formularios llevan `method="post"` para que, si se envían antes de hidratar, las credenciales no acaben en la URL.
+
+### 2.5 Tiempo real en la web
+
+`lib/realtime.ts` abre **una sola `EventSource` por pestaña** contra `/eventos`, el proxy autenticado de Astro hacia `GET /api/v1/events/stream` (cookie → Bearer; el JWT no sale del servidor). Los eventos son avisos con payload mínimo; el hook `useLiveRefresh({ types, match, refresh, fallbackMs })` vuelve a pedir los datos por Astro Action al llegar el evento, al reconectar, y con un polling de respaldo lento solo si no hay conexión. El topbar muestra "En vivo / Reconectando…". Cubre campana de notificaciones, chat y contraofertas, detalle de solicitud (ofertas y subasta sin recargar), marketplace, mis ofertas, envíos y tracking, conductor, incidencias, operador, reservas y Smart Load.
+
+### 2.6 Seguridad del frontend
+
+Cabeceras y CSP (`default-src 'self'`, `frame-ancestors 'none'`, `connect-src 'self'` + OpenFreeMap) en `middleware.ts` en producción; `security.checkOrigin` de Astro contra CSRF; React escapa por defecto. Residual: `script-src 'unsafe-inline'` por los scripts de hidratación de Astro (a futuro, nonces).
 
 ---
 
-## 3. Reglas Angular 22 — lo que SIEMPRE se escribe
+## 3. Sistema de diseño
 
-```typescript
-// ✅ Standalone implícito — no se declara
-@Component({ selector: 'app-foo', imports: [...], template: `...` })
-export class FooComponent {}
+Documentado en `docs/design/DESIGN.md` y `docs/design/CONTENT.md`; dirección: *70 % Modern Industrial Tech + 30 % Friendly Mobility*. **Web = negocio** (tablas, filtros, comparación, tracking con mapa); **móvil = transportista y conductor** (tarjetas ricas, precio destacado, acciones grandes).
 
-// ✅ inject() para inyección de dependencias
-export class MiServicio {
-  private readonly http = inject(HttpClient);
-  private readonly router = inject(Router);
-  private readonly auth = inject(AuthService);
-}
+### 3.1 Tokens
 
-// ✅ input() y output() como señales
-export class CardComponent {
-  readonly title  = input.required<string>();
-  readonly score  = input<number>(0);
-  readonly select = output<string>();
-}
-
-// ✅ Control flow nativo en templates
-@if (loading()) {
-  <p-skeleton />
-} @else {
-  <div>contenido</div>
-}
-
-@for (item of items(); track item.id) {
-  <div>{{ item.name }}</div>
-} @empty {
-  <p>Sin resultados</p>
-}
-
-@switch (status()) {
-  @case ('OPEN')      { <span class="text-green-600">Abierto</span> }
-  @case ('CLOSED')    { <span class="text-gray-400">Cerrado</span> }
-  @default            { <span>-</span> }
-}
-
-// ✅ host object en el decorator
-@Component({
-  host: { '(click)': 'onClick()', '[class.activo]': 'isActive()' }
-})
-
-// ✅ [class] binding en lugar de ngClass
-<div [class]="condicion ? 'bg-blue-500' : 'bg-gray-200'">
-
-// ✅ [class.nombre] para toggle individual
-<div [class.font-bold]="esActivo()" [class.text-red-500]="hayError()">
-```
-
----
-
-## 4. Signals — patrones de uso
-
-```typescript
-// Estado local en componentes
-export class MiComponent {
-  // señales de estado
-  readonly items   = signal<ShipmentRequest[]>([]);
-  readonly loading = signal(false);
-  readonly error   = signal<string | null>(null);
-  readonly query   = signal('');
-
-  // señal derivada (computed — NO usar funciones separadas para esto)
-  readonly filtrados = computed(() =>
-    this.items().filter(i =>
-      i.origin.city.toLowerCase().includes(this.query().toLowerCase())
-    )
-  );
-
-  // efecto para side effects (llamadas HTTP, logs, etc.)
-  constructor() {
-    effect(() => {
-      if (this.error()) console.error(this.error());
-    });
-  }
-
-  // mutar señales: set/update, NUNCA mutate
-  agregarItem(item: ShipmentRequest): void {
-    this.items.update(prev => [...prev, item]);   // ✅
-    // this.items.mutate(l => l.push(item));      // ❌ eliminado en v18+
-  }
-}
-
-// Señales de solo lectura expuestas desde servicios
-@Injectable({ providedIn: 'root' })
-export class AuthService {
-  private readonly _profile = signal<Profile | null>(null);
-  readonly profile = this._profile.asReadonly();      // componentes no pueden mutar
-  readonly isAuthenticated = computed(() => !!this._profile());
-}
-```
-
----
-
-## 5. Signal Forms (Angular 22 — estables)
-
-Signal Forms reemplazan a Reactive Forms para formularios nuevos:
-
-```typescript
-import { Component, inject } from '@angular/core';
-import { FormBuilder } from '@angular/forms/signals';  // ← importar de /signals
-import { Validators } from '@angular/forms';
-
-@Component({
-  selector: 'app-login',
-  imports: [/* PrimeNG components */],
-  template: `
-    <form (ngSubmit)="submit()">
-      <p-inputtext
-        [value]="form.controls.email.value()"
-        (input)="form.controls.email.setValue($any($event.target).value)" />
-      @if (form.controls.email.errors()?.['required']) {
-        <small class="text-red-500">Email requerido</small>
-      }
-      <p-button type="submit" label="Ingresar" [disabled]="form.invalid()" />
-    </form>
-  `
-})
-export class LoginFormComponent {
-  private readonly fb = inject(FormBuilder);
-
-  readonly form = this.fb.group({
-    email:    this.fb.control('', [Validators.required, Validators.email]),
-    password: this.fb.control('', [Validators.required, Validators.minLength(8)])
-  });
-
-  submit(): void {
-    if (this.form.invalid()) return;
-    const { email, password } = this.form.value();
-    // llamar al servicio...
-  }
-}
-```
-
----
-
-## 6. Servicios — patrón estándar
-
-```typescript
-import { Injectable, inject, signal, computed } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
-import { ShipmentRequest, PageResponse } from '../models';
-import { ApiService } from './api.service';
-
-@Injectable({ providedIn: 'root' })
-export class ShipmentService {
-  private readonly api = inject(ApiService);
-
-  private readonly _requests = signal<ShipmentRequest[]>([]);
-  readonly requests = this._requests.asReadonly();
-
-  load(): Observable<PageResponse<ShipmentRequest>> {
-    return this.api.get<PageResponse<ShipmentRequest>>('/shipment-requests').pipe(
-      tap(res => this._requests.set(res.data))
-    );
-  }
-
-  create(dto: CreateShipmentRequest): Observable<ShipmentRequest> {
-    return this.api.post<ShipmentRequest>('/shipment-requests', dto).pipe(
-      tap(created => this._requests.update(prev => [...prev, created]))
-    );
-  }
-}
-```
-
----
-
-## 7. Componentes — patrón estándar
-
-```typescript
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { TableModule } from 'primeng/table';
-import { ButtonModule } from 'primeng/button';
-import { TagModule } from 'primeng/tag';
-import { ShipmentRequest } from '../../../core/models';
-import { ShipmentService } from '../../../core/services/shipment.service';
-
-@Component({
-  selector: 'app-requests',
-  imports: [TableModule, ButtonModule, TagModule],   // ← imports explícitos, no NgModule
-  templateUrl: './requests.html'
-  // Sin styleUrl si solo usa Tailwind
-})
-export class RequestsComponent implements OnInit {
-  private readonly shipmentSvc = inject(ShipmentService);
-
-  readonly requests = this.shipmentSvc.requests;
-  readonly loading  = signal(false);
-
-  ngOnInit(): void {
-    this.loading.set(true);
-    this.shipmentSvc.load().subscribe({
-      complete: () => this.loading.set(false),
-      error:    () => this.loading.set(false)
-    });
-  }
-}
-```
-
----
-
-## 8. Imports de Angular — de dónde viene cada cosa
-
-```typescript
-// Core Angular
-import { Component, Injectable, Directive, Pipe }    from '@angular/core';
-import { inject, signal, computed, effect, input, output } from '@angular/core';
-import { OnInit, OnDestroy, AfterViewInit }           from '@angular/core';
-
-// Router
-import { Router, ActivatedRoute, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { CanActivateFn, Routes }                      from '@angular/router';
-
-// HTTP
-import { HttpClient, HttpInterceptorFn }              from '@angular/common/http';
-import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
-
-// Forms (Signal Forms — USAR ESTO)
-import { FormBuilder }   from '@angular/forms/signals';
-import { Validators }    from '@angular/forms';
-
-// Async pipe (para Observables en templates)
-import { AsyncPipe }     from '@angular/common';
-
-// Imágenes optimizadas
-import { NgOptimizedImage } from '@angular/common';
-
-// RxJS
-import { Observable, Subject, takeUntilDestroyed } from 'rxjs';
-import { tap, map, catchError, switchMap, debounceTime } from 'rxjs/operators';
-
-// takeUntilDestroyed — reemplaza ngOnDestroy para unsubscribe automático
-export class MiComponent {
-  private readonly destroyRef = inject(DestroyRef);
-
-  ngOnInit(): void {
-    this.servicio.data$.pipe(
-      takeUntilDestroyed(this.destroyRef)  // ✅ sin ngOnDestroy manual
-    ).subscribe(...);
-  }
-}
-```
-
----
-
-## 9. Imports de PrimeNG — módulos por componente
-
-Cada componente de PrimeNG se importa de su propio path. **Nunca importar `PrimeNGModule` completo.**
-
-```typescript
-// Inputs y Formularios
-import { InputTextModule }     from 'primeng/inputtext';
-import { InputNumberModule }   from 'primeng/inputnumber';
-import { TextareaModule }      from 'primeng/textarea';
-import { DropdownModule }      from 'primeng/dropdown';      // Select
-import { SelectModule }        from 'primeng/select';        // Select nuevo (v21+)
-import { MultiSelectModule }   from 'primeng/multiselect';
-import { CalendarModule }      from 'primeng/calendar';      // Date picker
-import { CheckboxModule }      from 'primeng/checkbox';
-import { RadioButtonModule }   from 'primeng/radiobutton';
-import { ToggleSwitchModule }  from 'primeng/toggleswitch';
-import { FileUploadModule }    from 'primeng/fileupload';
-
-// Botones y acciones
-import { ButtonModule }        from 'primeng/button';
-import { SplitButtonModule }   from 'primeng/splitbutton';
-
-// Datos
-import { TableModule }         from 'primeng/table';         // DataTable
-import { DataViewModule }      from 'primeng/dataview';
-import { PaginatorModule }     from 'primeng/paginator';
-import { TreeTableModule }     from 'primeng/treetable';
-
-// Visualización
-import { ChartModule }         from 'primeng/chart';         // Chart.js wrapeado
-import { TimelineModule }      from 'primeng/timeline';      // Historial de estados
-import { TagModule }           from 'primeng/tag';           // Badges de estado
-import { BadgeModule }         from 'primeng/badge';
-import { AvatarModule }        from 'primeng/avatar';
-import { ProgressBarModule }   from 'primeng/progressbar';
-import { KnobModule }          from 'primeng/knob';          // Score circular
-import { MeterGroupModule }    from 'primeng/metergroup';
-
-// Overlays y diálogos
-import { DialogModule }        from 'primeng/dialog';
-import { DrawerModule }        from 'primeng/drawer';        // Sidebar deslizable
-import { OverlayPanelModule }  from 'primeng/overlaypanel';
-import { TooltipModule }       from 'primeng/tooltip';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { ToastModule }         from 'primeng/toast';         // Notificaciones toast
-
-// Layout y contenedores
-import { CardModule }          from 'primeng/card';
-import { PanelModule }         from 'primeng/panel';
-import { AccordionModule }     from 'primeng/accordion';
-import { TabsModule }          from 'primeng/tabs';          // Pestañas (v21+ unificado)
-import { StepperModule }       from 'primeng/stepper';       // Wizards / onboarding
-import { DividerModule }       from 'primeng/divider';
-
-// Carga y estados vacíos
-import { SkeletonModule }      from 'primeng/skeleton';
-import { ProgressSpinnerModule } from 'primeng/progressspinner';
-
-// Servicios PrimeNG (inyectables)
-import { MessageService }      from 'primeng/api';           // para Toast
-import { ConfirmationService } from 'primeng/api';           // para ConfirmDialog
-```
-
----
-
-## 10. Uso de PrimeNG — ejemplos clave del proyecto
-
-### DataTable (Marketplace, solicitudes, flota)
-```typescript
-imports: [TableModule, TagModule, ButtonModule]
-```
-```html
-<p-table
-  [value]="requests()"
-  [loading]="loading()"
-  [paginator]="true"
-  [rows]="10"
-  [rowsPerPageOptions]="[10, 25, 50]"
-  [globalFilterFields]="['origin.city', 'destination.city', 'cargoType']"
-  styleClass="p-datatable-sm">
-
-  <ng-template #caption>
-    <p-iconfield>
-      <p-inputicon styleClass="pi pi-search" />
-      <input pInputText type="text" (input)="dt.filterGlobal($any($event.target).value, 'contains')" placeholder="Buscar..." />
-    </p-iconfield>
-  </ng-template>
-
-  <ng-template #header>
-    <tr>
-      <th pSortableColumn="origin.city">Origen <p-sortIcon field="origin.city" /></th>
-      <th pSortableColumn="destination.city">Destino <p-sortIcon field="destination.city" /></th>
-      <th>Estado</th>
-      <th></th>
-    </tr>
-  </ng-template>
-
-  <ng-template #body let-req>
-    <tr>
-      <td>{{ req.origin.city }}</td>
-      <td>{{ req.destination.city }}</td>
-      <td><p-tag [value]="req.status" [severity]="getSeverity(req.status)" /></td>
-      <td><p-button label="Ver" size="small" (onClick)="ver(req)" /></td>
-    </tr>
-  </ng-template>
-</p-table>
-```
-
-### Toast (notificaciones)
-```typescript
-// app.config.ts — agregar provider
-import { MessageService } from 'primeng/api';
-providers: [ MessageService ]
-
-// En el componente
-imports: [ToastModule]
-private readonly msg = inject(MessageService);
-
-this.msg.add({ severity: 'success', summary: 'Oferta enviada', detail: 'El transportista fue notificado' });
-this.msg.add({ severity: 'error',   summary: 'Error', detail: 'No se pudo enviar la oferta' });
-```
-```html
-<p-toast />   <!-- una sola vez en main-layout.html -->
-```
-
-### Tag / Badge de estado (StatusBadge compartido)
-```typescript
-// Mapeado de estados → severity de PrimeNG
-function statusSeverity(s: ShipmentRequestStatus): string {
-  const map: Record<ShipmentRequestStatus, string> = {
-    OPEN:       'info',
-    IN_AUCTION: 'warn',
-    MATCHED:    'success',
-    IN_TRANSIT: 'contrast',
-    DELIVERED:  'success',
-    CANCELLED:  'danger'
-  };
-  return map[s] ?? 'secondary';
-}
-```
-```html
-<p-tag [value]="item.status" [severity]="statusSeverity(item.status)" />
-```
-
-### Timeline (historial de envío / tracking)
-```typescript
-imports: [TimelineModule, CardModule]
-```
-```html
-<p-timeline [value]="stops()" align="left">
-  <ng-template #content let-stop>
-    <div class="text-sm font-semibold">{{ stop.location.address }}</div>
-    <div class="text-xs text-gray-500">{{ stop.eta | date:'dd/MM HH:mm' }}</div>
-  </ng-template>
-  <ng-template #opposite let-stop>
-    <p-tag [value]="stop.status" [severity]="stopSeverity(stop.status)" />
-  </ng-template>
-</p-timeline>
-```
-
-### Dialog / Drawer
-```typescript
-imports: [DialogModule]
-
-readonly dialogVisible = signal(false);
-```
-```html
-<p-button label="Ofertar" (onClick)="dialogVisible.set(true)" />
-
-<p-dialog
-  [(visible)]="dialogVisible"
-  header="Enviar oferta"
-  [modal]="true"
-  [style]="{ width: '480px' }">
-  <!-- contenido del form -->
-  <ng-template #footer>
-    <p-button label="Cancelar" severity="secondary" (onClick)="dialogVisible.set(false)" />
-    <p-button label="Confirmar" (onClick)="confirmar()" />
-  </ng-template>
-</p-dialog>
-```
-
-### ConfirmDialog
-```typescript
-imports: [ConfirmDialogModule]
-providers: [ConfirmationService]
-
-private readonly confirm = inject(ConfirmationService);
-
-eliminar(id: string): void {
-  this.confirm.confirm({
-    message: '¿Eliminar este vehículo?',
-    header: 'Confirmar',
-    accept: () => this.fleetSvc.delete(id).subscribe()
-  });
-}
-```
-```html
-<p-confirmdialog />  <!-- en main-layout.html -->
-```
-
-### Stepper (onboarding / registro multi-paso)
-```typescript
-imports: [StepperModule]
-```
-```html
-<p-stepper [value]="1">
-  <p-step-list>
-    <p-step [value]="1">Datos de empresa</p-step>
-    <p-step [value]="2">RUC y verificación</p-step>
-    <p-step [value]="3">Usuario administrador</p-step>
-  </p-step-list>
-  <p-step-panels>
-    <p-step-panel [value]="1">...</p-step-panel>
-    <p-step-panel [value]="2">...</p-step-panel>
-    <p-step-panel [value]="3">...</p-step-panel>
-  </p-step-panels>
-</p-stepper>
-```
-
-### Chart (dashboard métricas)
-```typescript
-imports: [ChartModule]
-
-readonly chartData = computed(() => ({
-  labels: ['Ene', 'Feb', 'Mar'],
-  datasets: [{
-    label: 'Envíos completados',
-    data: [12, 19, 8],
-    backgroundColor: '#3b82f6'
-  }]
-}));
-```
-```html
-<p-chart type="bar" [data]="chartData()" [options]="{ responsive: true }" />
-```
-
----
-
-## 11. Tailwind v4 — diferencias vs v3
-
-```css
-/* ✅ v4 — no existe tailwind.config.js, todo va en CSS */
-@import "tailwindcss" layer(tailwind-base);
-@import "tailwindcss/utilities" layer(tailwind-utilities);
-
-/* ✅ v4 — variables CSS nativas para customización */
-@theme {
-  --color-logyx-blue: #2563eb;
-  --color-logyx-dark: #1e293b;
-  --font-family-sans: 'Inter', sans-serif;
-}
-
-/* ❌ v4 — NO existe @apply con clases de Tailwind en component styles */
-/* Usar clases directamente en el template */
-```
-
-**Clases más usadas en el proyecto:**
-```html
-<!-- Layouts -->
-<div class="flex items-center gap-4">
-<div class="grid grid-cols-3 gap-6">
-<div class="flex flex-col h-screen overflow-hidden">
-
-<!-- Cards / contenedores -->
-<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-
-<!-- Tipografía -->
-<h1 class="text-2xl font-bold text-gray-800">
-<p class="text-sm text-gray-500">
-<span class="text-xs font-medium uppercase tracking-wide text-gray-400">
-
-<!-- Estados de color semafórico -->
-<span class="text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium">  <!-- success -->
-<span class="text-yellow-600 bg-yellow-50 ...">  <!-- warning -->
-<span class="text-red-600 bg-red-50 ...">         <!-- danger -->
-<span class="text-blue-600 bg-blue-50 ...">       <!-- info -->
-```
-
----
-
-## 12. Estructura de rutas — ubicación de archivos
-
-```
-app.routes.ts                    ← rutas raíz (layouts + lazy feature routes)
-features/auth/auth.routes.ts     ← AUTH_ROUTES
-features/pyme/pyme.routes.ts     ← PYME_ROUTES
-features/carrier/carrier.routes.ts   ← CARRIER_ROUTES
-features/operator/operator.routes.ts ← OPERATOR_ROUTES
-```
-
-**Para agregar una nueva pantalla a pyme:**
-1. Crear `features/pyme/nueva/nueva.ts`
-2. Agregar en `pyme.routes.ts`:
-   ```typescript
-   { path: 'nueva', loadComponent: () => import('./nueva/nueva').then(m => m.NuevaComponent) }
-   ```
-3. Agregar en `main-layout.ts` > `NAV_BY_ROLE.PYME` si debe aparecer en el sidebar.
-
----
-
-## 13. Modelos — dónde están y cómo importar
-
-Todos los tipos del dominio están en un solo archivo:
-```typescript
-import { ShipmentRequest, Bid, Profile, Vehicle } from '../../../core/models';
-// o desde features al mismo nivel:
-import { ShipmentRequest } from '../../core/models';
-```
-
-Ajustar `../../..` según la profundidad del componente:
-- `features/pyme/dashboard/` → `../../../core/models`
-- `layout/main-layout/` → `../../core/models`
-- `shared/components/badge/` → `../../../core/models`
-
----
-
-## 14. ApiService — cómo llamar al backend
-
-```typescript
-private readonly api = inject(ApiService);
-
-// GET con query params
-this.api.get<PageResponse<ShipmentRequest>>('/shipment-requests', { page: 0, size: 20 });
-
-// GET por id
-this.api.get<ShipmentRequest>(`/shipment-requests/${id}`);
-
-// POST
-this.api.post<ShipmentRequest>('/shipment-requests', dtoObjeto);
-
-// PATCH
-this.api.patch<Shipment>(`/shipments/${id}/stops/${stopId}`, { status: 'DELIVERED' });
-
-// DELETE
-this.api.delete<void>(`/vehicles/${id}`);
-
-// Upload de archivo
-const form = new FormData();
-form.append('file', file);
-form.append('type', 'DELIVERY_PHOTO');
-this.api.postForm<Document>(`/shipments/${id}/documents`, form);
-```
-
-El `jwtInterceptor` inyecta el token automáticamente. Si el servidor responde 401, hace logout automático.
-
----
-
-## 15. Providers globales en app.config.ts
-
-```typescript
-// Estado actual de app.config.ts — agregar providers aquí, no crear módulos
-providers: [
-  provideBrowserGlobalErrorListeners(),
-  provideRouter(routes, withComponentInputBinding()),
-  provideHttpClient(withFetch(), withInterceptors([jwtInterceptor])),
-  provideAnimationsAsync(),
-  providePrimeNG({ theme: { preset: LogyxPreset, options: { ... } } }),
-  MessageService,   // ← Toast, ver sección 16
-  // ConfirmationService,  ← para ConfirmDialog, agregar cuando se necesite
-]
-```
-
----
-
-## 16. Design System — tokens, tema y componentes reutilizables
-
-Especificación visual (estilo "LogiSmart"): fondos claros, sidebar blanco con ítem
-activo en azul-slate oscuro sólido, cards con esquinas muy redondeadas y borde
-izquierdo de acento, tablas de datos minimalistas con badges de prioridad pastel.
-
-### 16.1 Tokens (`src/styles.css`)
-
-Definidos con `@theme` de Tailwind v4 — generan utilidades automáticamente
-(`bg-primary`, `text-danger`, `border-l-success`, etc.), **no crear clases custom
-para colores, usar siempre estas utilidades**:
-
-| Token | Valor | Uso |
+| Token | Hex (claro) | Uso |
 |---|---|---|
-| `--color-primary` | `#0F172A` (Slate 900) | Sidebar activo, botones primarios, títulos |
-| `--color-secondary` | `#334155` (Slate 700) | Subtextos, texto secundario |
-| `--color-surface` | `#EEF2F6` (≈ Slate 100) | Fondo general de la app — deliberadamente más oscuro que las cards (blancas) para que se distingan sin depender de sombras pesadas |
-| `--color-neutral` | `#787778` | Bordes y textos decorativos |
-| `--color-success` | `#10B981` | Deltas positivos, badges OK |
-| `--color-danger` | `#EF4444` | Alertas críticas, urgente |
-| `--color-warning` | `#F59E0B` | Prioridad media/alta |
-| `--color-info` | `#3B82F6` | Prioridad baja, informativo |
-| `--font-sans` | Inter + fallback | Fuente global (cargada en `index.html` vía Google Fonts) |
+| `ink-900` | `#0E1726` | Texto principal |
+| `ink-700` / `ink-500` | `#334155` / `#5B6B7F` | Texto secundario / terciario (AA) |
+| `steel-100` / `steel-200` | `#EEF2F6` / `#E2E8F0` | Fondo de app / bordes |
+| `petrol-700` | `#0B4F6C` | Primario, links, ruta en mapa |
+| `emerald-500` / `emerald-700` | `#10B981` / variante AA | **Dinero y oportunidad**: precios, "Ofertar", éxito |
+| `amber-500` / `red-600` | `#F59E0B` / `#DC2626` | Por cerrar, pendiente / incidencia, error |
 
-Radios de card: usar `rounded-xl` (12px) o `rounded-2xl` (16px) del propio Tailwind,
-no se agregaron tokens custom de radius.
+**Modo oscuro** (implementado, WCAG AA con tabla de contrastes en DESIGN.md): `html[data-theme=dark]` redefine los mismos tokens; selector Claro/Oscuro/Sistema persistente y script anti-parpadeo compatible con la CSP. **Tipografía:** Geist Sans (UI) y Geist Mono (placas, km, toneladas, montos en tabla), números tabulares. Formatos: `S/ 1,850.00`, `28 nov · 08:00` (zona America/Lima).
 
-### 16.2 Tema PrimeNG (`app.config.ts`)
+### 3.2 Componentes
 
-`LogyxPreset = definePreset(Aura, { semantic: { primary: { ...escala Slate } } })`
-— alinea el `primary` de PrimeNG (botones, checkboxes, inputs focus) con la escala
-Slate de Tailwind. Si se necesita tocar otro semantic token (surface, formField,
-etc.) extender el mismo `definePreset` en `app.config.ts`, no crear un preset nuevo.
+- **Primitivas** (`components/ui`, estilo shadcn/ui sobre Radix MIT): `Select`/`Combobox`/`MultiSelect`, `DatePicker`/`DateRangePicker`, `MoneyInput`/`NumberInput`, `ConfirmDialog` (`confirm()` devuelve `Promise<boolean>`), toasts, `Dialog`, `Sheet`, `Tabs`, `Tooltip`, `Table` + `Pagination`, `Skeleton`, `FileDropzone`, `StarRating`… Regla: nada de `<select>` nativo, `<input type=date>` ni `window.confirm/alert`.
+- **Dominio** (`components/domain`): `StatusPill` (un color y etiqueta por estado), `RouteLine` (`Lima ──── 1,010 km ────▶ Juliaca`), `KpiTile` (máx. 4 por fila), `EmptyState` con camión, `Countdown`, `VerifiedBadge`, `TrustScore`.
+- **Layout:** `AppShell` con sidebar por rol, `PageHeader`, enlace "Saltar al contenido", navegación colapsable en tablet/móvil.
+- **Catálogo vivo** en `/dev/ui` (solo dev), con capturas más abajo.
 
-### 16.3 Componentes reutilizables (`src/app/shared/ui/`)
+### 3.3 Accesibilidad
 
-Wrappers delgados sobre Tailwind/PrimeNG — no reemplazan PrimeNG, añaden las
-variantes de negocio del diseño. Antes de escribir HTML/CSS a mano para badges,
-KPIs, progreso o widgets de analítica en una feature nueva, revisar si ya existe
-aquí:
-
-| Componente | Selector | Uso |
-|---|---|---|
-| `BadgeComponent` | `<app-badge [tone]="...">` | Tonos: `success\|danger\|warning\|info\|neutral`. Helper `priorityTone(priority)` mapea `URGENT/HIGH/MEDIUM/LOW` → tono. |
-| `KpiCardComponent` | `<app-kpi-card [title] [value] [icon] [accent] [delta] [context]>` | Tarjeta de métrica superior con borde de acento y badge de delta %. |
-| `ProgressBarComponent` | `<app-progress-bar [value]="72">` | Cápsula minimalista gris + relleno primary + % a la derecha. |
-| `AnalyticsCardComponent` | `<app-analytics-card [title] [points] [metrics]>` | Widget lateral: sparkline de barras + sub-métricas con icono cuadrado oscuro. |
-
-Ejemplo de referencia completo usando los cuatro: `src/app/features/operator/dashboard/operator-dashboard.ts`.
-
-### 16.4 Notificaciones (Toast)
-
-`NotificationService` (`core/services/notification.service.ts`) envuelve
-`MessageService` de PrimeNG: `.success(msg)`, `.info(msg)`, `.warn(msg)`,
-`.error(err, fallback)` — este último ya usa `extractErrorMessage` internamente,
-no llamar `extractErrorMessage` de nuevo en el componente si se usa este servicio.
-El `<p-toast />` global vive en `app.ts`, no agregar otro en cada feature.
-
-### 16.5 Layout (sidebar + topbar)
-
-`MainLayoutComponent` ya sigue la especificación: logo cuadrado `bg-primary` +
-nombre, ítems de nav con `routerLinkActive="bg-primary text-white"`, topbar con
-título de la vista actual (derivado automáticamente de `navItems` + URL activa,
-ver `pageTitle` computed) y bloque de usuario a la derecha con avatar + rol.
-Al agregar una ruta nueva a `NAV_BY_ROLE`, el título del topbar se resuelve solo —
-no hace falta tocar nada más.
-
-### 16.6 Animación de validación en inputs
-
-`styles.css` define un `@keyframes shake` global aplicado a `.ng-invalid.ng-touched`
-— no requiere lógica en TS ni directivas. Angular ya añade esas clases al host del
-control (el `<input>` nativo, o el propio `<p-password>`/`<p-select>`/etc. cuando
-el `formControlName` está en el componente PrimeNG) apenas el campo pasa a
-inválido+touched, y el navegador reinicia la animación cada vez que el elemento
-empieza a matchear el selector. Para que un campo dispare el shake basta con que
-use `formControlName`/`[formControl]` — no hace falta agregar `[class.ng-invalid]`
-manual (ya es redundante, ver `login.html` para un ejemplo a limpiar si se toca ese archivo).
+Todo input con `Label`/`Field`, errores con `role="alert"`, foco visible, contraste AA en ambos temas, roles ARIA en tabs/mapa/listas. **Verificación automatizada con axe-core** (WCAG 2.1 A/AA) en e2e: falla ante violaciones `serious`/`critical` (specs `a11y*`, incluida la variante oscura).
 
 ---
 
-*LOGYX · Guía Frontend · Angular 22 + Tailwind v4 + PrimeNG 21 · Julio 2026*
+## 4. Rutas y navegación por rol
+
+| Rol | Aterriza en | Secciones |
+|---|---|---|
+| PYME | `/pyme` | Panel · Solicitudes (nueva, detalle con comparación de ofertas) · Envíos y tracking · Viajes · Reservas |
+| Transportista | `/transportista/marketplace` | Marketplace · Mis ofertas · Flota · Envíos · Tu actividad · Viajes · Retornos · Smart Load |
+| Conductor | `/conductor` | Viaje activo: siguiente parada, botón único, evidencia |
+| Operador | `/operador` | Métricas · Alertas SLA · Asignación manual · Incidencias · Solicitudes y envíos (solo lectura) |
+
+`middleware.ts` redirige por rol (el conductor solo ve `/conductor`), envía a `/login?expired=1` ante un 401 y deja públicas `/`, `/login`, `/registro` y `/privacidad` (Ley N° 29733).
+
+---
+
+## 5. Android (Kotlin, Jetpack Compose, multi-módulo)
+
+### 5.1 Módulos y dependencias
+
+```
+:app                  Activity, Application (Koin), navegación raíz por rol, BuildConfig → AppConfig
+:core:model           Kotlin/JVM PURO. DTOs @Serializable del contrato y reglas de cliente
+:core:network         Kotlin/JVM PURO. Ktor (OkHttp) + LogyxApi tipado, {data,meta}, SSE, ApiException
+:core:data            Repositorios (interfaz + Default*), sesión (DataStore), cola de evidencia
+:core:designsystem    Tema OnCargo, Geist, componentes Compose, mapa MapLibre
+:feature:auth · loads · requests · shipments · driver · negotiation · reputation · documents · incidents · trips · notifications
+```
+
+Reglas de dependencia: `core:model` y `core:network` **no dependen de Android ni de Compose** (se convertirán a Kotlin Multiplatform para la app SwiftUI); `core:data → core:network → core:model`; `feature:* → core:designsystem + core:data`; **un feature nunca depende de otro**: la navegación entre features la cablea `:app` mediante callbacks.
+
+### 5.2 Patrón de una feature (UDF)
+
+`XxxViewModel` expone `StateFlow<XxxUiState>` (data class inmutable con `loading`, `error`, datos y `message: UiMessage?`) y métodos de intención. `XxxRoute` (`koinViewModel()` + `collectAsStateWithLifecycle`) llama a `XxxScreen(state, callbacks)`, **sin estado y sin ViewModel** (previsualizable y testeable). Siempre se cubren los estados de carga, vacío (`EmptyState`) y error (`ErrorState` con "Reintentar"), con pull-to-refresh. Los mensajes de la API se muestran tal cual (`Throwable.userMessage()`).
+
+### 5.3 Navegación por rol y sesión
+
+`AuthRepository.state` (`Loading | LoggedOut | LoggedIn(user)`) decide la pantalla: `role == DRIVER` → modo conductor; `CARRIER` → transportista (Home "Tu actividad", feed de cargas, ofertas, envíos, viajes); `PYME` → solicitudes, viajes y reservas; el operador ve un aviso "usa la web". Un 401 en cualquier llamada cierra sesión.
+
+### 5.4 Sistema de diseño Compose
+
+`LogyxTheme` mapea los tokens de DESIGN.md a Material 3 (claro y oscuro) con extras (`money`, `moneyStrong`, `moneyText`, `warning*`, `route`). Componentes `Logyx*`: botones, `LogyxTextField`, `MoneyField`, `LogyxDropdown`, `LogyxCombobox`, selectores de fecha y hora es-PE, `LogyxConfirmDialog`, `LogyxBottomSheet`, `AlertBanner`, `SegmentedControl`, y los de dominio `LoadCard`, `RouteLine`, `StatusPill`, `StopTimeline`, `KpiTile`, `PriceTag`, `AuctionCountdown`, `RouteMap`, `LiveIndicator`. Regla: los features **no usan controles Material crudos**; si falta un componente se crea en `:core:designsystem` con `@Preview` y entrada en el catálogo (debug). Textos en `strings.xml` por módulo.
+
+### 5.5 Particularidades
+
+- **Evidencia de entrega:** `EvidenceRepository` comprime a JPEG ≤ 2 MB, guarda en una cola persistente (`filesDir/evidence`) y sube con reintento automático cada 20 s; "Entregado" solo se habilita con ≥ 1 foto subida (RN06). La captura usa `TakePicture` (sin permiso `CAMERA`) y la firma es opcional.
+- **Tiempo real:** `RealtimeClient` (reconexión exponencial + `Last-Event-ID`) y `liveLoop()` por ViewModel, solo en primer plano; sin push con la app cerrada.
+- **Seguridad:** HTTP en claro permitido solo en debug (`network_security_config` de debug); release exige HTTPS.
+
+---
+
+## 6. Capturas de pantalla del sistema real
+
+Capturas tomadas del sistema en ejecución (`web/docs/screenshots/` y `android/docs/screenshots/` del repositorio, copiadas a este sitio).
+
+### 6.1 Web
+
+| | |
+|---|---|
+| ![Página de inicio](img/web/landing.png) | ![Inicio de sesión](img/web/login.png) |
+| *Landing pública* | *Inicio de sesión* |
+| ![Panel de la PYME](img/web/pyme-panel.png) | ![Panel de la PYME en modo oscuro](img/web/pyme-panel-dark.png) |
+| *Panel PYME (claro)* | *Panel PYME (modo oscuro AA)* |
+| ![Nueva solicitud con cotización en vivo](img/web/pyme-nueva-solicitud.png) | ![Detalle de solicitud con ofertas](img/web/pyme-detalle-solicitud.png) |
+| *Nueva solicitud con cotización en vivo (RN03)* | *Detalle: subasta y comparación de ofertas* |
+| ![Marketplace del transportista](img/web/transportista-marketplace.png) | ![Error de oferta bajo el piso](img/web/transportista-ofertar-error.png) |
+| *Marketplace del transportista (filtros, tabla de cargas)* | *Oferta bajo el piso: error inline (RN03)* |
+| ![Negociación: panel de hilos y contraoferta](img/web/negociacion-panel-pyme.png) | ![Seguimiento del envío en mapa](img/web/pyme-tracking.png) |
+| *Negociación: chat y contraofertas (RN07)* | *Tracking: lista, mapa y timeline* |
+| ![Vista del conductor en web](img/web/conductor.png) | ![Evidencia de entrega y documentos](img/web/documentos-evidencia.png) |
+| *Página web del conductor (resumen; el trabajo se hace en la app Android)* | *Documentos y evidencia del envío* |
+| ![Detalle de incidencia](img/web/incidencias-detalle.png) | ![Panel del operador](img/web/operador-panel.png) |
+| *Incidencia con comentarios (RN11)* | *Panel del operador: métricas y alertas SLA* |
+| ![Perfil público con Trust Score](img/web/reputacion-perfil-transportista.png) | ![Publicar viaje](img/web/viajes-publicar.png) |
+| *Perfil público con Trust Score (RN09)* | *Publicar viaje (RN12)* |
+| ![Popover de notificaciones](img/web/notificaciones-popover.png) | ![Catálogo de componentes](img/web/dev-ui-catalogo.png) |
+| *Campana de notificaciones en vivo* | *Catálogo vivo del sistema de diseño (`/dev/ui`)* |
+
+### 6.2 Android
+
+| | | |
+|---|---|---|
+| ![Login Android](img/android/light-login.png) | ![Home del transportista](img/android/light-carrier-home.png) | ![Feed de cargas](img/android/light-carrier-feed.png) |
+| *Login* | *Home "Tu actividad"* | *Feed de cargas (LoadCard)* |
+| ![Detalle de carga con mapa](img/android/light-load-detail.png) | ![Modo conductor](img/android/light-driver-trip.png) | ![Evidencia de entrega](img/android/light-driver-evidence.png) |
+| *Detalle con mapa y oferta* | *Modo conductor (botón único)* | *Evidencia: foto obligatoria* |
+| ![Solicitudes de la PYME](img/android/light-pyme-requests.png) | ![Chat con teléfono bloqueado](img/android/light-chat-blocked.png) | ![Feed en modo oscuro](img/android/dark-carrier-feed.png) |
+| *Solicitudes de la PYME* | *Chat: contacto bloqueado (RN07)* | *Feed en modo oscuro* |
+| ![Publicar viaje](img/android/trips-publish-form.png) | | |
+| *Publicar viaje (RN12)* | | |
+
+---
+
+## 7. Pruebas del frontend
+
+Web: Playwright (18 specs, 85 tests) con axe en pantallas clave; Android: 165 pruebas unitarias de ViewModels y parsing, más 8 instrumentadas con Compose UI Test. Detalle en [Plan de Pruebas](../entregable-4/plan-pruebas.md).
+
+---
+
+*OnCargo · E3 Arquitectura Frontend · Versión 2.0 · Noviembre 2026*

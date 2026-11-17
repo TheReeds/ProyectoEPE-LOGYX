@@ -1,16 +1,22 @@
-# S1 · Entregable 3 — Diseño de Centro de Datos (AWS)
-> Competencia C3.1 · Arquitectura, dimensionamiento y virtualización cloud  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+# S1 · Entregable 3 — Diseño de Centro de Datos (VPS Hostinger)
+> Competencia C3.1 · Arquitectura, dimensionamiento y virtualización  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Semestre 1 · Junio 2026
+> Semestre 1 · Junio 2026 · **Versión 2.0 (rediseño, noviembre 2026)** · Versión original 1.0 sobre AWS
+
+
+!!! info "Versión 2.0: del centro de datos virtual en AWS a un VPS Hostinger"
+    La versión 1.0 diseñó un centro de datos virtual multi-AZ en **AWS sa-east-1** (EC2 con Auto Scaling, RDS Multi-AZ, ElastiCache, S3, CloudFront, Wazuh, GuardDuty) con un costo de ~USD 333/mes. Con el sistema ya construido, el equipo rediseñó el despliegue por **costo y simplicidad**: un **VPS Hostinger KVM 2** (2 vCPU, 8 GB RAM, 100 GB NVMe, datacenter en Brasil) con Docker Compose y Caddy, documentos y respaldos en **Cloudflare R2** y DNS/CDN/WAF en **Cloudflare** (dominio `oncargo.tech`). El costo cae a unos USD 14/mes, a cambio de aceptar un único dominio de falla. El antes y el después se detallan en [Rebrand OnCargo y migración a Hostinger](../../software/cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger).
+
+    Se mantienen las decisiones de software ya alineadas con el sistema real: web Astro 7 SSR (contenedor Node), app Android nativa, **sin Redis**, tiempo real por SSE sobre un outbox en PostgreSQL (`LISTEN/NOTIFY`), PostgreSQL 16 con tres roles y RLS. Referencia operativa: `infra/docker-compose.yml`, `infra/README.md` y `docs/security.md` del monorepo `logyx`.
 
 ---
 
 ## Resumen Ejecutivo
 
-El "Centro de Datos" de LOGYX es la infraestructura AWS en la región **sa-east-1 (São Paulo)** que aloja todos los servicios del sistema. Se adopta un modelo **cloud puro** en lugar de un datacenter físico, lo que entrega disponibilidad Tier III+ equivalente (99.982% según SLA de AWS) sin inversión en hardware ni instalaciones físicas.
+El "Centro de Datos" de OnCargo es **un servidor virtual privado (VPS) Hostinger KVM 2** ubicado en un datacenter de **Brasil**, que aloja todos los servicios del sistema como contenedores de Docker Compose: Caddy (proxy con HTTPS automático), la web Astro SSR, el backend Quarkus y PostgreSQL 16. Los documentos de entrega y los respaldos viven fuera del servidor, en **Cloudflare R2**, y el borde (DNS, CDN, WAF, DDoS) lo provee **Cloudflare**.
 
-La arquitectura sigue el patrón **3-tier** (presentación → aplicación → datos) distribuida en dos zonas de disponibilidad (Multi-AZ) para eliminar puntos únicos de falla. El dimensionamiento está calibrado para el MVP (500 usuarios concurrentes) con capacidad de escalar hasta 5,000 usuarios sin rediseño estructural, solo aumentando el tamaño o cantidad de instancias.
+La arquitectura sigue el patrón **3-tier** (presentación → aplicación → datos) en **un solo nodo**: se renuncia a la redundancia multi-AZ (equivalente **Tier I** en el origen) y se compensa con respaldos diarios fuera del proveedor y un procedimiento de reconstrucción de 2–4 h. El dimensionamiento cubre los 500 usuarios concurrentes del MVP con más de la mitad de la RAM libre y escala **verticalmente** (KVM 4 u 8) o separando la base de datos, sin rediseño estructural.
 
 ---
 
@@ -18,159 +24,126 @@ La arquitectura sigue el patrón **3-tier** (presentación → aplicación → d
 
 ### 1.1 Equivalencia Tier según Uptime Institute
 
-| Característica Tier | Tier I | Tier II | Tier III | **LOGYX (AWS)** |
+| Característica Tier | Tier I | Tier II | Tier III | **OnCargo (VPS Hostinger)** |
 |--------------------|---------|---------|---------|--------------------|
-| Componentes redundantes | No | Parcial | Sí (N+1) | Sí (Multi-AZ) |
-| Rutas de distribución | 1 | 1 | Múltiple | Múltiple (2 AZ) |
-| Mantenimiento sin downtime | No | No | Sí | Sí (rolling deploy) |
-| Tolerancia a fallo único | No | No | Sí | Sí |
-| **Disponibilidad garantizada** | 99.671% | 99.741% | 99.982% | **99.99%** (SLA AWS Multi-AZ) |
-| **Downtime anual máximo** | ~29h | ~22h | ~1.6h | **~52 min** |
+| Componentes redundantes | No | Parcial | Sí (N+1) | **No** en el origen (un VPS); sí en el borde (Cloudflare) y en R2 |
+| Rutas de distribución | 1 | 1 | Múltiple | 1 (un VPS, una IP) |
+| Mantenimiento sin downtime | No | No | Sí | No (reinicios breves; ventana mensual) |
+| Tolerancia a fallo único | No | No | Sí | No |
+| **Disponibilidad de referencia** | 99.671% | 99.741% | 99.982% | **~99.5% (estimada, ver Anexo B)** |
+| **Downtime anual de referencia** | ~29 h | ~22 h | ~1.6 h | **~46 h (estimado)** |
 
-LOGYX clasifica como **Tier III equivalente** gracias a Multi-AZ en todos los componentes stateful y Auto Scaling para los componentes stateless.
+OnCargo clasifica como **Tier I equivalente en el origen**: es una decisión consciente de costo, coherente con el objetivo del SRS (RNF-02: disponibilidad ≥ 99%, es decir hasta ~88 h de caída al año) y con la fase MVP. No se afirma una certificación del proveedor.
 
 ### 1.2 Justificación basada en necesidades del negocio
 
-| Necesidad de LOGYX | Tier requerido | Justificación |
+| Necesidad de OnCargo | Nivel requerido | Justificación |
 |-------------------|---------------|---------------|
-| Marketplace de subastas activo 24/7 | Tier III+ | Una subasta perdida = contrato perdido = ingreso perdido |
-| Tracking de envíos en tiempo real | Tier III+ | Driver app necesita conexión para confirmar entregas |
-| Procesamiento de pagos futuro (Fase 2) | Tier III+ | Regulación financiera exige alta disponibilidad |
-| Costo controlado para startup | No Tier IV | Tier IV (99.9999%) triplica costos; no justificado en MVP |
+| Marketplace de subastas activo | 99% (RNF-02) | Una subasta perdida es un contrato perdido, pero las subastas duran minutos u horas y los clientes reintentan; las caídas cortas son tolerables en el MVP |
+| Tracking de envíos | 99% | La app del conductor encola la evidencia con reintentos automáticos, por lo que una caída corta no pierde entregas |
+| Pagos (fase futura) | Mayor | Si se procesan pagos, se justifica la réplica de la BD y un segundo nodo (ver sección 4.4) |
+| Costo controlado para una startup | Tier I–II | Tier III exigiría al menos dos servidores y réplica de BD, multiplicando el costo mensual por 3 a 5 sin una necesidad medida |
 
 ### 1.3 Arquitectura general
 
 ```mermaid
 graph TB
-    subgraph EDGE["Capa de Borde (Global)"]
-        DNS[Route 53<br/>DNS Failover]
-        CDN[CloudFront<br/>CDN + SSL]
-        WAF[AWS WAF<br/>OWASP Rules]
+    subgraph EDGE["Capa de borde · Cloudflare (plan gratuito)"]
+        DNS["DNS<br/>oncargo.tech"]
+        CDN["CDN + TLS de borde"]
+        WAF["WAF reglas gestionadas<br/>+ DDoS"]
     end
 
-    subgraph DC["Centro de Datos Virtual — AWS sa-east-1"]
-        subgraph PRESENTATION["Capa de Presentación"]
-            ALB[Application Load Balancer<br/>Multi-AZ · HTTPS + WebSocket]
+    subgraph DC["Centro de datos · VPS Hostinger KVM 2 · Brasil"]
+        subgraph PRESENTATION["Capa de presentación"]
+            CADDY["Caddy<br/>proxy inverso · HTTPS automático"]
         end
 
-        subgraph APPLICATION["Capa de Aplicación (Multi-AZ)"]
-            ASG[Auto Scaling Group]
-            EC2A[EC2 t3.medium<br/>Quarkus — AZ-A]
-            EC2B[EC2 t3.medium<br/>Quarkus — AZ-B]
-            ASG --> EC2A & EC2B
+        subgraph APPLICATION["Capa de aplicación (Docker Compose)"]
+            WEB["web · Astro 7 SSR<br/>Node 22 · :4321"]
+            API["backend · Quarkus 3.40 · Java 21<br/>:8080 · REST + SSE"]
         end
 
-        subgraph DATA["Capa de Datos (Multi-AZ)"]
-            RDS[RDS PostgreSQL 16<br/>db.t3.medium · Multi-AZ]
-            REDIS[ElastiCache Redis 7<br/>cache.t3.micro · Cluster Mode]
-            S3[S3 Standard<br/>logyx-documents]
+        subgraph DATA["Capa de datos"]
+            PG[("PostgreSQL 16<br/>RLS · volumen pgdata")]
         end
 
-        subgraph SECURITY["Capa de Seguridad Transversal"]
-            SM[Secrets Manager]
-            KMS[KMS CMK]
-            GD[GuardDuty]
-            CW[CloudWatch]
-            CT[CloudTrail]
-        end
-
-        subgraph MANAGEMENT["Capa de Gestión"]
-            SSM[SSM Parameter Store<br/>+ Session Manager]
-            WZ[Wazuh IDS<br/>EC2 t3.small]
-            BH[Bastion Host<br/>EC2 t3.micro]
+        subgraph MGMT["Capa de gestión y seguridad del host"]
+            UFW["UFW + fail2ban<br/>SSH con clave"]
+            BKP["Tarea de respaldo<br/>pg_dump cifrado · cron"]
         end
     end
 
-    DNS --> CDN --> WAF --> ALB
-    ALB --> EC2A & EC2B
-    EC2A & EC2B --> RDS & REDIS & S3
-    EC2A & EC2B --> SM & SSM
-    RDS & S3 --> KMS
-    CW & CT & GD -.->|monitorea| APPLICATION & DATA
+    subgraph EXT["Servicios externos"]
+        R2[("Cloudflare R2<br/>oncargo-documents<br/>oncargo-backups")]
+        GHA["GitHub Actions<br/>CI y despliegue"]
+        MAP["OpenFreeMap"]
+    end
+
+    DNS --> CDN --> WAF --> UFW --> CADDY
+    CADDY --> WEB & API
+    WEB --> API
+    API --> PG
+    API -->|"API S3"| R2
+    BKP --> PG
+    BKP -->|"dump cifrado"| R2
+    GHA -.->|"SSH deploy"| DC
+    WEB -.-> MAP
 ```
 
 ---
 
-## Sección 2 — Diseño de Layout Físico (AWS Architecture)
+## Sección 2 — Diseño de Layout (infraestructura virtual)
 
-### 2.1 Distribución por capas y AZs
+### 2.1 Distribución por capas en el host
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  REGIÓN: sa-east-1 (São Paulo, Brasil)                         │
+│  PROVEEDOR: Hostinger · Datacenter Brasil · Hipervisor KVM     │
 │                                                                │
-│  ┌─────────── AZ-A (sa-east-1a) ─────────────────────────┐   │
-│  │                                                        │   │
-│  │  [SUBNET PÚBLICA — 10.0.1.0/24]                       │   │
-│  │  ┌──────────────┐  ┌──────────────┐                   │   │
-│  │  │ ALB Node A   │  │ NAT Gateway A│                   │   │
-│  │  └──────────────┘  └──────────────┘                   │   │
-│  │                                                        │   │
-│  │  [SUBNET PRIVADA APP — 10.0.10.0/24]                  │   │
-│  │  ┌─────────────────────────────────┐                  │   │
-│  │  │ EC2 t3.medium                   │                  │   │
-│  │  │ Quarkus Backend (Primary)       │                  │   │
-│  │  │ vCPU: 2 · RAM: 4 GB            │                  │   │
-│  │  │ AMI: Amazon Linux 2023 + JRE 21 │                  │   │
-│  │  └─────────────────────────────────┘                  │   │
-│  │                                                        │   │
-│  │  [SUBNET PRIVADA DATOS — 10.0.20.0/24]                │   │
-│  │  ┌──────────────────┐  ┌──────────────────┐           │   │
-│  │  │ RDS Primary      │  │ ElastiCache      │           │   │
-│  │  │ db.t3.medium     │  │ Primary Node     │           │   │
-│  │  │ PG 16, 2vCPU     │  │ cache.t3.micro   │           │   │
-│  │  │ 4 GB RAM, 100 GB │  │ 0.5 GB RAM       │           │   │
-│  │  └──────────────────┘  └──────────────────┘           │   │
-│  │                                                        │   │
-│  │  [SUBNET MGMT — 10.0.30.0/24]                         │   │
-│  │  ┌──────────────┐  ┌──────────────┐                   │   │
-│  │  │ Wazuh IDS    │  │ Bastion Host │                   │   │
-│  │  │ EC2 t3.small │  │ EC2 t3.micro │                   │   │
-│  │  └──────────────┘  └──────────────┘                   │   │
-│  └────────────────────────────────────────────────────────┘   │
+│  VPS KVM 2 — 2 vCPU · 8 GB RAM · 100 GB NVMe · 8 TB/mes        │
+│  Ubuntu Server 24.04 LTS + Docker Engine + Compose             │
 │                                                                │
-│  ┌─────────── AZ-B (sa-east-1b) ─────────────────────────┐   │
-│  │                                                        │   │
-│  │  [SUBNET PÚBLICA — 10.0.2.0/24]                       │   │
-│  │  ┌──────────────┐  ┌──────────────┐                   │   │
-│  │  │ ALB Node B   │  │ NAT Gateway B│                   │   │
-│  │  └──────────────┘  └──────────────┘                   │   │
-│  │                                                        │   │
-│  │  [SUBNET PRIVADA APP — 10.0.11.0/24]                  │   │
-│  │  ┌─────────────────────────────────┐                  │   │
-│  │  │ EC2 t3.medium                   │                  │   │
-│  │  │ Quarkus Backend (Secondary)     │                  │   │
-│  │  │ vCPU: 2 · RAM: 4 GB            │                  │   │
-│  │  └─────────────────────────────────┘                  │   │
-│  │                                                        │   │
-│  │  [SUBNET PRIVADA DATOS — 10.0.21.0/24]                │   │
-│  │  ┌──────────────────┐  ┌──────────────────┐           │   │
-│  │  │ RDS Standby      │  │ ElastiCache      │           │   │
-│  │  │ (sync replica)   │  │ Replica Node     │           │   │
-│  │  └──────────────────┘  └──────────────────┘           │   │
-│  └────────────────────────────────────────────────────────┘   │
+│  [HOST]                                                        │
+│    UFW (80/443 desde Cloudflare, SSH con clave) · fail2ban     │
+│    unattended-upgrades · cron/systemd timers (respaldo)        │
 │                                                                │
-│  [SERVICIOS GLOBALES / REGIÓN]                                 │
-│  S3 Bucket: logyx-documents (versioning ON, SSE-KMS)          │
-│  S3 Bucket: logyx-backups (lifecycle → Glacier 30d)           │
-│  S3 Bucket: logyx-web (static Angular build + CloudFront)     │
-│  CloudWatch Logs + Metrics · CloudTrail · GuardDuty            │
-│  Secrets Manager · KMS · ACM (certificado SSL *.logyx.pe)     │
+│  [RED "edge"  172.20.0.0/24]                                   │
+│    ┌─────────────┐   ┌──────────────┐   ┌─────────────────┐   │
+│    │ caddy       │──►│ web          │   │ backend         │   │
+│    │ 80/443      │   │ Astro SSR    │──►│ Quarkus JVM 21  │   │
+│    │ ≈ 64 MB     │──────────────────────►│ :8080           │   │
+│    └─────────────┘   │ :4321        │   │ usuario 10001   │   │
+│                      └──────────────┘   └────────┬────────┘   │
+│                                                  │             │
+│  [RED "internal"  172.21.0.0/24]                 ▼             │
+│                                         ┌─────────────────┐   │
+│                                         │ db              │   │
+│                                         │ postgres:16-alp │   │
+│                                         │ volumen pgdata  │   │
+│                                         │ sin puerto pub. │   │
+│                                         └─────────────────┘   │
+│                                                                │
+│  [FUERA DEL SERVIDOR]                                          │
+│  Cloudflare R2: oncargo-documents (privado)                    │
+│  Cloudflare R2: oncargo-backups (retención 30 días)            │
+│  Cloudflare: DNS, CDN, WAF · certificado de borde automático   │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 Flujo de una petición HTTP
 
 ```
-1. Usuario (Lima) → DNS logyx.pe (Route 53, TTL 60s)
-2. Route 53 → CloudFront POP más cercano (Bogotá o São Paulo edge)
-3. CloudFront → AWS WAF (inspección OWASP Top 10)
-4. WAF → ALB (balanceo entre AZ-A y AZ-B, health check cada 30s)
-5. ALB → EC2 Quarkus (subnet privada, puerto 8080)
-6. Quarkus → RDS PostgreSQL (subnet datos, puerto 5432, SSL)
-7. Quarkus → ElastiCache Redis (puerto 6379, TLS)
-8. Quarkus → S3 (via VPC Endpoint, sin pasar por internet)
-9. Respuesta: EC2 → ALB → CloudFront → Usuario (~90–110 ms total)
+1. Usuario (Lima) → DNS oncargo.tech (Cloudflare, proxied)
+2. Cloudflare → punto de presencia más cercano: TLS, WAF (reglas gestionadas), caché de estáticos
+3. Cloudflare → IP del VPS por HTTPS (modo Full strict); UFW solo admite rangos de Cloudflare
+4. Caddy (80/443) → contenedor web :4321 (oncargo.tech) o backend :8080 (api.oncargo.tech)
+5. web (SSR) → backend :8080 por la red interna (la cookie httpOnly se convierte en Bearer)
+6. backend → PostgreSQL :5432 (red internal): logyx_api con RLS; Flyway/SystemTx con logyx_owner
+7. backend → Cloudflare R2 por HTTPS (API S3) para documentos y evidencia
+8. Respuesta: backend → web → Caddy → Cloudflare → usuario (~70–120 ms estimados, ver C1.1)
+Streams SSE (/api/v1/events/stream, /eventos): mismo camino, sin buffering ni compresión
+y con latido de 20 s (inferior al tiempo de espera de lectura de Cloudflare).
 ```
 
 ---
@@ -179,221 +152,217 @@ graph TB
 
 ### 3.1 Cálculo de carga esperada
 
-**Supuestos del MVP (Fase 1):**
-- 200 PYMEs activas, 200 carriers activos
-- Pico: 500 usuarios concurrentes
-- Solicitudes API promedio: 10 req/s por usuario activo
-- Pico: 5,000 req/s (subastas abiertas simultáneamente)
-- Foto de entrega promedio: 2 MB
+**Supuestos del MVP (todos son estimaciones; la medición con una prueba de carga está pendiente en la [Auditoría](../../software/entregable-4/auditoria.md)):**
+- 200 PYMEs activas y 200 transportistas activos; 100 conductores.
+- Pico: 500 usuarios concurrentes, cada uno con una conexión SSE abierta (500 streams) y una petición REST cada 5–10 s en promedio.
+- Pico: 50–100 req/s sostenidos (la versión 1.0 suponía 5,000 req/s, valor que se descarta por irreal para el volumen del Business Case: ~10,830 operaciones en 24 meses).
+- Foto de entrega: 2 MB; límite de subida de 10 MB (cuerpo HTTP 12 MB).
 
-### 3.2 Dimensionamiento de EC2 (Backend Quarkus)
+### 3.2 Dimensionamiento de memoria y CPU (un solo host)
 
-| Parámetro | Cálculo | Valor |
-|-----------|---------|-------|
-| Req/s pico | 500 usuarios × 10 req/s | 5,000 req/s |
-| Throughput por EC2 t3.medium | ~500–800 req/s (Quarkus reactivo) | ~600 req/s |
-| Instancias necesarias (pico) | 5,000 / 600 | ~9 instancias |
-| Instancias con buffer 30% | 9 × 1.3 | **12 instancias máx** |
-| Instancias mínimas (normal) | 500 usuarios / 600 | **2 instancias (1 por AZ)** |
-| ASG rango | 2 – 12 instancias | Escala automática |
-| RAM por instancia t3.medium | 4 GB (JVM Quarkus ~1 GB) | **3 GB disponible** |
-| CPU por instancia | 2 vCPU | Quarkus usa ~0.5 vCPU normal |
+| Servicio | `mem_limit` del compose actual | Valor propuesto en producción | Justificación |
+|-----------|---------|---------|------|
+| `caddy` | — | 128 MB | Proxy ligero; certificados y logs |
+| `web` (Astro/Node 22) | 384 MB | 512 MB | SSR; proceso Node con islas React |
+| `backend` (Quarkus JVM 21) | 768 MB | 1.5 GB | Dos pools (8 + 20 conexiones), SSE, outbox y jobs |
+| `db` (PostgreSQL 16) | 512 MB | 2 GB | `shared_buffers` 512 MB, `effective_cache_size` 3 GB |
+| Sistema operativo + Docker | — | ~0.8 GB | Ubuntu Server y daemon |
+| **Total comprometido** | 1.7 GB | **≈ 5 GB de 8 GB** | **≈ 3 GB libres**: holgura para picos, compilación puntual y el motor de rutas propio (≈ 1–1.5 GB, ADR-0008) |
 
-**Justificación de t3.medium para MVP:**
-Quarkus en modo JVM arranca con ~200 MB de RAM y consume ~0.2 vCPU en idle. Con 600 req/s simultáneos, sube a ~1.5 GB RAM y ~1.8 vCPU. El t3.medium (2 vCPU, 4 GB) tiene headroom suficiente para el MVP. Al superar el 70% de CPU, el ASG agrega instancias.
+| Parámetro | Valor | Observación |
+|-----------|-------|-------|
+| vCPU | 2 compartidos entre los 4 contenedores | El backend usa < 1 vCPU en uso normal (estimado) |
+| `max_connections` PostgreSQL | 100 | Pools del backend: 8 (`logyx_owner`) + 20 (`logyx_api`) = 28 por instancia; `logyx_api` con `CONNECTION LIMIT 50` |
+| PgBouncer | No se usa | Con modo *transaction* el `LISTEN/NOTIFY` necesitaría conexión directa (documentado en `docs/security.md`) |
+| Disco | 100 GB NVMe | Sistema y imágenes ≈ 10 GB; BD < 2 GB en 24 meses; logs rotados; margen > 80 GB |
+| Transferencia | 8 TB/mes incluidos | Muy por encima del tráfico estimado (< 100 GB/mes) |
 
-### 3.3 Dimensionamiento de RDS PostgreSQL
+**Justificación:** Quarkus en modo JVM consume del orden de 300–600 MB de RAM en reposo con estos pools. El peso de memoria lo marcan PostgreSQL y los pools; la carga de CPU de 50–100 req/s es modesta para 2 vCPU. Cuando el CPU promedio supere el 70% o la RAM libre baje de 1.5 GB se escala verticalmente (KVM 4: 4 vCPU, 16 GB) o se separa la base de datos.
+
+### 3.3 Dimensionamiento de PostgreSQL
 
 | Parámetro | Valor | Justificación |
 |-----------|-------|---------------|
-| Instancia | `db.t3.medium` | 2 vCPU, 4 GB RAM |
-| `shared_buffers` | 1 GB (25% RAM) | Cache de páginas activas |
-| `effective_cache_size` | 3 GB | Estimado cache OS |
-| `max_connections` | 100 (con PgBouncer) | PgBouncer concentra 200 app conns en 20 BD conns |
-| Storage | 100 GB gp3 (SSD) | Estimado 18 meses de datos con crecimiento moderado |
-| IOPS | 3,000 (baseline gp3) | Suficiente para carga inicial; puede incrementar sin migración |
-| Multi-AZ | Sí | Standby sincrónico en AZ-B |
-| Backup | 30 días retention | Automated daily |
-| Mantenimiento | Domingo 03:00 UTC-5 | Ventana de menor actividad |
+| Imagen | `postgres:16-alpine` | La del `docker-compose.yml` |
+| `shared_buffers` | 512 MB | ≈ 25% de los 2 GB asignados al contenedor |
+| `effective_cache_size` | 3 GB | Caché del sistema operativo disponible |
+| `max_connections` | 100 | Holgura sobre 28–50 conexiones reales |
+| Almacenamiento | Volumen `pgdata` en NVMe | Sin réplica; protegido por respaldos diarios |
+| Backup | `pg_dump -Fc` diario cifrado a R2 | Retención 30 días; ver C2.1 (POL-03) |
+| Mantenimiento | Domingo 03:00 (hora de Lima) | Ventana de menor actividad |
 
-**Estimado de crecimiento de almacenamiento:**
+**Estimado de crecimiento de almacenamiento de la base de datos:**
+
 | Tabla | Tamaño/fila | Filas/mes | GB/mes |
 |-------|-------------|-----------|--------|
 | shipments | ~500 bytes | 3,000 | 0.0015 |
 | shipment_stops | ~300 bytes | 9,000 | 0.003 |
 | messages | ~200 bytes | 30,000 | 0.006 |
 | audit_log | ~400 bytes | 50,000 | 0.02 |
-| documents (metadata) | ~200 bytes | 6,000 | 0.0012 |
+| documents (metadatos) | ~200 bytes | 6,000 | 0.0012 |
 | **Total BD/mes** | | | **~0.1 GB/mes** |
 
-Con 100 GB inicial, LOGYX tiene capacidad para **~80 años** de operación al ritmo del MVP. El storage real a considerar es el S3 (documentos/fotos).
+Con 100 GB de disco, la base de datos no es el factor limitante durante el horizonte del proyecto. El factor que crece es el almacenamiento de documentos, que no ocupa el disco del VPS porque va a R2.
 
-### 3.4 Dimensionamiento de ElastiCache Redis
+### 3.4 Dimensionamiento de Cloudflare R2
 
-| Parámetro | Valor | Uso |
-|-----------|-------|-----|
-| Tipo | `cache.t3.micro` | 0.5 GB RAM |
-| Datos en cache | Marketplace ranking (TTL 60s) + sesiones WebSocket + pub/sub chat | ~100 MB máx en pico |
-| Conexiones máx | 65,000 | Muy por encima de lo necesario |
-| Modo | Cluster con 1 réplica en AZ-B | Alta disponibilidad |
-
-### 3.5 Dimensionamiento de S3
-
-| Bucket | Contenido | Tamaño promedio | Volumen/mes | GB/mes |
+| Bucket | Contenido | Tamaño unitario | Volumen | GB acumulados a 24 meses |
 |--------|-----------|----------------|------------|--------|
-| logyx-documents | Fotos de entrega + firmas | 2 MB/foto | 6,000 fotos | **12 GB/mes** |
-| logyx-backups | RDS snapshots cifrados | ~0.1 GB/backup | 30 backups | **3 GB/mes** |
-| logyx-web | Build Angular estático | ~10 MB | 1 deploy/semana | **< 0.1 GB** |
+| `oncargo-documents` | Fotos de entrega y firmas | 2 MB | Escenario del Business Case: ~10,830 operaciones en 24 meses (≈ 1 foto por operación) | **≈ 22 GB** |
+| `oncargo-documents` | Escenario de estrés (cota superior) | 2 MB | 6,000 fotos/mes (supuesto de la versión 1.0) | 288 GB |
+| `oncargo-backups` | `pg_dump` cifrados | ~0.1 GB | 30 respaldos retenidos | **≈ 3 GB** |
 
-**Política de lifecycle S3:**
-- Fotos de entrega: Standard (0–90d) → Standard-IA (90d–1año) → Glacier (>1 año)
-- Backups: Standard (0–30d) → eliminar automáticamente
-- Costo estimado S3: ~$0.50/mes en inicio, ~$6/mes al año 1
+**Precios de R2 (verificados en noviembre de 2026):** USD 0.015 por GB-mes en la clase Standard; gratis los primeros 10 GB-mes, 1 millón de operaciones de clase A y 10 millones de clase B al mes; **sin cargo por salida de datos**. Costo estimado: escenario del Business Case ≈ USD 0.60/mes con una holgura de 50 GB; en el escenario de estrés (288 GB) ≈ USD 4.2/mes al mes 24. Los precios pueden cambiar.
 
-### 3.6 Resumen de instancias y costo mensual estimado
+**Ciclo de vida:** respaldos con regla de expiración a los 30 días; documentos sin expiración automática (evidencia contractual).
 
-| Servicio | Tipo/SKU | Cant | Costo unitario (USD) | Total (USD/mes) |
+### 3.5 Resumen de recursos y costo mensual estimado
+
+Tipo de cambio de referencia: **S/ 3.45 por USD** (BCRP/SUNAT, noviembre 2026).
+
+| Servicio | Tipo/SKU | Cant | Costo unitario (USD/mes) | Total (USD/mes) |
 |---------|----------|------|---------------------|----------------|
-| EC2 backend | t3.medium (on-demand) | 2–12 | $33 | $66 (mín) |
-| RDS PostgreSQL | db.t3.medium Multi-AZ | 1 | $97 | $97 |
-| ElastiCache Redis | cache.t3.micro + réplica | 2 | $13 | $26 |
-| ALB | — | 1 | $22 | $22 |
-| NAT Gateway | — | 2 | $32 | $65 |
-| S3 (12 GB/mes) | Standard + IA | — | — | $3 |
-| CloudFront (100 GB) | — | — | — | $9 |
-| CloudWatch | Logs + métricas | — | — | $15 |
-| GuardDuty | — | — | — | $4 |
-| Secrets Manager | 5 secretos | — | — | $2 |
-| Route 53 | 1 hosted zone | — | — | $1 |
-| Bastion Host | t3.micro | 1 | $8 | $8 |
-| Wazuh IDS | t3.small | 1 | $15 | $15 |
-| **TOTAL MVP (mín)** | | | | **~$333/mes** |
-| **TOTAL MVP (pico 12 EC2)** | | | | **~$630/mes** |
+| VPS Hostinger | KVM 2, promoción con prepago de 24 meses | 1 | 8.99 | **8.99** |
+| Cloudflare | Plan gratuito (DNS, CDN, WAF básico, DDoS) | 1 | 0.00 | 0.00 |
+| Cloudflare R2 | Documentos y backups (≤ 50 GB-mes) | — | — | ≈ 0.60 |
+| Dominio `oncargo.tech` | USD 49.20/año (referencia de registrador) | 1 | 4.10 | 4.10 |
+| Caddy, Let's Encrypt, Docker, UFW, fail2ban | Software libre | — | 0.00 | 0.00 |
+| **TOTAL MVP (promoción)** | | | | **≈ 13.69 (≈ S/ 47)** |
+| **TOTAL MVP (renovación del VPS a USD 14.99)** | | | | **≈ 19.69 (≈ S/ 68)** |
+
+Frente a los **~USD 333/mes** de la versión 1.0 en AWS, el diseño actual cuesta aproximadamente un 96% menos. El efecto en el Business Case se calcula en [E2 — Business Case](../../gestion-ti/entregable-2-business-case.md).
 
 ---
 
 ## Sección 4 — Virtualización y Cloud Híbrido
 
-### 4.1 Modelo de computación adoptado: AWS ECS Fargate + EC2
+### 4.1 Modelo de computación adoptado: VPS (IaaS) + contenedores + servicios SaaS
 
-LOGYX utiliza un modelo **híbrido de virtualización** dentro de AWS:
+OnCargo utiliza un modelo **híbrido** de virtualización de tres niveles:
 
 | Workload | Tecnología | Justificación |
 |----------|-----------|---------------|
-| Backend Quarkus (API principal) | EC2 t3.medium + Auto Scaling | Control total sobre JVM, mayor predictibilidad de latencia, costo más bajo que Fargate para carga continua |
-| Jobs programados (Smart Load Planner, cierre de subastas) | ECS Fargate (on-demand) | Solo se ejecutan 30 min/hora; Fargate evita pagar EC2 idle para eso |
-| Angular web (assets estáticos) | S3 + CloudFront | Sin servidores — pure CDN, máximo rendimiento global, costo mínimo |
-| Flutter apps | APK/IPA distribuidos | No requieren infraestructura de servidor (client-side) |
+| Servidor (host) | VPS KVM de Hostinger (IaaS) | Precio fijo y bajo; control total del sistema operativo |
+| Backend Quarkus, web Astro SSR, PostgreSQL, Caddy | Contenedores Docker (Docker Compose) | Entornos reproducibles e idénticos en desarrollo, staging y producción |
+| Jobs programados (cierre de subastas, Smart Load, outbox, mantenimiento de viajes) | Planificador interno de Quarkus dentro del backend | No requieren servicios adicionales: usan `@Scheduled` y `SystemTx` |
+| DNS, CDN, WAF | Cloudflare (SaaS) | Capa de borde gratuita; oculta la IP de origen |
+| Documentos y respaldos | Cloudflare R2 (SaaS, API S3) | Sin costo de salida; almacenamiento fuera del servidor |
+| App Android | APK/AAB distribuidos | Sin infraestructura de servidor (cliente) |
 
 ### 4.2 Esquema de virtualización
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  CAPA DE VIRTUALIZACIÓN LOGYX                           │
+│  CAPA DE VIRTUALIZACIÓN OnCargo                         │
 │                                                         │
 │  ┌──────────────────────────────────────────────────┐  │
-│  │  EC2 (Hypervisor Nitro — AWS)                    │  │
+│  │  Hostinger — Hipervisor KVM (administrado)       │  │
 │  │  ┌────────────────────────────────────────────┐  │  │
-│  │  │  Amazon Linux 2023 (OS)                    │  │  │
+│  │  │  Ubuntu Server 24.04 LTS (OS)              │  │  │
 │  │  │  ┌─────────────────────────────────────┐   │  │  │
-│  │  │  │  Docker Engine                      │   │  │  │
-│  │  │  │  ┌─────────────────────────────┐   │   │  │  │
-│  │  │  │  │  Container: Quarkus JVM     │   │   │  │  │
-│  │  │  │  │  Java 21 + Quarkus 3.x      │   │   │  │  │
-│  │  │  │  │  Puerto 8080                │   │   │  │  │
-│  │  │  │  └─────────────────────────────┘   │   │  │  │
+│  │  │  │  Docker Engine + Compose            │   │  │  │
+│  │  │  │  ┌───────────┐ ┌───────────────┐   │   │  │  │
+│  │  │  │  │ caddy     │ │ web (Astro)   │   │   │  │  │
+│  │  │  │  └───────────┘ └───────────────┘   │   │  │  │
+│  │  │  │  ┌───────────────┐ ┌────────────┐  │   │  │  │
+│  │  │  │  │ backend       │ │ db         │  │   │  │  │
+│  │  │  │  │ Quarkus JVM 21│ │ PostgreSQL │  │   │  │  │
+│  │  │  │  └───────────────┘ └────────────┘  │   │  │  │
 │  │  │  └─────────────────────────────────────┘   │  │  │
-│  │  └────────────────────────────────────────────┘  │  │
-│  │                                                   │  │
-│  │  ECS Fargate (Serverless Containers)              │  │
-│  │  ┌────────────────────────────────────────────┐  │  │
-│  │  │  Task: SmartLoadPlannerJob (0.5 vCPU, 1GB) │  │  │
-│  │  │  Schedule: EventBridge cada 30 min          │  │  │
 │  │  └────────────────────────────────────────────┘  │  │
 │  └──────────────────────────────────────────────────┘  │
 │                                                         │
-│  SERVICIOS GESTIONADOS (sin virtualización manual)      │
-│  RDS PostgreSQL → AWS gestiona OS, patches, failover   │
-│  ElastiCache Redis → AWS gestiona réplica y failover   │
-│  S3 → AWS gestiona distribución y redundancia 11 9s    │
+│  SERVICIOS ADMINISTRADOS POR TERCEROS (SaaS)            │
+│  Cloudflare → DNS, CDN, WAF, DDoS                       │
+│  Cloudflare R2 → almacenamiento de objetos replicado    │
+│  GitHub → código, CI y despliegue                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### 4.3 Estrategia de contenedores
 
 ```
-Repositorio de imágenes: Amazon ECR (Elastic Container Registry)
+Imágenes: construidas desde el monorepo (backend/Dockerfile, web/Dockerfile)
 
-Imagen backend: logyx/quarkus-backend:latest
-  Base: eclipse-temurin:21-jre-alpine (91 MB)
-  App:  logyx-backend.jar (~50 MB)
-  Total: ~141 MB
+Imagen backend: logyx-backend
+  Multi-stage: Maven en eclipse-temurin:21-jdk-alpine → ejecución en 21-jre-alpine
+  Usuario 10001 (no root) · healthcheck /q/health/ready · Flyway migra al arrancar
 
-Pipeline de actualización:
-  Git push → GitHub Actions → mvn package
-  → docker build → docker push ECR
-  → ECS rolling update (0% downtime)
-    └── Nuevo task healthy → terminar task antiguo
+Imagen web: logyx-web
+  Astro standalone en node:22-alpine · usuario node · API_URL=http://backend:8080
+
+Imagen db: postgres:16-alpine (oficial)  ·  Imagen proxy: caddy:2-alpine (oficial)
+
+Pipeline de actualización (diseño; el despliegue continuo sigue pendiente, ver Auditoría):
+  Git push → GitHub Actions (CI: pruebas, contrato OpenAPI)
+  → conexión SSH con clave limitada al usuario deploy
+  → pg_dump previo a la migración
+  → docker compose build (una imagen a la vez, por la memoria) → up -d
+  → healthcheck /q/health/ready y prueba de humo (rollback: imagen anterior)
+  Interrupción esperada por despliegue: segundos (reinicio del contenedor);
+  no hay despliegue sin caída como con el rolling update de ECS.
 ```
 
-### 4.4 Migración a microservicios (Roadmap)
+### 4.4 Evolución y escalado (Roadmap)
 
-El monolito actual puede extraerse a microservicios en Fase 3 sin cambiar la red:
+El monolito modular puede evolucionar sin cambiar la red lógica:
 
-| Microservicio candidato | Trigger de extracción | Infraestructura |
-|------------------------|----------------------|-----------------|
-| `pricing-service` | > 500 req/s de cotizaciones | ECS Fargate dedicado |
-| `smartload-service` | Scheduler independiente requerido | ECS Fargate programado |
-| `notification-service` | Uso masivo de WebSocket | EC2 dedicado con sticky sessions |
-| `tracking-service` | Alta frecuencia de actualizaciones GPS | EC2 con Redis Stream |
+| Paso | Disparador | Acción |
+|------|-----------|--------|
+| 1 | CPU > 70% sostenido o RAM libre < 1.5 GB | Subir el plan: KVM 2 → KVM 4 (4 vCPU / 16 GB) |
+| 2 | Base de datos compite por recursos o se exige RPO < 24 h | PostgreSQL en su propio VPS, con archivado de WAL a R2 (pgBackRest/WAL-G) y, si procede, réplica de lectura |
+| 3 | Servicio de rutas propio (ADR-0008, direcciones arbitrarias) | OSRM/Valhalla en contenedor aparte (≈ 1–1.5 GB de RAM); el preproceso del extracto de Perú se hace fuera del VPS |
+| 4 | Más de un nodo de backend | Segundo VPS con Caddy/Cloudflare Load Balancing; el backend ya admite réplicas (JWT sin estado, outbox con `SKIP LOCKED`, SSE por `LISTEN/NOTIFY`); mover el *rate limiting* a la BD |
+| 5 | Pagos u otros requisitos regulatorios | Réplica y conmutación manual o automática de PostgreSQL; evaluación de Tier II/III |
 
 ---
 
 ## Sección 5 — Cumplimiento de Estándares
 
-| Estándar | Aplicación en LOGYX |
+| Estándar | Aplicación en OnCargo |
 |---------|---------------------|
-| **Uptime Institute Tier III** | Equivalencia lograda via Multi-AZ + Auto Scaling |
-| **AWS Well-Architected Framework** | 5 pilares evaluados: Operacional, Seguridad, Fiabilidad, Rendimiento, Costos |
-| **ISO/IEC 27001** | Cifrado en reposo (KMS), en tránsito (TLS 1.3), control de accesos (IAM) |
-| **PCI DSS (fase 2)** | Preparación para pagos: VPC aislada para componentes de pago |
-| **NIST SP 800-145** | Definición de cloud computing: LOGYX usa IaaS (EC2) + PaaS (RDS, ElastiCache) + SaaS (CloudFront) |
+| **Uptime Institute Tier I** | Equivalencia declarada en el origen (un VPS); disponibilidad objetivo ≥ 99% (RNF-02) |
+| **Prácticas de la Twelve-Factor App** | Configuración por variables de entorno, procesos sin estado (JWT), logs a stdout, paridad entre entornos con Compose |
+| **ISO/IEC 27001** | Cifrado en tránsito (TLS), control de accesos (SSH con clave, 2FA en paneles), respaldos cifrados, política de parches (ver C2.1) |
+| **CIS Benchmarks (Ubuntu 24.04 y Docker)** | Endurecimiento del host y de los contenedores (usuarios no root, redes separadas, sin puertos de BD publicados) |
+| **NIST SP 800-145** | Definición de cloud computing: OnCargo usa IaaS (VPS), SaaS (Cloudflare, R2, GitHub) y contenedores sobre el IaaS |
 
 ---
 
 ## Anexos
 
-### Anexo A — Comparativa DC físico vs AWS para LOGYX
+### Anexo A — Comparativa DC físico vs AWS (v1.0) vs VPS Hostinger (v2.0)
 
-| Aspecto | DC físico | AWS (LOGYX) |
-|---------|-----------|------------|
-| Inversión inicial | USD 50,000+ (servidores, switches, UPS) | USD 0 (pago por uso) |
-| Tiempo de aprovisionamiento | 2–4 semanas | < 30 minutos (Terraform) |
-| Redundancia física | Requiere 2 servidores físicos mínimo | Multi-AZ incluido |
-| Escalado | Manual (comprar hardware) | Automático (ASG) |
-| Mantenimiento OS/hardware | Equipo interno | AWS gestiona (RDS, ElastiCache) |
-| Disponibilidad | Depende del diseño | 99.99% SLA AWS |
-| Costo mensual MVP | ~USD 800 (electricidad + depreciación) | ~USD 333 (pay-as-you-go) |
+| Aspecto | DC físico | AWS (diseño v1.0) | VPS Hostinger (v2.0) |
+|---------|-----------|------------|------------|
+| Inversión inicial | USD 50,000+ (servidores, switches, UPS) | USD 0 (pago por uso) | USD 0 (prepago de 24 meses: USD 215.76) |
+| Tiempo de aprovisionamiento | 2–4 semanas | < 30 minutos (Terraform) | Minutos (panel) + 1–2 h de configuración |
+| Redundancia física | 2 servidores mínimo | Multi-AZ incluido | **Ninguna** (un nodo); respaldos externos |
+| Escalado | Manual (comprar hardware) | Automático (ASG) | Vertical manual (cambio de plan) |
+| Mantenimiento OS/hardware | Equipo interno | AWS gestiona RDS/ElastiCache | Hostinger gestiona hardware; el equipo gestiona SO y contenedores |
+| Disponibilidad | Depende del diseño | 99.99% (SLA Multi-AZ) | ~99.5% (estimación de diseño; sin SLA contractual asumido) |
+| Costo mensual MVP | ~USD 800 (electricidad + depreciación) | ~USD 333 (pay-as-you-go) | **~USD 14 (≈ S/ 47)** |
+| Complejidad operativa | Alta | Media-alta (muchos servicios) | **Baja** (4 contenedores) |
 
-### Anexo B — Cálculo de disponibilidad
+### Anexo B — Cálculo de disponibilidad (estimación de diseño)
 
 ```
-Componentes en serie (todos deben estar disponibles):
-  CloudFront:       99.99%
-  ALB:              99.99%
-  EC2 (2 AZ):       99.99%
-  RDS Multi-AZ:     99.95%
-  ElastiCache:      99.90%
+Componentes en serie para el servicio completo (supuestos, no mediciones):
+  Cloudflare (plan gratuito, sin SLA contractual):  99.90%  (supuesto prudente)
+  VPS Hostinger (referencia Tier I):                99.671%
+  Contenedores (reinicio automático):               99.90%  (supuesto)
 
-Disponibilidad total = 99.99% × 99.99% × 99.99% × 99.95% × 99.90%
-                     ≈ 99.82%
+Disponibilidad total ≈ 99.90% × 99.671% × 99.90%
+                     ≈ 99.47%
 
-Downtime anual estimado: ~15.7 horas
-→ Por encima del objetivo de 99% del SRS (RNF-02)
-→ Con mejoras en caché (Redis absorbe fallas de RDS cortas):
-   Disponibilidad efectiva percibida ≈ 99.9%
+Downtime anual estimado: (1 − 0.9947) × 8,760 h ≈ 46 horas
+→ Por encima del objetivo de 99% del SRS (RNF-02, ≈ 88 h/año)
+→ No alcanza 99.9%: ese objetivo exigiría un segundo nodo y réplica de BD (sección 4.4).
+
+Cloudflare R2 solo afecta a la subida/descarga de documentos (SLA publicado de 99.9%);
+no interviene en el camino crítico de subastas y negociación.
 ```
 
 ---
 
-*LOGYX · S1 Entregable 3 · Diseño de Centro de Datos · Competencia C3.1 · Junio 2026*
+*OnCargo · S1 Entregable 3 · Diseño de Centro de Datos · Competencia C3.1 · Versión 2.0 · Noviembre 2026 (original: Junio 2026)*

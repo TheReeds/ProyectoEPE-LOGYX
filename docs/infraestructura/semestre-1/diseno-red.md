@@ -1,16 +1,26 @@
 # S1 · Entregable 1 — Diseño de Red
 > Competencia C1.1 · Diseño de infraestructura de conectividad  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Semestre 1 · Junio 2026
+> Semestre 1 · Junio 2026 · **Versión 2.0 (rediseño, noviembre 2026)** · Versión original 1.0 sobre AWS
+
+
+!!! info "Versión 2.0: el diseño de red se rehízo para un VPS Hostinger"
+    La versión 1.0 diseñó la red sobre **AWS** (VPC multi-AZ, ALB, NAT Gateway, RDS, ElastiCache, CloudFront). Al construir el sistema y renombrar el producto a **OnCargo**, la infraestructura se rediseñó por **costo y simplicidad** (detalle y cifras en [Rebrand OnCargo y migración a Hostinger](../../software/cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger)):
+
+    - **Cómputo:** un único **VPS Hostinger KVM 2** (2 vCPU, 8 GB RAM, 100 GB NVMe, datacenter en Brasil) con Docker Compose.
+    - **Borde y TLS:** **Caddy** como proxy inverso con HTTPS automático, detrás de **Cloudflare** (DNS, CDN y WAF gratuito) para el dominio **`oncargo.tech`**.
+    - **Objetos y backups:** **Cloudflare R2** (API compatible con S3) en lugar de S3/MinIO.
+    - **Sin Redis ni multi-AZ:** el sistema no usa Redis (tiempo real por SSE sobre un outbox en PostgreSQL) y un solo VPS implica un único dominio de falla; el costo en disponibilidad se analiza de forma explícita en la sección 3.
+    - **Referencia operativa:** `infra/docker-compose.yml`, `infra/README.md` y `docs/security.md` del monorepo `logyx`. Allí ya existen las redes `internal` y `edge`, la base sin puertos publicados y los límites de memoria; el proxy Caddy, el firewall del host y los respaldos hacia R2 son el **diseño de despliegue** de este documento (estado indicado en cada tabla).
 
 ---
 
 ## Resumen Ejecutivo
 
-LOGYX es una plataforma SaaS logística B2B que conecta PYMEs y transportistas en el corredor Lima–Arequipa–Juliaca. Su infraestructura de red se implementa íntegramente en **Amazon Web Services (AWS)**, región **sa-east-1 (São Paulo)**, la más cercana al Perú con baja latencia (~120 ms desde Lima).
+OnCargo es una plataforma SaaS logística B2B que conecta PYMEs y transportistas en el corredor Lima–Arequipa–Juliaca. Su infraestructura se despliega en **un VPS Hostinger KVM 2 ubicado en Brasil**, la región más cercana al Perú entre las ofrecidas por el proveedor (latencia estimada de 70–120 ms desde Lima; valor a verificar con mediciones en el aprovisionamiento).
 
-El diseño adopta una arquitectura de red **multi-capa y multi-AZ** (dos zonas de disponibilidad), equivalente a una topología de red empresarial con DMZ, segmentación por VLAN y redundancia de enlaces. Ningún componente crítico tiene un único punto de falla. La red soporta hasta 500 usuarios concurrentes en la fase MVP y escala horizontalmente sin rediseño.
+El diseño sustituye la topología multi-capa de la nube pública por una red **en tres anillos**: (1) el borde de **Cloudflare**, que oculta la IP de origen, absorbe tráfico malicioso y sirve la caché; (2) el **host** con un firewall que solo admite 80/443 desde Cloudflare y SSH restringido; y (3) la **red de contenedores** de Docker Compose, donde la base de datos y el almacenamiento de respaldo no publican ningún puerto. No hay redundancia de hardware: se acepta un único dominio de falla a cambio de un costo mensual de unos USD 9 y se compensa con respaldos diarios fuera del proveedor (R2) y un procedimiento de reconstrucción documentado. La red soporta los 500 usuarios concurrentes de la fase MVP con holgura de memoria y escala **verticalmente** (plan KVM 4/8) o separando la base de datos a otro VPS sin rediseñar la red lógica.
 
 ---
 
@@ -20,25 +30,25 @@ El diseño adopta una arquitectura de red **multi-capa y multi-AZ** (dos zonas d
 
 | ID | Requerimiento | Valor objetivo | Justificación |
 |----|--------------|----------------|---------------|
-| RT-01 | Latencia API desde Lima | < 120 ms | RNF-01: tiempo de respuesta < 2s. La latencia de red debe ser < 6% del presupuesto total. |
-| RT-02 | Ancho de banda saliente (pico) | ≥ 100 Mbps | Carga de fotos de entrega (avg 2 MB × 200 entregas/hora en pico) + tráfico API |
-| RT-03 | Usuarios concurrentes MVP | 500 | Estimado de 200 PYMEs + 200 carriers + 100 drivers activos simultáneamente |
-| RT-04 | Disponibilidad de red | ≥ 99.9% | SLA AWS VPC + Multi-AZ cubre este objetivo |
-| RT-05 | Aislamiento de entornos | Producción / Staging / Dev separados | Evitar que bugs de dev afecten datos de producción |
-| RT-06 | Acceso a servicios externos | SUNAT (HTTPS), ORS API (HTTPS), Google OAuth (HTTPS) | Solo salida HTTPS/443 desde subnets privadas vía NAT Gateway |
-| RT-07 | Tráfico WebSocket | Persistente, < 200 ms | Chat de negociación en tiempo real. Requiere sticky sessions en ALB. |
-| RT-08 | Seguridad perimetral | WAF + Security Groups + NACLs | Bloqueo de OWASP Top 10, DDoS básico |
+| RT-01 | Latencia API desde Lima | < 150 ms (estimada 70–120 ms) | RNF-01: tiempo de respuesta < 2 s. La latencia de red debe ser una fracción pequeña del presupuesto total. |
+| RT-02 | Ancho de banda saliente (pico) | ≥ 100 Mbps | Fotos de entrega (promedio 2 MB × 200 entregas/hora en pico) + tráfico API. El plan incluye 8 TB/mes de transferencia. |
+| RT-03 | Usuarios concurrentes MVP | 500 | Estimado de 200 PYMEs + 200 transportistas + 100 conductores activos simultáneamente. Pendiente de validar con prueba de carga. |
+| RT-04 | Disponibilidad | ≥ 99% (RNF-02) | Un solo VPS: el objetivo del SRS es alcanzable; no se promete 99.9%. Ver sección 3. |
+| RT-05 | Aislamiento de entornos | Producción (VPS) / staging local / desarrollo | Evitar que errores de desarrollo afecten datos reales. Staging y desarrollo corren en equipos del equipo con el mismo `docker-compose.yml`. |
+| RT-06 | Acceso a servicios externos | Teselas OpenFreeMap (HTTPS, desde el navegador), R2 (HTTPS), futuros SUNAT y servicio de ruteo | Solo salida HTTPS/443 desde los contenedores; el firewall del host no filtra salida, pero el diseño no abre otros puertos de salida. |
+| RT-07 | Tráfico en tiempo real | Streams SSE de larga duración con latido de 20 s (ADR-0007) | El proxy no debe hacer *buffering* ni comprimir `text/event-stream` y debe tolerar lecturas largas (≥ 60 s). No requiere *sticky sessions*. |
+| RT-08 | Seguridad perimetral | Cloudflare (WAF, DDoS) + firewall del host (UFW) + redes Docker | Bloqueo de OWASP Top 10 y DDoS básico en el borde; superficie del host reducida a 80/443 y SSH. |
 
 ### 1.2 Requerimientos de Negocio
 
 | ID | Requerimiento | Impacto en red |
 |----|--------------|----------------|
-| RN-01 | Alta disponibilidad del marketplace | Pérdida de conectividad = pérdida de ofertas → afecta ingresos directamente |
-| RN-02 | Crecimiento esperado ×5 en 12 meses | Arquitectura debe escalar sin rediseño de red |
-| RN-03 | Apps móviles en zonas rurales (sierra) | API debe responder con payloads ligeros; Driver app funciona offline |
-| RN-04 | Separación de ambientes | Datos de clientes reales nunca en staging/dev |
-| RN-05 | Costos operativos controlados | Usar NAT Gateway compartido; CloudFront para reducir tráfico de salida |
-| RN-06 | Cumplimiento de privacidad | Tráfico de datos personales (RUC, DNI) solo en subnets privadas |
+| RN-01 | Alta disponibilidad razonable del marketplace | Pérdida de conectividad = pérdida de ofertas. Se mitiga con *healthchecks*, reinicio automático (`restart: unless-stopped`) y monitoreo externo; no con redundancia de hardware. |
+| RN-02 | Crecimiento esperado ×5 en 12 meses | Escalado vertical (más vCPU/RAM en el mismo proveedor) y, después, separar PostgreSQL. |
+| RN-03 | Apps móviles en zonas rurales (sierra) | API con *payloads* ligeros; la app del conductor encola la evidencia y reintenta (cola persistente). |
+| RN-04 | Separación de ambientes | Datos de clientes reales nunca en staging/desarrollo (la base de producción no se copia a equipos locales sin anonimizar). |
+| RN-05 | Costos operativos controlados | Un VPS con precio fijo; Cloudflare gratuito para DNS, CDN y WAF básico; R2 sin cargo por salida de datos. Sin NAT Gateway ni balanceador de pago. |
+| RN-06 | Cumplimiento de privacidad (Ley 29733) | Datos personales (RUC, DNI) solo en la red `internal` de Docker; TLS en todo el trayecto público. |
 
 ---
 
@@ -46,283 +56,247 @@ El diseño adopta una arquitectura de red **multi-capa y multi-AZ** (dos zonas d
 
 ### 2.1 Visión General de la Arquitectura de Red
 
-LOGYX utiliza una **Virtual Private Cloud (VPC)** en AWS como equivalente a una red empresarial privada. La VPC se divide en capas que corresponden a las zonas de una red tradicional:
+OnCargo reemplaza la VPC de la nube pública por **tres anillos de confianza**, que corresponden a las zonas de una red tradicional:
 
-| Zona tradicional | Equivalente AWS en LOGYX |
+| Zona tradicional | Equivalente en OnCargo |
 |-----------------|--------------------------|
-| Internet (exterior) | Internet Gateway (IGW) + CloudFront |
-| DMZ | Subnets públicas + WAF + Application Load Balancer |
-| Red interna (servidores) | Subnets privadas — capa de aplicación |
-| Red de datos (BD) | Subnets privadas — capa de datos |
-| Segmentación VLAN | Security Groups + NACLs por subnet |
+| Internet (exterior) | Internet + Cloudflare (DNS proxied, CDN, WAF) |
+| DMZ | Host del VPS: UFW + contenedor Caddy (único proceso que escucha 80/443) |
+| Red interna (servidores) | Red Docker `edge`: Caddy, `web` (Astro SSR) y `backend` (Quarkus) |
+| Red de datos (BD) | Red Docker `internal`: `db` (PostgreSQL 16) y `backend`; sin puertos publicados |
+| Segmentación VLAN | Redes Docker separadas + reglas de UFW + roles de BD con RLS |
 
-### 2.2 Diseño de VPC
+### 2.2 Diseño del host y direccionamiento
 
 ```
-Región: sa-east-1 (São Paulo)
-VPC CIDR: 10.0.0.0/16 (65,534 hosts disponibles)
+Proveedor:   Hostinger — VPS KVM 2 (datacenter Brasil)
+Sistema:     Ubuntu Server 24.04 LTS, Docker Engine + plugin Compose
+Recursos:    2 vCPU · 8 GB RAM · 100 GB NVMe · 8 TB/mes de transferencia
+IP pública:  1 × IPv4 (oculta tras Cloudflare; el firewall solo admite rangos de Cloudflare en 80/443)
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│  VPC LOGYX — 10.0.0.0/16                                           │
+│  VPS Hostinger KVM 2                                                │
 │                                                                     │
-│  ┌──────────────────────────────┐  ┌──────────────────────────┐   │
-│  │  AZ-A (sa-east-1a)           │  │  AZ-B (sa-east-1b)       │   │
-│  │                              │  │                          │   │
-│  │  [Subnet pública-A]          │  │  [Subnet pública-B]      │   │
-│  │  10.0.1.0/24                 │  │  10.0.2.0/24             │   │
-│  │  • ALB (listener 80/443)     │  │  • ALB (failover)        │   │
-│  │  • NAT Gateway               │  │  • NAT Gateway           │   │
-│  │                              │  │                          │   │
-│  │  [Subnet privada App-A]      │  │  [Subnet privada App-B]  │   │
-│  │  10.0.10.0/24                │  │  10.0.11.0/24            │   │
-│  │  • EC2 Quarkus backend       │  │  • EC2 Quarkus backend   │   │
-│  │  • ECS tasks (Fargate)       │  │  • ECS tasks (Fargate)   │   │
-│  │                              │  │                          │   │
-│  │  [Subnet privada Datos-A]    │  │  [Subnet privada Datos-B]│   │
-│  │  10.0.20.0/24                │  │  10.0.21.0/24            │   │
-│  │  • RDS PostgreSQL (primary)  │  │  • RDS PostgreSQL (standby)  │
-│  │  • ElastiCache Redis (primary)│ │  • ElastiCache (replica) │   │
-│  │                              │  │                          │   │
-│  │  [Subnet privada Mgmt-A]     │  │  [Subnet privada Mgmt-B] │   │
-│  │  10.0.30.0/24                │  │  10.0.31.0/24            │   │
-│  │  • Wazuh IDS server          │  │  —                       │   │
-│  │  • Bastion Host              │  │  —                       │   │
-│  └──────────────────────────────┘  └──────────────────────────┘   │
+│  UFW: allow 80,443/tcp desde rangos de Cloudflare · allow SSH       │
+│       (clave pública, sin contraseña, fail2ban) · deny todo lo demás│
 │                                                                     │
-│  [Subnet aislada — Security Testing]                               │
-│  10.0.99.0/24                                                       │
-│  • Kali Linux EC2 (ataques controlados — solo S2)                  │
-│  • Sin routing a subnets de producción                             │
+│  ┌── red Docker "edge" (172.20.0.0/24) ───────────────────────────┐ │
+│  │  caddy :80/:443  →  web :4321 (Astro SSR)                       │ │
+│  │                  →  backend :8080 (Quarkus, API + SSE)          │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+│  ┌── red Docker "internal" (172.21.0.0/24) ───────────────────────┐ │
+│  │  backend ──► db :5432 (PostgreSQL 16, sin puerto publicado)     │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+│  Volúmenes: pgdata (NVMe) · caddy_data (certificados)               │
 └─────────────────────────────────────────────────────────────────────┘
+                 │ HTTPS (S3 API)                       │ pg_dump cifrado
+                 ▼                                      ▼
+        Cloudflare R2: oncargo-documents       Cloudflare R2: oncargo-backups
 ```
 
-### 2.3 Tabla de Subnetting Completo
+!!! note "Subredes Docker"
+    Los CIDR `172.20.0.0/24` y `172.21.0.0/24` son los que se fijan en el `docker-compose.yml` de producción (por omisión Docker asigna rangos propios). En el compose actual del monorepo las redes se llaman `internal` y `edge`; el rango fijo y `TRUSTED_PROXIES` apuntando a `172.20.0.0/24` son parte del despliegue en el VPS.
 
-| Subnet | CIDR | AZ | Tipo | Propósito | Hosts disponibles |
-|--------|------|----|------|-----------|-------------------|
-| logyx-public-a | 10.0.1.0/24 | sa-east-1a | Pública | ALB, NAT Gateway | 251 |
-| logyx-public-b | 10.0.2.0/24 | sa-east-1b | Pública | ALB failover, NAT GW | 251 |
-| logyx-app-a | 10.0.10.0/24 | sa-east-1a | Privada | EC2 Quarkus, ECS Fargate | 251 |
-| logyx-app-b | 10.0.11.0/24 | sa-east-1b | Privada | EC2 Quarkus, ECS Fargate | 251 |
-| logyx-data-a | 10.0.20.0/24 | sa-east-1a | Privada | RDS Primary, Redis Primary | 251 |
-| logyx-data-b | 10.0.21.0/24 | sa-east-1b | Privada | RDS Standby, Redis Replica | 251 |
-| logyx-mgmt-a | 10.0.30.0/24 | sa-east-1a | Privada | Wazuh, Bastion Host | 251 |
-| logyx-mgmt-b | 10.0.31.0/24 | sa-east-1b | Privada | Reservado | 251 |
-| logyx-security-test | 10.0.99.0/24 | sa-east-1a | Aislada | Kali Linux (pruebas S2) | 251 |
+### 2.3 Tabla de direccionamiento y puertos
+
+| Segmento | CIDR / ámbito | Componentes | Puertos | Publicado fuera del host |
+|--------|------|------|------|------|
+| Internet → Cloudflare | Anycast de Cloudflare | DNS `oncargo.tech`, `api.oncargo.tech` (proxied) | 443 (80 redirige) | Sí |
+| Host (VPS) | IP pública del VPS | UFW, SSH, Docker | 22 (restringido), 80, 443 | 80/443 solo desde Cloudflare |
+| Red `edge` | 172.20.0.0/24 | `caddy`, `web`, `backend` | 80, 443, 4321, 8080 | Solo Caddy (80/443) |
+| Red `internal` | 172.21.0.0/24 | `backend`, `db` | 5432 | No |
+| Servicios externos | — | Cloudflare R2, OpenFreeMap | 443 | (solo salida) |
 
 ### 2.4 Topología Lógica
 
 ```mermaid
 graph TB
-    Internet((Internet))
-    Users[Usuarios<br/>PYME / Carrier / Driver]
-    CF[CloudFront CDN<br/>+ WAF]
-    IGW[Internet Gateway]
-    ALB[Application Load Balancer<br/>HTTPS :443 / WS :443]
+    Users["Usuarios<br/>PYME / Transportista / Conductor / Operador"]
+    Web["Navegador<br/>oncargo.tech"]
+    App["App Android<br/>api.oncargo.tech"]
+    CF["Cloudflare<br/>DNS · CDN · WAF · DDoS"]
 
-    subgraph VPC["VPC LOGYX — 10.0.0.0/16"]
-        subgraph PUBLIC["Subnets Públicas — DMZ"]
-            NAT_A[NAT Gateway A<br/>10.0.1.0/24]
-            NAT_B[NAT Gateway B<br/>10.0.2.0/24]
+    subgraph VPS["VPS Hostinger KVM 2 · Brasil"]
+        UFW["UFW<br/>80/443 solo Cloudflare · SSH restringido"]
+        subgraph EDGE["Red Docker edge"]
+            CADDY["Caddy<br/>HTTPS automático · proxy inverso"]
+            WEB["web · Astro 7 SSR<br/>:4321"]
+            API["backend · Quarkus 3.40<br/>:8080 · REST + SSE"]
         end
-
-        subgraph APP["Subnets Privadas — Aplicación"]
-            BE_A[EC2 Quarkus<br/>AZ-A 10.0.10.0/24]
-            BE_B[EC2 Quarkus<br/>AZ-B 10.0.11.0/24]
-        end
-
-        subgraph DATA["Subnets Privadas — Datos"]
-            RDS_P[RDS PostgreSQL<br/>Primary 10.0.20.0/24]
-            RDS_S[RDS PostgreSQL<br/>Standby 10.0.21.0/24]
-            REDIS[ElastiCache Redis<br/>10.0.20.0/24]
-        end
-
-        subgraph MGMT["Subnets Privadas — Gestión"]
-            WAZUH[Wazuh IDS<br/>10.0.30.0/24]
-            BASTION[Bastion Host<br/>10.0.30.0/24]
+        subgraph INTERNAL["Red Docker internal"]
+            DB[("PostgreSQL 16<br/>RLS · sin puerto público")]
         end
     end
 
-    S3[S3 — MinIO/Storage<br/>VPC Endpoint]
-    ORS[OpenRouteService API<br/>Externo]
-    SUNAT[SUNAT API<br/>Externo]
+    R2[("Cloudflare R2<br/>oncargo-documents / oncargo-backups")]
+    MAP["OpenFreeMap<br/>teselas de mapa"]
 
-    Users --> CF
-    CF --> IGW
-    IGW --> ALB
-    ALB --> BE_A
-    ALB --> BE_B
-    BE_A --> RDS_P
-    BE_B --> RDS_P
-    RDS_P -.->|replicación| RDS_S
-    BE_A --> REDIS
-    BE_A --> S3
-    BE_A -->|via NAT| ORS
-    BE_A -->|via NAT| SUNAT
-    NAT_A --> IGW
-    NAT_B --> IGW
-    BE_A --> WAZUH
-    BE_B --> WAZUH
+    Users --> Web
+    Users --> App
+    Web --> CF
+    App --> CF
+    CF -->|"HTTPS (Full strict)"| UFW
+    UFW --> CADDY
+    CADDY -->|"oncargo.tech"| WEB
+    CADDY -->|"api.oncargo.tech"| API
+    WEB -->|"http://backend:8080"| API
+    API -->|"logyx_api (RLS)"| DB
+    API -->|"logyx_owner (Flyway, SystemTx)"| DB
+    API -->|"API S3"| R2
+    DB -.->|"pg_dump diario cifrado"| R2
+    Web -.->|"teselas (desde el navegador)"| MAP
 ```
 
-### 2.5 Topología Física (Recursos AWS)
+### 2.5 Topología Física (recursos contratados)
 
 ```mermaid
 graph LR
-    subgraph EDGE["Capa de borde"]
-        R53[Route 53<br/>DNS logyx.pe]
-        CF2[CloudFront<br/>CDN Global]
-        WAF2[AWS WAF<br/>OWASP Rules]
+    subgraph EDGE["Capa de borde · Cloudflare (plan gratuito)"]
+        DNS["DNS<br/>oncargo.tech"]
+        CDN["CDN y caché<br/>activos estáticos"]
+        WAF["WAF reglas gestionadas<br/>+ DDoS"]
+        REG["Registro del dominio<br/>.tech"]
     end
 
-    subgraph COMPUTE["Capa de cómputo"]
-        ALB2[ALB<br/>Multi-AZ]
-        EC2A[EC2 t3.medium<br/>Quarkus — AZ-A]
-        EC2B[EC2 t3.medium<br/>Quarkus — AZ-B]
-        ASG[Auto Scaling Group<br/>2–6 instancias]
+    subgraph HOST["Capa de cómputo · Hostinger KVM 2"]
+        VM["Ubuntu 24.04 LTS<br/>2 vCPU · 8 GB · 100 GB NVMe"]
+        DKR["Docker Compose<br/>caddy · web · backend · db"]
     end
 
-    subgraph STORAGE["Capa de datos"]
-        RDS2[RDS db.t3.medium<br/>PostgreSQL 16 Multi-AZ]
-        CACHE[ElastiCache cache.t3.micro<br/>Redis 7]
-        S3B[S3 Bucket<br/>logyx-documents]
+    subgraph STORE["Capa de objetos · Cloudflare R2"]
+        DOCS[("Bucket oncargo-documents<br/>privado")]
+        BKP[("Bucket oncargo-backups<br/>retención 30 días")]
     end
 
-    subgraph SECURITY["Capa de seguridad"]
-        SM[Secrets Manager<br/>Credenciales]
-        KMS[KMS<br/>Cifrado]
-        GD[GuardDuty<br/>Threat Detection]
-        CW[CloudWatch<br/>Logs + Métricas]
+    subgraph CI["Entrega · GitHub"]
+        GHA["GitHub Actions<br/>CI y despliegue por SSH"]
     end
 
-    R53 --> CF2 --> WAF2 --> ALB2
-    ALB2 --> EC2A
-    ALB2 --> EC2B
-    EC2A & EC2B --> RDS2
-    EC2A & EC2B --> CACHE
-    EC2A & EC2B --> S3B
-    EC2A & EC2B --> SM
-    RDS2 --> KMS
-    S3B --> KMS
-    CW -.->|monitorea| EC2A & EC2B & RDS2 & CACHE
-    GD -.->|analiza| CW
+    DNS --> CDN --> WAF --> VM
+    VM --> DKR
+    DKR --> DOCS
+    DKR --> BKP
+    GHA -.->|"deploy (SSH, clave limitada)"| VM
 ```
 
-### 2.6 Segmentación por Security Groups (equivalente a VLANs)
+### 2.6 Segmentación (equivalente a VLANs): reglas de firewall y de red Docker
 
-| Security Group | Tráfico entrante permitido | Tráfico saliente permitido | Asociado a |
+| Control | Tráfico entrante permitido | Tráfico saliente permitido | Aplica a |
 |----------------|---------------------------|---------------------------|------------|
-| `sg-alb` | HTTPS 443 desde 0.0.0.0/0 | 8080 hacia `sg-backend` | ALB |
-| `sg-backend` | 8080 desde `sg-alb`; 22 desde `sg-bastion` | 5432 → `sg-rds`; 6379 → `sg-redis`; 443 → Internet (NAT) | EC2 Quarkus |
-| `sg-rds` | 5432 desde `sg-backend` | Ninguno | RDS PostgreSQL |
-| `sg-redis` | 6379 desde `sg-backend` | Ninguno | ElastiCache Redis |
-| `sg-wazuh` | 1514, 1515, 55000 desde `sg-backend`; 443 desde `sg-bastion` | 443 → Internet (logs) | Wazuh IDS |
-| `sg-bastion` | 22 desde IP fija del equipo | 22 → `sg-backend`; 443 → `sg-wazuh` | Bastion Host |
-| `sg-security-test` | Sin ingreso externo | Solo hacia 10.0.99.0/24 (aislada) | Kali Linux |
+| UFW (host) | 443 y 80 desde rangos IP de Cloudflare; 22 desde IP fija del equipo o con clave + fail2ban | Todo (necesario para R2, actualizaciones, Let's Encrypt) | Host |
+| `caddy` | 80, 443 | 4321 → `web`; 8080 → `backend` | Red `edge` |
+| `web` | 4321 desde `caddy` | 8080 → `backend` (`API_URL=http://backend:8080`) | Red `edge` |
+| `backend` | 8080 desde `caddy` y `web` | 5432 → `db`; 443 → R2 | Redes `edge` e `internal` |
+| `db` | 5432 desde `backend` | Ninguno requerido | Red `internal` (sin `ports:`) |
+| Docker (`DOCKER-USER`) | Los puertos publicados por Docker evitan UFW; por eso solo Caddy publica puertos y todos los demás servicios usan `127.0.0.1` o ninguno | — | Host |
 
-### 2.7 Network ACLs (NACLs) — Control perimetral adicional
+!!! warning "Docker y UFW"
+    Docker inserta sus propias reglas de `iptables` y **ignora** UFW para los puertos que publica. La regla de diseño es que **ningún contenedor distinto de Caddy publique puertos en `0.0.0.0`**; el `docker-compose.yml` del monorepo ya publica `web` y `backend` solo en `127.0.0.1`, y `db` no publica nada.
 
-| NACL | Subnet | Regla | Acción |
-|------|--------|-------|--------|
-| `nacl-public` | Subnets públicas | Entrada: 443 desde 0.0.0.0/0; Salida: todo | ALLOW |
-| `nacl-public` | Subnets públicas | Entrada: todo lo demás | DENY |
-| `nacl-private-app` | 10.0.10.0/24, 10.0.11.0/24 | Entrada: solo desde 10.0.1.0/24, 10.0.2.0/24 | ALLOW |
-| `nacl-private-data` | 10.0.20.0/24, 10.0.21.0/24 | Entrada: solo desde 10.0.10.0/24, 10.0.11.0/24 | ALLOW |
-| `nacl-mgmt` | 10.0.30.0/24 | Entrada: solo desde 10.0.10.0/24, 10.0.11.0/24, IP fija | ALLOW |
-| `nacl-security-test` | 10.0.99.0/24 | Sin acceso a subnets de producción | DENY |
+### 2.7 Controles de perímetro (equivalente a NACLs)
 
-### 2.8 Tablas de Enrutamiento
+| Capa | Control | Detalle |
+|------|-------|-------|
+| Cloudflare | Modo SSL **Full (strict)** | Cloudflare solo habla HTTPS con el origen, con certificado válido de Caddy (Let's Encrypt) |
+| Cloudflare | WAF con reglas gestionadas del plan gratuito + *Bot Fight Mode* | Mitigación básica de ataques web comunes y bots (el conjunto OWASP completo no está en el plan gratuito); el *rate limiting* fino lo hace la aplicación (`AuthRateLimits`). Bot Fight Mode puede desafiar a la app Android: se verifica en las pruebas |
+| Cloudflare | Regla para `api.oncargo.tech` | Sin caché; se permite `text/event-stream` |
+| Host | UFW y cadena `DOCKER-USER` (ipset) con los rangos de Cloudflare | Los visitantes que consulten la IP de origen directamente no obtienen respuesta. UFW por sí solo no filtra los puertos que publica Docker; ver [Implementación y Testing de Red](../semestre-2/implementacion-red.md) |
+| Caddy | Cabeceras de seguridad y `trusted_proxies` de Cloudflare | La IP real del cliente llega en `CF-Connecting-IP` y se reenvía como `X-Forwarded-For`; el backend la acepta solo desde `TRUSTED_PROXIES` |
+| Aplicación | Rate limiting, CSP, HSTS, `checkOrigin` | Ya implementados (ver [Seguridad](../../software/entregable-2/seguridad.md)) |
 
-| Tabla de rutas | Destino | Target | Aplica a |
-|---------------|---------|--------|---------|
-| `rt-public` | 0.0.0.0/0 | Internet Gateway | Subnets públicas |
-| `rt-public` | 10.0.0.0/16 | local | Subnets públicas |
-| `rt-private-a` | 0.0.0.0/0 | NAT Gateway A | Subnets privadas AZ-A |
-| `rt-private-a` | 10.0.0.0/16 | local | Subnets privadas AZ-A |
-| `rt-private-b` | 0.0.0.0/0 | NAT Gateway B | Subnets privadas AZ-B |
-| `rt-private-b` | 10.0.0.0/16 | local | Subnets privadas AZ-B |
-| `rt-data` | 10.0.0.0/16 | local | Subnets de datos (sin salida a internet) |
-| `rt-security-test` | 10.0.99.0/24 | local | Subnet aislada (sin rutas externas) |
+### 2.8 Enrutamiento y DNS
 
-**VPC Endpoints (tráfico privado sin pasar por Internet):**
-- `S3 Gateway Endpoint` → evita cargos de NAT para tráfico S3
-- `SSM Interface Endpoint` → gestión de instancias sin SSH expuesto
-- `SecretsManager Interface Endpoint` → acceso seguro a credenciales
+| Registro / ruta | Destino | Observación |
+|---------------|---------|--------|
+| `oncargo.tech` (A, proxied) | IP del VPS | Aplicación web (Caddy → `web:4321`) |
+| `www.oncargo.tech` (CNAME, proxied) | `oncargo.tech` | Redirección al apex |
+| `api.oncargo.tech` (A, proxied) | IP del VPS | API para la app Android (Caddy → `backend:8080`); la web usa la red interna |
+| Caddy: `oncargo.tech` | `reverse_proxy web:4321` | Compresión activa **excepto** para `text/event-stream` |
+| Caddy: `api.oncargo.tech` | `reverse_proxy backend:8080 { flush_interval -1 }` | Sin *buffering*; *timeout* de lectura ≥ 60 s |
+| Resolución interna | DNS embebido de Docker (`db`, `backend`, `web`) | Reemplaza la zona privada de Route 53 de la versión 1.0 |
+
+**Salida a Internet:** todos los contenedores usan el NAT predeterminado de Docker sobre la interfaz del host; no hay NAT Gateway ni VPC Endpoints. El tráfico a R2 viaja por HTTPS sobre Internet público (la salida de R2 no se factura).
 
 ---
 
 ## Sección 3 — Redundancia y Alta Disponibilidad
 
-### 3.1 Estrategia Multi-AZ
+### 3.1 Estrategia: un solo nodo con recuperación rápida
 
-| Componente | AZ-A (primary) | AZ-B (standby/replica) | Failover automático |
-|-----------|----------------|------------------------|---------------------|
-| Application Load Balancer | ✅ | ✅ | Sí — por diseño AWS |
-| EC2 Quarkus backend | ✅ (t3.medium) | ✅ (t3.medium) | Sí — Auto Scaling Group |
-| RDS PostgreSQL | ✅ Primary | ✅ Standby (sync replication) | Sí — RDS Multi-AZ, ~60s |
-| ElastiCache Redis | ✅ Primary | ✅ Replica | Sí — ElastiCache replication |
-| NAT Gateway | ✅ NAT-A | ✅ NAT-B | Por tabla de rutas |
+La decisión de usar un VPS único sacrifica la alta disponibilidad por hardware a cambio de costo y simplicidad. La mitigación es **recuperación rápida** (reconstruir el servicio en otro VPS desde el repositorio, los secretos y el último respaldo) en lugar de **redundancia continua**.
 
-### 3.2 Auto Scaling Group
+| Componente | Redundancia | Mecanismo de recuperación | RTO objetivo |
+|-----------|-------------|---------------------------|---------|
+| Cloudflare (DNS/CDN/WAF) | Anycast global del proveedor | Propia del servicio | — |
+| VPS Hostinger | Ninguna (un nodo) | Nuevo VPS + `docker compose up` + restauración del respaldo | 2–4 h |
+| Contenedores | Reinicio local | `restart: unless-stopped` + `healthcheck` (`/q/health/ready`) | < 1 min |
+| PostgreSQL | Sin réplica | Restauración de `pg_dump` diario desde R2 | 1–2 h (según tamaño) |
+| Documentos (R2) | Replicación interna de R2 | Propia del servicio | — |
+| Secretos y claves JWT | Copia cifrada fuera del VPS | Gestor de contraseñas / copia offline | Minutos |
+
+**RPO:** 24 h con `pg_dump` diario. Si el negocio exige menos, se agrega archivado de WAL hacia R2 (pgBackRest o WAL-G), sin cambiar la topología.
+
+### 3.2 Escalado
 
 ```
-Capacidad mínima:  2 instancias (1 por AZ)
-Capacidad deseada: 2 instancias
-Capacidad máxima:  6 instancias
-
-Política de escalado:
-  → Scale OUT: CPU promedio > 70% por 5 min → añadir 1 instancia
-  → Scale IN:  CPU promedio < 30% por 15 min → eliminar 1 instancia
-  → Cooldown:  300 segundos entre scaling events
-
-Health Check:
-  → ALB health check: GET /q/health/live cada 30s
-  → Umbral unhealthy: 2 checks fallidos → reemplazar instancia
+Escalado vertical (primer paso):   KVM 2 → KVM 4 (4 vCPU / 16 GB) en el mismo proveedor, con reinicio breve
+Escalado de la BD (segundo paso):  PostgreSQL en su propio VPS; la red 'internal' pasa a ser una red privada/VPN
+Escalado horizontal del backend:   viable sin cambios de código (JWT sin estado, outbox con SKIP LOCKED,
+                                   fan-out SSE por LISTEN/NOTIFY); limitación conocida: el rate limiting es por instancia
+Disparadores sugeridos:
+  → CPU promedio > 70 % durante 15 min de forma sostenida
+  → RAM disponible < 1.5 GB
+  → Uso de disco > 70 % de 100 GB
 ```
 
 ### 3.3 Análisis de Escenarios de Fallo
 
 | Escenario | Impacto | Tiempo de recuperación | Mecanismo |
 |-----------|---------|----------------------|-----------|
-| Falla de EC2 individual | Cero (ALB redirige al otro) | < 30 s | Auto Scaling + ALB health check |
-| Falla completa de AZ-A | Cero — AZ-B absorbe tráfico | < 60 s | Multi-AZ automático |
-| Falla de RDS Primary | RDS promueve standby | ~60 s | RDS Multi-AZ automatic failover |
-| Falla de NAT Gateway A | AZ-A usa rutas hacia NAT-B | Manual o ruta alternativa | Tabla de rutas de contingencia |
-| Falla de CloudFront | Route 53 puede apuntar directo a ALB | < 5 min | Actualización DNS TTL 60s |
+| Caída de un contenedor (backend o web) | Interrupción breve (segundos) | < 1 min | `restart: unless-stopped` + healthcheck |
+| Reinicio del VPS | Interrupción de minutos | 2–5 min | Docker arranca al boot; `depends_on` con `service_healthy` |
+| Pérdida del VPS (fallo del nodo o del proveedor) | **Servicio caído** hasta reconstruir | 2–4 h | Runbook de reconstrucción (sección 4.3 de [Implementación de Datacenter](../semestre-2/implementacion-datacenter.md)) + último respaldo en R2 |
+| Corrupción de la base de datos | Pérdida de hasta 24 h de datos | 1–2 h | Restauración de `pg_dump` (RPO 24 h) |
+| Ataque volumétrico (DDoS) | Absorbido en el borde | — | Cloudflare; el origen no es alcanzable sin pasar por él |
+| Caída de Cloudflare | Sitio inaccesible por DNS/proxy | Variable | Aceptado; mitigación manual: DNS directo al VPS (la IP se conserva en el runbook) |
+| Caída de R2 | Subida y descarga de documentos fallan; el resto opera | Variable | Aceptado; el adaptador `DocumentStorage` permite volver al disco local de forma temporal |
 
 ---
 
 ## Sección 4 — Cumplimiento de Estándares
 
-### 4.1 Equivalencia de estándares tradicionales en AWS
+### 4.1 Equivalencia de estándares tradicionales en el diseño sobre VPS
 
-| Estándar tradicional | Aplicación en LOGYX (AWS) |
+| Estándar tradicional | Aplicación en OnCargo (VPS + Cloudflare) |
 |---------------------|--------------------------|
-| **TIA/EIA-568** (cableado estructurado) | Reemplazado por VPC con subnets estructuradas (capas: edge, app, data, mgmt) |
-| **IEEE 802.1Q** (VLAN tagging) | Security Groups por función (sg-alb, sg-backend, sg-rds, sg-redis) |
-| **IEEE 802.3** (Ethernet) | AWS Enhanced Networking (SR-IOV) en instancias EC2 — hasta 10 Gbps entre instancias |
-| **ISO/IEC 11801** (cableado) | AWS backbone global con fibra óptica entre AZs (< 2 ms entre AZs sa-east-1) |
-| **Redundancia de enlaces** | Multi-AZ + NAT Gateway dual + múltiples ENIs |
+| **TIA/EIA-568** (cableado estructurado) | No aplica al cableado propio; el proveedor administra el centro de datos. La estructura se expresa en capas lógicas: borde, proxy, aplicación, datos |
+| **IEEE 802.1Q** (VLAN tagging) | Redes Docker separadas (`edge`, `internal`) y reglas de firewall por función |
+| **IEEE 802.3** (Ethernet) | Interfaz virtual `virtio` del VPS (KVM); sin control sobre la capa física |
+| **ISO/IEC 11801** (cableado) | Responsabilidad del proveedor del datacenter |
+| **Redundancia de enlaces** | No hay enlace redundante en el origen; Cloudflare aporta múltiples puntos de presencia en el borde |
 
-### 4.2 AWS Well-Architected Framework — Pilar de Fiabilidad
+### 4.2 Principios de fiabilidad y seguridad aplicados
 
-| Principio | Implementación en LOGYX |
+| Principio | Implementación en OnCargo |
 |-----------|------------------------|
-| Recuperación de fallos automatizada | Auto Scaling Group + RDS Multi-AZ + ElastiCache replication |
-| Escalar horizontalmente | ASG con política CPU 70% |
-| Eliminar puntos únicos de falla | Multi-AZ en todos los componentes stateful |
-| Gestionar el cambio en la automatización | Terraform para IaC, GitHub Actions para despliegue |
+| Recuperación de fallos automatizada | `restart: unless-stopped`, `healthcheck`, `depends_on: service_healthy` |
+| Mínimo privilegio | Roles de BD `logyx_api` / `logyx_owner`; tokens de R2 acotados al bucket; usuario `10001` no root en el backend |
+| Defensa en profundidad | Cloudflare → UFW → Caddy → redes Docker → RLS en PostgreSQL |
+| Infraestructura reproducible | `infra/docker-compose.yml` versionado; secretos fuera del repositorio; despliegue por GitHub Actions (planificado) |
+| Recuperación ante desastres | `pg_dump` diario a R2 con retención de 30 días y prueba de restauración mensual |
 
-### 4.3 Latencia estimada por ruta
+### 4.3 Latencia estimada por ruta (valores de diseño, a medir)
 
 | Origen | Destino | Latencia estimada |
 |--------|---------|-----------------|
-| Lima, Perú → CloudFront POP | São Paulo edge | ~35 ms |
-| CloudFront → ALB sa-east-1 | Dentro de AWS | < 5 ms |
-| ALB → EC2 Quarkus | Mismo AZ | < 1 ms |
-| EC2 → RDS | Mismo AZ | < 2 ms |
-| EC2 → RDS | AZ distinto | ~2 ms |
-| **Total end-to-end (Lima → API response)** | | **~90–110 ms** |
+| Lima, Perú → punto de presencia de Cloudflare | Lima / São Paulo | ~10–40 ms |
+| Cloudflare → VPS (Brasil) | Interconexión regional | ~10–30 ms |
+| Caddy → backend / web | Misma máquina | < 1 ms |
+| backend → PostgreSQL | Red Docker local | < 1 ms |
+| **Total end-to-end (Lima → respuesta de la API)** | | **~70–120 ms (estimado)** |
+
+!!! note "Estimaciones"
+    Las latencias son **estimaciones de diseño**, no mediciones. Se verifican con `curl -w` y k6 desde Lima al aprovisionar el VPS (ver [Implementación y Testing de Red](../semestre-2/implementacion-red.md)).
 
 ---
 
@@ -332,27 +306,26 @@ Health Check:
 
 | Recurso | Cantidad | Propósito |
 |---------|----------|-----------|
-| VPC | 1 (prod) + 1 (staging) | Entornos aislados |
-| Subnets | 9 (prod) | Ver tabla sección 2.3 |
-| Internet Gateway | 1 por VPC | Entrada/salida internet |
-| NAT Gateway | 2 (uno por AZ) | Salida internet desde privadas |
-| Route Tables | 4 (public, private-a, private-b, data) | Enrutamiento por capa |
-| Security Groups | 6 | Segmentación por función |
-| NACLs | 5 | Control perimetral adicional |
-| VPC Endpoints | 3 (S3, SSM, SecretsManager) | Tráfico privado |
-| ALB | 1 | Balanceo de carga HTTPS + WS |
+| VPS Hostinger KVM 2 | 1 (producción) | Cómputo único; staging y desarrollo corren en equipos locales |
+| IP pública | 1 | Oculta tras Cloudflare |
+| Zona DNS Cloudflare | 1 (`oncargo.tech`) | DNS, CDN, WAF |
+| Redes Docker | 2 (`edge`, `internal`) | Segmentación lógica |
+| Reglas UFW | 3–4 | 80/443 (Cloudflare), SSH, denegar el resto |
+| Buckets R2 | 2 (`oncargo-documents`, `oncargo-backups`) | Documentos y respaldos |
+| Certificados TLS | Gestionados por Caddy (Let's Encrypt) | Renovación automática |
 
-### Anexo B — Estimación de costos de red (mensual, prod)
+### Anexo B — Estimación de costos de red (mensual, producción)
 
-| Recurso | Costo estimado (USD/mes) |
-|---------|--------------------------|
-| NAT Gateway × 2 | ~$65 |
-| ALB | ~$22 |
-| CloudFront (100 GB transfer) | ~$8 |
-| VPC Endpoints × 3 | ~$22 |
-| Route 53 (hosted zone + queries) | ~$1.5 |
-| **Total red** | **~$120/mes** |
+Tipo de cambio de referencia: **S/ 3.45 por USD** (BCRP/SUNAT, noviembre 2026). Precios verificados en las páginas de los proveedores en noviembre de 2026; las promociones pueden cambiar.
+
+| Recurso | Costo (USD/mes) | Costo (S/ /mes) | Nota |
+|---------|--------------------------|---|---|
+| VPS Hostinger KVM 2 (promoción, prepago 24 meses) | 8.99 | 31.02 | USD 215.76 por 24 meses; renueva a USD 14.99/mes (S/ 51.72) |
+| Cloudflare (DNS, CDN, WAF básico, TLS de borde) | 0.00 | 0.00 | Plan gratuito |
+| Cloudflare R2 (documentos y backups) | ≈ 0.60 (estimado) | ≈ 2.07 | Gratis los primeros 10 GB; USD 0.015/GB-mes adicional; sin cargo de salida |
+| Dominio `oncargo.tech` | 4.10 | 14.14 | USD 49.20/año (referencia de registrador, a confirmar) |
+| **Total infraestructura de red y cómputo** | **≈ 13.7** | **≈ 47** | Frente a ~USD 120/mes solo de red en la versión 1.0 (AWS) |
 
 ---
 
-*LOGYX · S1 Entregable 1 · Diseño de Red · Competencia C1.1 · Junio 2026*
+*OnCargo · S1 Entregable 1 · Diseño de Red · Competencia C1.1 · Versión 2.0 · Noviembre 2026 (original: Junio 2026)*

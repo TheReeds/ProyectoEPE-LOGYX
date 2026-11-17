@@ -4,9 +4,9 @@ Producto final: **Documento Consolidado de Diseño Preliminar**, que integra los
 
 ## Entregables
 
-- **[C1.1 — Diseño de Red](diseno-red.md):** levantamiento de requerimientos técnicos/de negocio, topología lógica y física, segmentación (VLAN, DMZ, subnetting), redundancia y alta disponibilidad
+- **[C1.1 — Diseño de Red](diseno-red.md):** levantamiento de requerimientos técnicos/de negocio, topología lógica y física sobre un VPS con Cloudflare, segmentación (redes Docker, firewall, DMZ), redundancia y recuperación
 - **[C2.1 — Planificación de Seguridad](planificacion-seguridad.md):** identificación de activos críticos, análisis de riesgos (ISO 27005 / NIST), políticas de seguridad, roles y responsabilidades
-- **[C3.1 — Diseño de Centro de Datos](diseno-datacenter.md):** arquitectura Tier I–IV (Uptime Institute), layout físico, dimensionamiento de capacidad, virtualización/cloud híbrido
+- **[C3.1 — Diseño de Centro de Datos](diseno-datacenter.md):** arquitectura Tier I–IV (Uptime Institute), layout físico, dimensionamiento de capacidad, virtualización y despliegue en VPS (equivalencia Tier I)
 
 ## Rúbricas resumidas
 

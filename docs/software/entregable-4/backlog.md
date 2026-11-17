@@ -1,6 +1,6 @@
 # E4 — Backlog, Historias de Usuario y Sprints
 > Competencia CE0243 · Gestión ágil del desarrollo  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
 > Versión: 1.0 · Junio 2026
 
@@ -13,7 +13,7 @@
 | **Metodología** | Scrum (adaptado a equipo de 3 personas) |
 | **Duración de Sprint** | 2 semanas |
 | **Total de sprints planificados** | 8 sprints (16 semanas ≈ 4 meses de desarrollo) |
-| **Herramienta de backlog** | GitHub Projects (Kanban board) *(agregar link)* |
+| **Herramienta de backlog** | Azure DevOps (configuración documentada en Gestión TI, Entregable 3, §3.6.4); estado de ejecución en `docs/STATUS.md` del repositorio |
 | **Definition of Done** | Código commiteado + tests escritos + CI pasando + documentación actualizada |
 
 ---
@@ -168,6 +168,9 @@
 ---
 
 ## 5. Planificación de Sprints
+
+!!! note "Plan original"
+    Esta sección conserva el plan de sprints tal como se formuló en junio 2026, por lo que menciona el stack del diseño inicial (Angular, Flutter, Redis, Cypress). El stack real y el estado de cada épica están en la sección 8 y en [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md).
 
 ### Sprint 1 — Infraestructura y Auth (Semanas 1–2)
 
@@ -337,4 +340,34 @@
 
 ---
 
-*LOGYX · E4 Backlog y Sprints · Competencia CE0243 · Versión 1.0 · Junio 2026*
+## 8. Trazabilidad hacia lo realmente implementado
+
+!!! info "Nota (noviembre 2026)"
+    Las secciones 1–7 conservan el plan de sprints tal como se formuló (historial de planificación, sin reescribir). En la ejecución, el desarrollo se organizó por **fases de entrega** sobre el monorepo, no estrictamente por los 8 sprints de 2 semanas; esta sección enlaza cada épica con lo que finalmente existe en el sistema. La fuente de verdad del estado es `docs/STATUS.md` del repositorio del sistema.
+
+**Fases reales de construcción:** Fase 1 (núcleo: identidad, flota, marketplace, subasta, envíos, contrato OpenAPI) · Fase 2 (negociación, documentos, reputación, incidencias, notificaciones, panel del operador) · Fase 3 (clientes web y Android de la fase 2) · Fase 4 (viajes publicados, reservas, retornos, Smart Load) · Fase 5 (producción: mínimo privilegio, outbox, S3, contenedores, CI, seguridad) · Fase 6 (tiempo real por SSE y modo oscuro).
+
+| Épica | Estado real | Módulo backend · Fase | Notas |
+|---|---|---|---|
+| EP-01 Autenticación y organizaciones | Implementada (sin Google OAuth ni SUNAT) | `identity` · F1 | RN01, consentimiento Ley 29733, rate limiting (F5) |
+| EP-02 Marketplace y subasta inversa | Implementada | `marketplace` · F1 | RN02–RN05; asignación manual RN10 en F2 |
+| EP-03 Viajes publicados | Implementada (sin paradas intermedias ni m³) | `trip` · F4 | RN12; reservas con confirmación que crea el envío |
+| EP-04 Negociación y chat | Implementada | `negotiation` · F2 | RN07; contraofertas |
+| EP-05 Motor de costos y rutas | Parcial | `pricing` · F1 | Distancia por carretera (ADR-0008: `RoadDistanceProvider`, `GET /routes`); faltan los mapas |
+| EP-06 Tracking multi-parada | Implementada (sin ETA ni código LGX) | `shipment` · F1 | RN08, mapa MapLibre, tiempo real (F6) |
+| EP-07 App del conductor | Implementada | `shipment` + `:feature:driver` (Android) · F1/F3 | Foto obligatoria al entregar; firma opcional; cola de evidencia con reintento |
+| EP-08 Reputación y calificaciones | Implementada (Trust Score bayesiano; métricas compuestas pendientes) | `reputation` · F2 | RN06, RN09 |
+| EP-09 Gestión documental | Implementada | `documents` · F2/F5 | Local y S3/MinIO |
+| EP-10 Notificaciones y alertas | Implementada in-app y en vivo; sin email/push | `notification`, `realtime` · F2/F6 | Outbox (F5) y SSE (F6) |
+| EP-11 Gestión de incidencias | Implementada (resolución no fija estado final del envío) | `incident` · F2 | RN11 |
+| EP-12 Panel del operador | Implementado en web | `operator` · F2 | Sin Smart Load (RF59) |
+| EP-13 Smart Load Planner | Implementada | `trip` · F4 | Job y generación a demanda |
+| EP-14 Cargas de retorno | Implementada | `trip` · F4 | Radio de 50 km (no 30 km): el par real más cercano (Juliaca–Puno) está a 44 km |
+| EP-15 Gestión de flota | Implementada | `fleet` · F1 | |
+| EP-16 Despliegue y CI/CD | Implementada salvo despliegue continuo | `infra/`, `.github/` · F5 | Compose, Dockerfiles, 5 workflows |
+
+**Desvíos respecto del plan de sprints** (justificación en [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md)): el plan decía "JUnit + Cypress + flutter_test", "Deploy producción" y "cobertura ≥ 70 %". Se cumplió con JUnit + Playwright + pruebas Android (ver [Plan de Pruebas](plan-pruebas.md)); el despliegue quedó como compose verificado localmente y la cobertura de líneas no se mide.
+
+---
+
+*OnCargo · E4 Backlog y Sprints · Competencia CE0243 · Versión 1.1 (trazabilidad, noviembre 2026) · Versión original 1.0, junio 2026*

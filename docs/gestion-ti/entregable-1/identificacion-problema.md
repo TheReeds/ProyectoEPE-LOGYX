@@ -86,5 +86,5 @@ Cuatro de las seis espinas corresponden a causas de coordinación e información
 | FCE4. Trazabilidad extremo a extremo | No                            | Sin GPS, estados ni evidencia digital                    |
 | FCE5. Adopción sin fricción          | —                             | El AS-IS fija el estándar de simplicidad a igualar       |
 
-Ninguno de los cuatro primeros FCE es alcanzable con las herramientas actuales. Se justifica la intervención mediante una solución TIC colaborativa (LOGYX), contra la línea base establecida aquí (comparativo en el Entregable 4).
+Ninguno de los cuatro primeros FCE es alcanzable con las herramientas actuales. Se justifica la intervención mediante una solución TIC colaborativa (OnCargo), contra la línea base establecida aquí (comparativo en el Entregable 4).
 

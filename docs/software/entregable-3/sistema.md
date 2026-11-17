@@ -1,8 +1,14 @@
 # E3 — Sistema Desarrollado
 > Competencias CE0231 (Implementación) · CE0232 (Integración) · CE0233 (Arquitectura) · CE0234 (Despliegue)  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Versión: 1.0 · Junio 2026
+> Versión: 2.0 (sistema construido) · Noviembre 2026 · Versión original 1.0, junio 2026
+
+!!! info "Documento reescrito sobre el código real"
+    La v1.0 se escribió antes del código y contenía ejemplos de un diseño que no se construyó (Angular, Flutter, Redis, WebSocket, ORS) y un despliegue en AWS. La v2.0 describe el sistema **implementado** y todos los fragmentos de código son extractos breves del repositorio `logyx` (rutas indicadas). Los cambios de diseño están justificados en [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md), que incluye el rebrand a OnCargo y la migración del despliegue a un VPS Hostinger.
+
+!!! note "Capturas previas al rebrand"
+    Las capturas de pantalla de este entregable (`entregable-3/img/`) se tomaron **antes del rebrand**: la interfaz muestra la marca LOGYX. No se regeneraron; la funcionalidad es la misma. Ver [la nota correspondiente](../cambios-diseno-inicial.md#5-capturas-de-pantalla-previas-al-rebrand).
 
 ---
 
@@ -10,13 +16,15 @@
 
 | Campo | Detalle |
 |-------|---------|
-| **Tipo de sistema** | Sistema web empresarial con extensión móvil |
-| **Plataformas** | Web (Angular 18) · Mobile iOS/Android (Flutter 3) |
-| **Componentes principales** | LOGYX Business Web · LOGYX Business App · LOGYX Driver App · LOGYX Operator Panel |
-| **Backend** | Quarkus 3.x (Java 21), monolito modular reactivo |
-| **Base de datos** | PostgreSQL 16 + PostGIS |
-| **Repositorio** | *(agregar URL de GitHub aquí)* |
-| **Estado actual** | Fase de implementación — documentación técnica pre-código |
+| **Tipo de sistema** | Marketplace B2B de fletes con web, app móvil Android y API |
+| **Plataformas** | Web (Astro 7 SSR) · Android nativo (Kotlin + Compose) · iOS (SwiftUI) planificado |
+| **Componentes** | `backend/` (API Quarkus) · `web/` · `android/` · `ios/` (README) · `infra/` · `docs/` |
+| **Backend** | Quarkus 3.40, Java 21, monolito modular hexagonal, 16 módulos |
+| **Base de datos** | PostgreSQL 16 con RLS, 24 tablas, migraciones Flyway V1–V12 |
+| **Contrato** | `docs/api/openapi.yaml` generado por el backend (65 paths, 76 operaciones, 137 schemas a la fecha de esta revisión) |
+| **Roles** | PYME, Transportista, Conductor, Operador OnCargo (solo web) |
+| **Estado** | Sistema funcional probado de extremo a extremo; despliegue por contenedores verificado localmente |
+| **Dimensión** | ≈ 14,900 líneas Java, ≈ 9,500 de web, ≈ 15,700 de Kotlin (sin pruebas) |
 
 ---
 
@@ -24,105 +32,83 @@
 
 ### 2.1 Tipo y Justificación
 
-LOGYX implementa un **monolito modular reactivo** como primera arquitectura. La justificación está documentada en el ADR-001 (E1_Arquitectura.md). Los módulos internos están desacoplados mediante interfaces de Java y pueden extraerse como microservicios en una fase posterior sin cambiar los contratos de API.
+OnCargo es un **monolito modular con arquitectura hexagonal por módulo** (ADR-0002). Cada capacidad de negocio es un paquete con `domain` (reglas puras), `application` (casos de uso transaccionales) e `infrastructure` (adaptadores). Un módulo usa a otro solo por su `application`; `ModuleBoundariesTest` lo verifica en cada build. Esto permite extraer módulos con carga a servicios sin reescribir el dominio. Ver [Arquitectura](../entregable-1/arquitectura.md).
 
 ### 2.2 Estructura del Backend (Quarkus)
 
 ```
-logyx-backend/
-├── src/main/java/pe/logyx/
-│   ├── common/
-│   │   ├── exception/       # Excepciones personalizadas + ExceptionMapper JAX-RS
-│   │   ├── security/        # JWT filter, RolesAllowed, contexto de org actual
-│   │   └── util/            # Helpers de conversión, validación
-│   ├── module/
-│   │   ├── auth/            # AuthResource, AuthService, ProfileRepository
-│   │   ├── shipment/        # ShipmentRequestResource, ShipmentRequestService
-│   │   ├── auction/         # AuctionResource, AuctionService, BidRepository
-│   │   ├── negotiation/     # MessageResource, CounterOfferService
-│   │   ├── trip/            # CarrierTripResource, TripBookingService
-│   │   ├── pricing/         # PricingService (Motor de costos)
-│   │   ├── routing/         # OpenRouteService client (REST client MicroProfile)
-│   │   ├── matching/        # MatchingService (ranker de cargas)
-│   │   ├── smartload/       # SmartLoadPlannerJob (Quarkus Scheduler)
-│   │   ├── tracking/        # ShipmentResource, ShipmentStopService
-│   │   ├── reputation/      # ReputationService, ReviewResource
-│   │   ├── fleet/           # VehicleResource, DriverResource
-│   │   ├── document/        # DocumentResource, MinIOStorageService
-│   │   ├── notification/    # NotificationService, WebSocketBroadcaster
-│   │   ├── incident/        # IncidentResource, IncidentService
-│   │   └── operator/        # OperatorDashboardResource
-│   └── infrastructure/
-│       ├── config/          # application.properties, datasource config
-│       └── persistence/     # Panache entities base, UUIDConverter
-├── src/main/resources/
-│   ├── application.properties
-│   └── db/migration/        # Scripts Flyway V1__...V9__
-└── src/test/               # Tests unitarios e integración
+backend/src/main/java/pe/logyx/
+├── identity/      registro, login, organizaciones, usuarios (consentimiento Ley 29733)
+├── fleet/         vehículos y conductores
+├── catalog/       ciudades y tipos de carga (vocabulario compartido)
+├── pricing/       motor de costos por reglas: TariffCalculator, PriceFloorPolicy (RN03), DistanceProvider
+├── marketplace/   solicitudes, subasta inversa, ofertas, aceptación, asignación manual
+├── shipment/      envíos, paradas, app del conductor, tracking
+├── negotiation/   chat (RN07) y contraofertas
+├── documents/     evidencia y documentos; puerto DocumentStorage (local | S3-compatible: R2, MinIO)
+├── reputation/    calificaciones (RN06) y Trust Score bayesiano (RN09)
+├── incident/      incidencias y comentarios (RN11)
+├── notification/  centro de notificaciones alimentado por el outbox
+├── operator/      alertas SLA, métricas, asignación manual (RN10)
+├── trip/          viajes publicados (RN12), reservas, cargas de retorno, Smart Load
+├── dashboard/     resumen por rol
+├── realtime/      stream SSE y proyección por destinatario (ADR-0007)
+├── devdata/       seed demo (solo perfil dev)
+└── shared/        {data,meta}, errores LOGYX-XXX-NNN, tenancy/RLS (TenantContext, SystemTx), outbox, auditoría
+    └── <modulo>/{domain, application, infrastructure}
 ```
 
-### 2.3 Estructura del Frontend Web (Angular)
+Fragmento real de un caso de uso (`marketplace/application/AcceptBidUseCase`, RN05): la PYME acepta una oferta; en una sola transacción se cierra la subasta, se rechazan las demás ofertas, se adjudica la solicitud, se crea el envío y se publica el evento.
 
-```
-logyx-web/
-├── src/app/
-│   ├── core/
-│   │   ├── auth/            # AuthService, JwtInterceptor, AuthGuard
-│   │   ├── models/          # Interfaces TypeScript de todas las entidades
-│   │   └── services/        # BaseApiService, NotificationService
-│   ├── features/
-│   │   ├── auth/            # LoginComponent, RegisterComponent
-│   │   ├── pyme/
-│   │   │   ├── dashboard/   # PymeDashboardComponent
-│   │   │   ├── requests/    # ShipmentRequestListComponent, NewRequestComponent
-│   │   │   ├── tracking/    # ShipmentTrackingComponent, StopDetailComponent
-│   │   │   └── reputation/  # ReputationComponent
-│   │   ├── carrier/
-│   │   │   ├── dashboard/   # CarrierDashboardComponent
-│   │   │   ├── marketplace/ # MarketplaceComponent, BidFormComponent
-│   │   │   ├── trips/       # CarrierTripComponent
-│   │   │   └── fleet/       # FleetManagementComponent
-│   │   └── operator/
-│   │       ├── dashboard/   # OperatorDashboardComponent
-│   │       └── incidents/   # IncidentManagementComponent
-│   ├── shared/
-│   │   ├── components/      # TrustScoreBadge, StatusBadge, MapComponent
-│   │   └── pipes/           # CurrencyPeruPipe, DateLocalePipe
-│   └── app-routing.module.ts
+```java
+@Transactional(Transactional.TxType.MANDATORY)
+public AcceptOutcome award(ShipmentRequest r, Bid bid, String auditAction) {
+    Auction a = auctions.findByRequest(r.id()).orElseThrow();
+    a.closeIfOpen(Auction.CloseReason.ACCEPTED, OffsetDateTime.now());
+    auctions.save(a);
+
+    bid.accept();
+    bids.save(bid);
+    List<Bid> others = bids.listPendingByRequest(r.id()).stream()
+            .filter(o -> !o.id().equals(bid.id())).toList();
+    others.forEach(o -> { o.reject(); bids.save(o); });
+
+    r.matchTo(bid.carrierOrgId());
+    requests.save(r);
+    UUID shipmentId = shipments.createFromAcceptedBid(/* ... */);
+    audit.record(tenant.profileId(), tenant.orgId(), auditAction, "bid", bid.id(), /* ... */);
+    bidAccepted.fire(new BidAccepted(/* ... */));   // evento -> outbox -> avisos y tiempo real
+    return new AcceptOutcome(shipmentId, /* ... */);
+}
 ```
 
-### 2.4 Estructura de Apps Móviles (Flutter)
+### 2.3 Estructura del Frontend Web (Astro)
 
 ```
-logyx-mobile/
-├── shared_domain/           # Modelos, constantes y servicios compartidos
-│   ├── lib/
-│   │   ├── models/          # Dart classes de todas las entidades
-│   │   ├── services/        # ApiService base, SecureStorageService
-│   │   └── constants/       # Colores, rutas, constantes de API
-├── logyx_business/          # App PYME + Transportista (Flutter)
-│   ├── lib/
-│   │   ├── main.dart
-│   │   ├── features/
-│   │   │   ├── auth/
-│   │   │   ├── pyme/
-│   │   │   ├── carrier/
-│   │   │   └── chat/        # Chat de negociación (WebSocket)
-│   │   └── router.dart      # GoRouter con RBAC por rol
-├── logyx_driver/            # App Conductor (Flutter)
-│   ├── lib/
-│   │   ├── features/
-│   │   │   ├── route/       # Lista de paradas
-│   │   │   ├── delivery/    # Confirmar entrega (foto + firma)
-│   │   │   └── offline/     # Cache local con Drift (SQLite)
-│   │   └── main.dart
-└── logyx_operator/          # Panel Operador (Flutter Web / Android tablet)
-    └── lib/
-        ├── features/
-        │   ├── dashboard/
-        │   └── incidents/
-        └── main.dart
+web/src/
+├── pages/                 rutas finas por rol: /pyme, /transportista, /operador, /conductor, /login, /registro, /privacidad…
+├── features/<feature>/    server.ts (llamadas a la API) · actions.ts (Astro Actions) · components/ (islas React)
+├── components/{ui, domain, layout, dev}   biblioteca de diseño (shadcn/ui sobre Radix), StatusPill/RouteLine/KpiTile, AppShell
+├── lib/{api, session.ts, realtime.ts, actions.ts, format.ts}
+├── middleware.ts          sesión, control por rol, cabeceras de seguridad/CSP
+└── styles/global.css      tokens de diseño (claro y oscuro)
 ```
+
+Detalle en [Arquitectura Frontend](arquitectura-frontend.md).
+
+### 2.4 Estructura de la App Android (Kotlin / Compose)
+
+```
+android/
+├── app/                   Activity, Application (Koin), navegación raíz por rol
+├── core/model/            Kotlin/JVM puro: DTOs @Serializable del contrato y reglas de cliente
+├── core/network/          Kotlin/JVM puro: Ktor + LogyxApi + cliente SSE
+├── core/data/             repositorios, sesión (DataStore), cola de evidencia
+├── core/designsystem/     tema OnCargo, componentes Compose, mapa MapLibre
+└── feature/{auth, loads, requests, shipments, driver, negotiation, reputation, documents, incidents, notifications, trips}
+```
+
+Un feature nunca depende de otro feature; `:app` cablea la navegación. Detalle en [Arquitectura Frontend §5](arquitectura-frontend.md#5-android-kotlin-jetpack-compose-multi-modulo).
 
 ---
 
@@ -130,461 +116,111 @@ logyx-mobile/
 
 ### 3.1 Tabla de Funcionalidades por Módulo
 
-| ID | Funcionalidad | Req. asociado | Módulo backend | Componente frontend |
-|----|---------------|---------------|----------------|---------------------|
-| F01 | Registro y login (email + Google OAuth) | RF01–RF06 | `auth` | LoginComponent |
-| F02 | RBAC por rol (PYME/Carrier/Driver/Operator) | RF07–RF08 | `security` (transversal) | AuthGuard + RoleDirective |
-| F03 | Publicar solicitud de carga | RF09, RF11–RF14 | `marketplace` | NewRequestComponent |
-| F04 | Motor de costos (cálculo automático) | RF10 | `pricing` | CotizadorComponent |
-| F05 | Subasta inversa (apertura + cierre temporal/máx. bids) | RF15–RF18 | `auction` | MarketplaceComponent |
-| F06 | Envío y gestión de ofertas | RF19–RF20 | `bid` | BidFormComponent |
-| F07 | Publicar viaje disponible (supply-side) | RF21–RF22 | `trip` | CarrierTripComponent |
-| F08 | Reserva de espacio en viaje | RF23–RF24 | `trip` | TripBookingComponent |
-| F09 | Chat de negociación bidireccional | RF25, RF29 | `chat` | ChatComponent (WebSocket) |
-| F10 | Contra-ofertas desde el chat | RF26–RF28 | `counteroffer` | ChatComponent (mismo componente que F09) |
-| F11 | Smart Load Planner (scheduler) | RF30–RF33 | `smartload` | SmartLoadSuggestionsComponent |
-| F12 | Tracking en tiempo real + actualizaciones | RF34–RF37 | `shipment` + `tracking` | ShipmentTrackingComponent |
-| F13 | Confirmación de entrega (foto + firma) | RF38–RF39 | `tracking` + `document` | DeliveryConfirmComponent (Driver) |
-| F14 | Sistema de calificaciones + reputación | RF40–RF45 | `review` | ReputationComponent |
-| F15 | Gestión documental (upload + download) | RF46–RF48 | `document` | DocumentsComponent |
-| F16 | Notificaciones in-app + email | RF49–RF51 | `notification` | NotificationFeedComponent |
-| F17 | Gestión de incidencias | RF52–RF55 | `incident` | IncidentManagementComponent |
-| F18 | Panel del operador (asignación manual + SLA) | RF56–RF60 | `admin` | OperatorDashboardComponent |
-| F19 | Cargas de retorno (sugerencia automática) | RF61–RF63 | `returnload` | ReturnLoadComponent |
-| F20 | Gestión de flota (vehículos + conductores) | RF64–RF67 | `vehicle` + `driver` | FleetManagementComponent |
-
-> **Nota (corregido 2026-07-06):** esta tabla tenía varios rangos de RF y nombres de paquete
-> desalineados con `E1_SRS.md` §7.1 y con la numeración/paquetes reales de `ROADMAP.md` del
-> backend (p.ej. F04 decía `RF12–RF14` cuando el motor de costos es solo RF10; F06/F14/F18/F19/F20
-> usaban nombres de paquete `auction`/`reputation`/`operator`/`matching`/`fleet` que nunca se
-> usaron — los paquetes reales son `bid`, `review`, `admin`, `returnload`, `vehicle`+`driver`).
-> Se corrigió para que coincida con `ROADMAP.md` (fuente de verdad de paquetes/módulos del
-> backend) y con la trazabilidad RF de `E1_SRS.md` §11.
+| Módulo | Funcionalidad | RF / RN | Web | Android | Estado |
+|---|---|---|---|---|---|
+| `identity` | Registro multi-rol con RUC (Módulo 11), consentimiento, login JWT, rate limiting | RF01–RF05, RF07–RF08, RN01, RNF18 | Sí | Login | Implementado (sin Google, sin SUNAT) |
+| `fleet` | Vehículos, conductores, asignación | RF03, RF64–RF67 | Sí | Asignar conductor | Implementado |
+| `pricing` | Cotización en vivo, piso del 75 % | RF10, RN03 | Sí | Oferta | Implementado (distancia por carretera, ADR-0008) |
+| `marketplace` | Publicar, subasta inversa 20 min / 5 ofertas, ofertar, aceptar, cancelar | RF09–RF20, RN01–RN05 | Sí | Sí | Implementado |
+| `negotiation` | Chat con bloqueo de contacto, contraoferta bidireccional | RF25–RF29, RN07 | Sí | Sí | Implementado |
+| `shipment` | Envíos, paradas secuenciales, conductor | RF34–RF39, RN08 | Sí (mapa) | Sí (modo conductor) | Implementado (sin ETA ni código LGX) |
+| `documents` | Foto de entrega, firma, guías; R2/S3 (MinIO en staging) | RF37, RF46–RF47 | Sí | Sí (cola persistente) | Implementado |
+| `reputation` | Calificaciones, Trust Score, perfil público | RF40–RF41, RF44–RF45, RN06, RN09 | Sí | Sí | Implementado (score bayesiano) |
+| `incident` | Reportar, comentar, resolver; congela el envío | RF52–RF55, RN11 | Sí | Sí | Implementado (RF53/55 parciales) |
+| `notification` + `realtime` | Avisos in-app y SSE en vivo | RF49, RF51, RNF25 | Sí | Sí | Implementado (sin email) |
+| `operator` | Métricas, alertas SLA, asignación manual, listados | RF56–RF58, RF60, RN10 | Sí | No (solo web) | Implementado (sin Smart Load) |
+| `trip` | Viajes publicados, reservas, retornos, Smart Load | RF21–RF24, RF30–RF33, RF61–RF63, RN12 | Sí | Sí | Implementado |
+| `dashboard` | Resumen por rol | — | Sí | Sí | Implementado |
 
 ### 3.2 Implementación de Módulos Clave
 
-> **Nota sobre estos ejemplos de código (agregada 2026-07-06):** los fragmentos de esta
-> sección se escribieron en la fase de diseño con un estilo reactivo (Mutiny `Uni<T>`/`Multi<T>`,
-> patrón `builder()`, enums en mayúsculas) que **no coincide** con cómo se terminó implementando
-> el backend real. El código que sí está en `Proyecto/Backend/logyx-backend/src/main/java/pe/logyx/`
-> usa servicios `@ApplicationScoped` con métodos **bloqueantes** (`@Transactional public XxxResponse
-> xxx(...)`), Panache repositories síncronos, DTOs como `record`, entidades con campos públicos
-> asignados directo (sin builder), y enums en minúscula (`general`, `fragile`...) para calzar con
-> los tipos `ENUM` nativos de Postgres. Los módulos AUTH, AUCTION y PRICING de abajo **ya existen**
-> con esa otra forma — ver `pe.logyx.auth.application.AuthService`, `pe.logyx.bid.application.BidService`
-> (el "AuctionService.placeBid" de aquí terminó viviendo en el módulo `bid`, no en `auction` — ver
-> nota de implementación del Módulo 8 en `ROADMAP.md`) y `pe.logyx.pricing.application.PricingService`
-> para la versión real y actualizada. El Smart Load Planner Job de abajo sigue siendo solo diseño
-> (Módulo 15 aún no implementado) — cuando se construya, seguirá el mismo estilo bloqueante que el
-> resto del backend, no el reactivo mostrado aquí. Se deja el código original tal cual (no se
-> reescribió línea por línea) porque reescribirlo entero se desactualizaría de nuevo apenas avance
-> el desarrollo — para el código vigente, la fuente de verdad es siempre el repositorio, no este
-> documento.
+#### Reglas de negocio como políticas de dominio
 
-#### Módulo AUTH — Autenticación y autorización
+Cada regla es una clase pura con nombre, lo que permite probarla sin base de datos (`PriceFloorPolicyTest`) y localizarla (tabla en `docs/domain/business-rules.md`). Ejemplo, RN03 (`pricing/domain/PriceFloorPolicy`):
 
 ```java
-// AuthResource.java
-@Path("/api/v1/auth")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-public class AuthResource {
-
-    @Inject AuthService authService;
-
-    @POST @Path("/login")
-    public Uni<LoginResponse> login(@Valid LoginRequest req) {
-        return authService.authenticate(req.email(), req.password())
-            .map(TokenPair::toResponse);
-    }
-
-    @POST @Path("/register")
-    public Uni<Response> register(@Valid RegisterRequest req) {
-        return authService.registerOrganization(req)
-            .map(org -> Response.status(201).entity(org).build());
-    }
-
-    @POST @Path("/refresh")
-    @Authenticated
-    public Uni<TokenPair> refresh(@Context SecurityContext ctx) {
-        return authService.refreshToken(ctx.getUserPrincipal().getName());
-    }
+public BigDecimal floorFor(BigDecimal suggestedPrice) {
+    return suggestedPrice.multiply(ratio).setScale(2, RoundingMode.HALF_UP);   // ratio = logyx.pricing.floor-ratio (0.75)
+}
+public boolean accepts(BigDecimal amount, BigDecimal floor) {
+    return amount.compareTo(floor) >= 0;
 }
 ```
 
-```java
-// AuthService.java (fragmento)
-@ApplicationScoped
-public class AuthService {
+#### Motor de costos (PRICING)
 
-    @Inject ProfileRepository profileRepo;
-    @Inject JwtService jwtService;
+`TariffCalculator` calcula el precio sugerido por reglas (distancia, peso, tipo de carga); la distancia sale del puerto `DistanceProvider`, implementado por `RoadDistanceProvider`, que delega en `RoutePlanner` (módulo `routing`, dataset OSRM precalculado de OpenStreetMap; ADR-0008). Antes se usaba `HaversineDistanceProvider` (Haversine × 1.35), ya retirado, y **OpenRouteService quedó descartado**. El precio y el piso se guardan en la solicitud (`distance_km`, `suggested_price`, `price_floor`), así el cliente nunca los fija.
 
-    public Uni<TokenPair> authenticate(String email, String password) {
-        return profileRepo.findByEmail(email)
-            .onItem().ifNull().failWith(new UnauthorizedException("Credenciales inválidas"))
-            .chain(profile -> {
-                if (!BCrypt.checkpw(password, profile.passwordHash)) {
-                    return Uni.createFrom().failure(new UnauthorizedException("Credenciales inválidas"));
-                }
-                return Uni.createFrom().item(jwtService.generateTokenPair(profile));
-            });
-    }
-}
-```
+#### Subasta inversa (AUCTION)
 
-#### Módulo AUCTION — Subasta inversa
+Al publicar se abre una subasta (`logyx.auction.duration=PT20M`, `logyx.auction.max-bids=5`). `PlaceBidUseCase` valida RN02/RN03 con `BidEligibilityPolicy` y cierra por MAX_BIDS; `AuctionScheduler` cierra por TIMEOUT. En dev la duración es de 72 h para no vencer durante las demos.
+
+#### Aislamiento (RLS) y transacciones
+
+`TenantSessionBinder` fija la organización al iniciar cada transacción de usuario, y a partir de allí PostgreSQL aplica las políticas:
 
 ```java
-// AuctionService.java (fragmento)
-@ApplicationScoped
-public class AuctionService {
-
-    @Inject AuctionRepository auctionRepo;
-    @Inject BidRepository bidRepo;
-    @Inject NotificationService notificationService;
-    @Inject VehicleRepository vehicleRepo;
-
-    public Uni<Bid> placeBid(UUID auctionId, PlaceBidRequest req, UUID carrierOrgId) {
-        return auctionRepo.findById(auctionId)
-            .onItem().ifNull().failWith(new NotFoundException("Subasta no encontrada"))
-            .chain(auction -> {
-                if (auction.status != AuctionStatus.OPEN) {
-                    return Uni.createFrom().failure(
-                        new BusinessException("LOGYX-AUC-001: La subasta no está abierta"));
-                }
-                if (auction.closesAt.isBefore(Instant.now())) {
-                    return Uni.createFrom().failure(
-                        new BusinessException("LOGYX-AUC-002: La subasta ya venció"));
-                }
-                return validateAndCreateBid(auction, req, carrierOrgId);
-            });
-    }
-
-    private Uni<Bid> validateAndCreateBid(Auction auction, PlaceBidRequest req, UUID carrierOrgId) {
-        return vehicleRepo.findById(req.vehicleId())
-            .chain(vehicle -> {
-                // Verificar precio mínimo (price_floor)
-                BigDecimal priceFloor = auction.request.priceFloor;
-                if (req.amount().compareTo(priceFloor) < 0) {
-                    return Uni.createFrom().failure(
-                        new BusinessException("LOGYX-BID-001: La oferta no puede ser menor al precio mínimo de " + priceFloor));
-                }
-                // Verificar capacidad del vehículo
-                BigDecimal requestedWeight = auction.request.weightKg;
-                if (vehicle.currentWeightKg.add(requestedWeight).compareTo(vehicle.maxWeightKg) > 0) {
-                    return Uni.createFrom().failure(
-                        new BusinessException("LOGYX-CAP-001: El vehículo no tiene capacidad suficiente"));
-                }
-                Bid bid = Bid.create(auction, carrierOrgId, vehicle, req.amount(), req.notes());
-                return bidRepo.persist(bid)
-                    .invoke(() -> notificationService.notifyNewBid(auction.request.requesterOrgId, bid));
-            });
-    }
-}
+em.createNativeQuery("SELECT set_config('app.org_id', ?1, true), set_config('app.org_type', ?2, true)")
+        .setParameter(1, org.get().toString()).setParameter(2, ctx.orgType().name()).getSingleResult();
+em.createNativeQuery("SET LOCAL ROLE logyx_app").executeUpdate();
 ```
 
-#### Módulo PRICING — Motor de costos
+Lo que corre sin usuario (login, registro, jobs, outbox) entra por `SystemTx`, sobre el datasource privilegiado, con cada uso comentado.
 
-```java
-// PricingService.java
-@ApplicationScoped
-public class PricingService {
+#### Smart Load y cargas de retorno
 
-    @Inject OpenRouteServiceClient orsClient;
-
-    // Multiplicadores por tipo de carga
-    private static final Map<CargoType, BigDecimal> CARGO_MULTIPLIER = Map.of(
-        CargoType.GENERAL,    new BigDecimal("1.00"),
-        CargoType.FRAGILE,    new BigDecimal("1.30"),
-        CargoType.PERISHABLE, new BigDecimal("1.25"),
-        CargoType.HAZARDOUS,  new BigDecimal("1.50"),
-        CargoType.BULK,       new BigDecimal("0.95"),
-        CargoType.OVERSIZED,  new BigDecimal("1.40")
-    );
-
-    private static final BigDecimal FUEL_COST_PER_KM  = new BigDecimal("0.65"); // S/ por km
-    private static final BigDecimal RATE_PER_KM_PER_TON = new BigDecimal("0.80");
-
-    public Uni<CostCalculation> calculate(ShipmentRequest request) {
-        return orsClient.getRoute(
-                request.originLat, request.originLng,
-                request.destinationLat, request.destinationLng)
-            .map(route -> buildCalculation(request, route));
-    }
-
-    private CostCalculation buildCalculation(ShipmentRequest req, OrsRoute route) {
-        BigDecimal distanceKm   = route.distanceMeters().divide(BigDecimal.valueOf(1000), 2, HALF_UP);
-        BigDecimal durationMin  = route.durationSeconds().divide(BigDecimal.valueOf(60), 2, HALF_UP);
-        BigDecimal tons         = req.weightKg.divide(BigDecimal.valueOf(1000), 4, HALF_UP);
-        BigDecimal fuelCost     = distanceKm.multiply(FUEL_COST_PER_KM);
-        BigDecimal baseTransport= distanceKm.multiply(tons).multiply(RATE_PER_KM_PER_TON)
-                                    .multiply(CARGO_MULTIPLIER.get(req.cargoType));
-        BigDecimal tollCost     = estimateTolls(distanceKm);
-        BigDecimal handlingFee  = baseTransport.multiply(new BigDecimal("0.05"));
-
-        return CostCalculation.builder()
-            .requestId(req.id).distanceKm(distanceKm).durationMin(durationMin)
-            .fuelCost(fuelCost).baseTransportCost(baseTransport)
-            .tollCost(tollCost).handlingFee(handlingFee).build();
-    }
-
-    private BigDecimal estimateTolls(BigDecimal distanceKm) {
-        // Corredor Lima-Arequipa: aproximadamente 1 peaje cada 120 km, S/ 12 c/u
-        int estimatedTolls = distanceKm.divide(BigDecimal.valueOf(120), 0, CEILING).intValue();
-        return BigDecimal.valueOf(estimatedTolls * 12);
-    }
-}
-```
-
-#### Smart Load Planner Job
-
-```java
-// SmartLoadPlannerJob.java
-@ApplicationScoped
-public class SmartLoadPlannerJob {
-
-    @Inject ShipmentRequestRepository requestRepo;
-    @Inject VehicleRepository vehicleRepo;
-    @Inject SmartLoadSuggestionRepository suggestionRepo;
-    @Inject NotificationService notificationService;
-
-    // Ejecutar cada 30 minutos
-    @Scheduled(every = "30m", identity = "smart-load-planner")
-    void run() {
-        findAndSuggestCompatibleLoads()
-            .subscribe().with(
-                count -> Log.infof("SmartLoadPlanner: %d sugerencias generadas", count),
-                err   -> Log.errorf("SmartLoadPlanner falló: %s", err.getMessage())
-            );
-    }
-
-    Uni<Integer> findAndSuggestCompatibleLoads() {
-        return vehicleRepo.findAllAvailable()
-            .onItem().transformToMulti(vehicle -> Multi.createFrom().iterable(List.of(vehicle)))
-            .onItem().transformToUniAndConcatenate(vehicle ->
-                requestRepo.findCompatibleFor(vehicle, 50.0, 80.0, 24)
-                    .chain(requests -> createSuggestionIfWorthwhile(vehicle, requests))
-            )
-            .collect().asList()
-            .map(suggestions -> (int) suggestions.stream().filter(s -> s != null).count());
-    }
-
-    private Uni<SmartLoadSuggestion> createSuggestionIfWorthwhile(
-            Vehicle vehicle, List<ShipmentRequest> requests) {
-        if (requests.size() < 2) return Uni.createFrom().nullItem();
-
-        BigDecimal combinedWeight = requests.stream()
-            .map(r -> r.weightKg).reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (combinedWeight.compareTo(vehicle.maxWeightKg) > 0)
-            return Uni.createFrom().nullItem();
-
-        BigDecimal occupancyPct = combinedWeight
-            .divide(vehicle.maxWeightKg, 2, HALF_UP)
-            .multiply(BigDecimal.valueOf(100));
-
-        // Solo sugerir si la ocupación supera el 60%
-        if (occupancyPct.compareTo(BigDecimal.valueOf(60)) < 0)
-            return Uni.createFrom().nullItem();
-
-        SmartLoadSuggestion suggestion = SmartLoadSuggestion.create(vehicle, requests, occupancyPct);
-        return suggestionRepo.persist(suggestion)
-            .invoke(() -> notificationService.notifySmartLoadSuggestion(
-                vehicle.carrierOrgId, suggestion));
-    }
-}
-```
+`SmartLoadPlanner` agrupa solicitudes compatibles (orígenes ≤ 50 km, destinos ≤ 80 km, ±1 día, ocupación ≥ 60 %) y `ReturnLoadPolicy` sugiere cargas con origen a ≤ 50 km del destino del envío (el SRS decía 30 km; el par real más cercano del corredor, Juliaca–Puno, está a 44 km). Un job (`TripScheduler`) genera sugerencias y también pueden pedirse a demanda.
 
 ---
 
 ## 4. CE0232 — Integración del Sistema
 
-### 4.1 Integración Frontend Web ↔ Backend
+### 4.1 Contrato OpenAPI como fuente de verdad
 
-El frontend Angular se comunica con el backend mediante:
+El backend **genera** `docs/api/openapi.yaml` (y `.json`) en cada build (`./mvnw package`). Web y Android consumen ese contrato:
 
-- **REST HTTP/JSON** para operaciones CRUD estándar (solicitudes, ofertas, flota)
-- **WebSocket** para el chat de negociación en tiempo real
-- **Server-Sent Events (SSE)** para actualizaciones de estado de envío
+- **Web:** `npm run gen:api` (`openapi-typescript`) genera `src/lib/api/schema.d.ts`; el cliente tipado `openapi-fetch` valida las llamadas en compilación (`astro check`).
+- **Android:** los DTOs `@Serializable` de `core:model` siguen el contrato y `DtoParsingTest`/`Phase*ParsingTest` los validan con JSON de ejemplo.
+- **CI:** `backend.yml` falla si el contrato versionado difiere del generado; `contract.yml` falla ante cambios incompatibles (ver [CI/CD](../entregable-4/cicd.md)).
 
-```typescript
-// api.service.ts — servicio base Angular
-@Injectable({ providedIn: 'root' })
-export class ApiService {
-  private readonly BASE_URL = environment.apiUrl; // https://api.logyx.pe/api/v1
+Fragmento real del cliente web (`web/src/lib/api/client.ts`): desenvuelve `{ data, meta }` y normaliza los errores `LOGYX-XXX-NNN` a mensajes en español:
 
-  constructor(private http: HttpClient) {}
-
-  get<T>(path: string): Observable<T> {
-    return this.http.get<T>(`${this.BASE_URL}${path}`);
+```ts
+export async function unwrap<T>(p: Promise<Result<T>>): Promise<T> {
+  // ...
+  if (res.error !== undefined || !res.response.ok) {
+    const e = (res.error ?? {}) as { error?: { code?: string; message?: string; field?: string | null } };
+    throw new ApiError(res.response.status, e.error?.code ?? `HTTP-${res.response.status}`, e.error?.message ?? /* ... */, e.error?.field);
   }
-
-  post<T>(path: string, body: unknown): Observable<T> {
-    return this.http.post<T>(`${this.BASE_URL}${path}`, body);
-  }
-}
-
-// jwt.interceptor.ts — inyecta el token en cada request
-@Injectable()
-export class JwtInterceptor implements HttpInterceptor {
-  constructor(private auth: AuthService) {}
-
-  intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
-    const token = this.auth.getAccessToken();
-    if (token) {
-      req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
-    }
-    return next.handle(req);
-  }
+  return (res.data as Envelope<T>).data as T;
 }
 ```
 
-### 4.2 Integración App Móvil ↔ Backend
+### 4.2 Integración Web ↔ Backend
 
-Las apps Flutter usan el paquete `dio` con interceptor JWT y `flutter_secure_storage` para persistir tokens:
+La web es **SSR**: solo el servidor de Astro habla con la API (`API_URL`). El JWT vive en la cookie `logyx_session` (`httpOnly`, `SameSite=Lax`, `Secure` en prod) y nunca llega al JS del navegador. Las mutaciones desde islas React pasan por **Astro Actions** (`features/<f>/actions.ts`), que validan con Zod y llaman a la API con el token de la sesión. `middleware.ts` protege rutas por rol (PYME → `/pyme`, CARRIER → `/transportista`, OPERATOR → `/operador`, DRIVER → `/conductor`), redirige a `/login?expired=1` ante un 401 y agrega CSP y cabeceras de seguridad en producción. Las descargas de documentos pasan por el proxy `/documentos/[id]` y el stream en vivo por `/eventos`.
 
-```dart
-// api_service.dart — Flutter
-class ApiService {
-  late final Dio _dio;
+### 4.3 Integración App Android ↔ Backend
 
-  ApiService() {
-    _dio = Dio(BaseOptions(
-      baseUrl: AppConstants.apiBaseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
-    ));
-    _dio.interceptors.add(JwtInterceptor());
-  }
+`:core:network` implementa `LogyxApi` con Ktor/OkHttp: `Authorization: Bearer`, desenvuelve `{data, meta}` y mapea errores a `ApiException` con el mensaje en español de la API. La sesión se guarda en DataStore (`:core:data`); un 401 en cualquier llamada cierra sesión. El emulador llama a `http://10.0.2.2:8080` (solo debug permite HTTP en claro; release usa `https://api.logyx.pe`). La evidencia de entrega se comprime a JPEG ≤ 2 MB, se guarda en una cola persistente y se sube con reintento automático.
 
-  Future<T> get<T>(String path, T Function(dynamic) fromJson) async {
-    final response = await _dio.get(path);
-    return fromJson(response.data);
-  }
+### 4.4 Integración Backend ↔ Base de Datos
 
-  Future<T> post<T>(String path, Map<String, dynamic> body,
-      T Function(dynamic) fromJson) async {
-    final response = await _dio.post(path, data: body);
-    return fromJson(response.data);
-  }
-}
+Hibernate ORM Panache con repositorios que implementan los puertos `port/out`; los modelos de dominio son independientes de las entidades JPA (`toDomain()`/`apply()`). Dos datasources (ADR-0006): `app` = `logyx_api` (RLS) para todo y el predeterminado = `logyx_owner` solo para Flyway y `SystemTx`; Hibernate usa la multitenencia `DATABASE` solo como enrutador entre ambos. Flyway migra al arrancar.
 
-// offline_cache.dart — Drift (SQLite) para modo offline del Driver
-@DriftDatabase(tables: [CachedStops, CachedShipments])
-class OfflineDatabase extends _$OfflineDatabase {
-  OfflineDatabase() : super(_openConnection());
+### 4.5 Tiempo real (SSE) en lugar de WebSocket + Redis
 
-  Future<void> cacheShipment(Shipment shipment) async {
-    await into(cachedShipments).insertOnConflictUpdate(
-      CachedShipmentsCompanion.insert(
-        id: shipment.id,
-        trackingCode: shipment.trackingCode,
-        cachedAt: DateTime.now(),
-        payload: jsonEncode(shipment.toJson()),
-      ),
-    );
-  }
-}
+El diseño inicial usaba WebSocket y Redis Pub/Sub; el sistema real usa **SSE alimentado por el outbox** (ADR-0007):
+
+```
+caso de uso --(misma tx)--> outbox_events --despacho--> RealtimeProjector --> realtime_events (1 fila por destinatario)
+        trigger pg_notify('logyx_realtime', seq) --> PgRealtimeListener (cada réplica) --> RealtimeHub --> SSE
 ```
 
-### 4.3 Integración Backend ↔ Base de Datos
-
-```java
-// ShipmentRequestRepository.java (Panache)
-@ApplicationScoped
-public class ShipmentRequestRepository
-        implements PanacheRepositoryBase<ShipmentRequest, UUID> {
-
-    public Uni<List<ShipmentRequest>> findOpenByOriginProximity(
-            double lat, double lng, double radiusKm) {
-
-        String sql = """
-            SELECT sr.* FROM shipment_requests sr
-            WHERE sr.status = 'open'
-              AND sr.required_date >= CURRENT_DATE
-              AND (
-                6371 * acos(
-                  cos(radians(:lat)) * cos(radians(sr.origin_lat))
-                  * cos(radians(sr.origin_lng) - radians(:lng))
-                  + sin(radians(:lat)) * sin(radians(sr.origin_lat))
-                )
-              ) <= :radius
-            ORDER BY sr.required_date ASC
-            LIMIT 50
-            """;
-
-        return getSession()
-            .chain(session -> session.createNativeQuery(sql, ShipmentRequest.class)
-                .setParameter("lat", lat)
-                .setParameter("lng", lng)
-                .setParameter("radius", radiusKm)
-                .getResultList());
-    }
-
-    public Uni<List<ShipmentRequest>> findCompatibleFor(
-            Vehicle vehicle, double originRadiusKm,
-            double destRadiusKm, int windowHours) {
-        // Consulta para Smart Load Planner
-        return find("""
-            status = 'open'
-            AND required_date BETWEEN :minDate AND :maxDate
-            AND weight_kg <= :availableWeight
-            """,
-            Parameters.with("minDate", LocalDate.now())
-                      .and("maxDate", LocalDate.now().plusDays(3))
-                      .and("availableWeight",
-                           vehicle.maxWeightKg.subtract(vehicle.currentWeightKg)))
-            .list();
-    }
-}
-```
-
-### 4.4 Chat en Tiempo Real (WebSocket + Redis Pub/Sub)
-
-```java
-// NegotiationWebSocket.java
-@ServerEndpoint("/ws/negotiation/{requestId}/{carrierId}")
-@ApplicationScoped
-public class NegotiationWebSocket {
-
-    @Inject RedisClient redis;
-    @Inject MessageRepository messageRepo;
-    @Inject MessageModerationService moderator;
-
-    private final Map<String, Session> sessions = new ConcurrentHashMap<>();
-
-    @OnOpen
-    public void onOpen(Session session,
-                       @PathParam("requestId") String requestId,
-                       @PathParam("carrierId") String carrierId) {
-        sessions.put(session.getId(), session);
-    }
-
-    @OnMessage
-    public Uni<Void> onMessage(String rawMessage, Session session,
-                               @PathParam("requestId") String requestId,
-                               @PathParam("carrierId") String carrierId) {
-
-        IncomingMessage msg = Json.decodeValue(rawMessage, IncomingMessage.class);
-
-        // Moderar antes de guardar
-        boolean blocked = moderator.containsContactInfo(msg.body());
-        String body = blocked ? "[Mensaje bloqueado por el sistema]" : msg.body();
-
-        return messageRepo.persist(
-                Message.create(UUID.fromString(requestId),
-                               UUID.fromString(carrierId),
-                               msg.senderOrgId(), body, msg.proposedPrice(), blocked))
-            .invoke(saved -> {
-                // Publicar en Redis para otros nodos del cluster
-                redis.publish("chat:" + requestId + ":" + carrierId,
-                              Json.encode(saved));
-            })
-            .replaceWithVoid();
-    }
-}
-```
+- Endpoint `GET /api/v1/events/stream` (roles PYME/CARRIER/DRIVER/OPERATOR), latido de 20 s, máximo 5 conexiones por usuario (`LOGYX-RTM-001`), reanudación con `Last-Event-ID` bajo RLS, `stream.expired` al vencer el JWT.
+- 18 tipos de evento con payload mínimo (ids/estados; nunca montos, nombres ni textos de chat).
+- **Web:** `lib/realtime.ts` mantiene una `EventSource` por pestaña contra el proxy `/eventos` y `useLiveRefresh` refresca por REST, con polling lento solo si no está en vivo; el topbar muestra "En vivo".
+- **Android:** `RealtimeClient` en `:core:network` (reconexión exponencial + `Last-Event-ID`) y `liveLoop()` por ViewModel, solo con la app en primer plano.
 
 ---
 
@@ -592,315 +228,130 @@ public class NegotiationWebSocket {
 
 ### 5.1 Endpoints Principales
 
-| Método | Endpoint | Descripción | Rol requerido |
-|--------|----------|-------------|---------------|
-| POST | `/api/v1/auth/login` | Login con email/contraseña | Público |
-| POST | `/api/v1/auth/register` | Registro de organización | Público |
-| GET | `/api/v1/shipment-requests` | Listar solicitudes (marketplace) | carrier |
-| POST | `/api/v1/shipment-requests` | Publicar nueva solicitud | pyme |
-| GET | `/api/v1/shipment-requests/{id}` | Detalle de solicitud | pyme, carrier |
-| POST | `/api/v1/auctions/{id}/bids` | Enviar oferta | carrier |
-| POST | `/api/v1/bids/{id}/accept` | Aceptar oferta | pyme |
-| POST | `/api/v1/carrier-trips` | Publicar viaje disponible | carrier |
-| GET | `/api/v1/carrier-trips` | Listar viajes disponibles | pyme |
-| POST | `/api/v1/carrier-trips/{id}/bookings` | Reservar espacio en viaje | pyme |
-| GET | `/api/v1/shipments/{id}` | Tracking del envío | pyme, carrier, driver |
-| PATCH | `/api/v1/shipments/{id}/stops/{stopId}` | Actualizar estado de parada | driver |
-| POST | `/api/v1/shipments/{id}/stops/{stopId}/delivery` | Confirmar entrega (foto+firma) | driver |
-| GET | `/api/v1/reviews/{orgId}` | Reputación de una organización | Autenticado |
-| POST | `/api/v1/reviews` | Crear calificación post-entrega | pyme, carrier |
-| GET | `/api/v1/vehicles` | Mis vehículos | carrier |
-| POST | `/api/v1/vehicles` | Registrar vehículo | carrier |
-| GET | `/api/v1/notifications` | Notificaciones no leídas | Autenticado |
-| POST | `/api/v1/incidents` | Reportar incidencia | pyme, carrier, driver |
-| GET | `/api/v1/operator/sla-alerts` | Solicitudes en riesgo | operator |
-| POST | `/api/v1/operator/assign` | Asignar carrier manualmente | operator |
-| POST | `/api/v1/pricing/calculate` | Calcular costo estimado | pyme |
-| GET | `/api/v1/smart-load/suggestions` | Sugerencias Smart Load | carrier |
+Prefijo `/api/v1` (cuarenta y tantos recursos agrupados; lista completa en `docs/api/openapi.yaml`):
+
+| Grupo | Endpoints representativos |
+|---|---|
+| Autenticación | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
+| Catálogo y precios | `GET /catalog/cities`, `GET /catalog/cargo-types`, `POST /pricing/calculate` |
+| Flota | `GET/POST /vehicles`, `PATCH /vehicles/{id}/status`, `GET/POST /drivers` |
+| Marketplace | `POST /shipment-requests`, `GET /shipment-requests` (marketplace), `GET /shipment-requests/mine`, `GET /shipment-requests/{id}`, `POST /shipment-requests/{id}/bids`, `POST /shipment-requests/{id}/cancel`, `GET /shipment-requests/my-bids`, `POST /bids/{id}/accept` |
+| Negociación | `GET/POST /shipment-requests/{id}/threads/{carrierOrgId}/messages`, `POST /bids/{id}/counter-offers`, `POST /counter-offers/{id}/accept|reject` |
+| Envíos | `GET /shipments`, `GET /shipments/{id}`, `PUT /shipments/{id}/driver`, `POST /shipments/{id}/stops/{stopId}/arrive|complete`, `GET /driver/shipments/active` |
+| Documentos | `POST /shipments/{id}/documents` (multipart), `GET /shipments/{id}/documents`, `GET /documents`, `GET /documents/{id}/file` |
+| Reputación | `POST /shipments/{id}/reviews`, `GET /organizations/{id}/reputation` |
+| Incidencias | `POST /shipments/{id}/incidents`, `GET /incidents`, `POST /incidents/{id}/comments`, `POST /incidents/{id}/status` |
+| Notificaciones | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
+| Operador | `GET /operator/metrics`, `GET /operator/sla-alerts`, `GET /operator/requests/{id}/candidates`, `POST /operator/requests/{id}/assign` |
+| Viajes | `GET/POST /trips`, `GET /trips/mine`, `POST /trips/{id}/bookings`, `POST /trip-bookings/{id}/confirm|reject|cancel`, `GET /return-loads`, `GET /smart-loads`, `POST /smart-loads/generate`, `POST /smart-loads/{id}/accept|reject` |
+| Tiempo real | `GET /events/stream` (SSE) |
 
 ### 5.2 Contrato de Respuesta Base
 
-```json
-// Respuesta exitosa estándar
-{
-  "data": { ... },
-  "meta": {
-    "timestamp": "2026-06-29T15:00:00Z",
-    "requestId": "req-uuid"
-  }
-}
+Éxito: `{ "data": …, "meta": { … } }`; paginación con `meta.page/size/total` (o `meta.nextCursor` en el chat). Error:
 
-// Respuesta de error estándar
-{
-  "error": {
-    "code": "LOGYX-AUC-001",
-    "message": "La subasta no está abierta",
-    "field": null
-  },
-  "meta": {
-    "timestamp": "2026-06-29T15:00:00Z",
-    "requestId": "req-uuid"
-  }
-}
+```json
+{ "error": { "code": "LOGYX-BID-001", "message": "La oferta no puede ser menor al precio mínimo de S/ 1,350.00 (RN03)", "field": "amount" },
+  "meta": { … } }
 ```
+
+Los montos en mensajes usan el formato `S/ 1,850.00` (`shared/domain/Money`). Códigos por módulo: `LOGYX-NEG-*`, `LOGYX-TRK-*` (p. ej. `-005` incidencia activa, `-006` falta foto), `LOGYX-TRP-*`, `LOGYX-RTM-001`, `LOGYX-AUTH-429`.
 
 ### 5.3 Seguridad de la API
 
-```java
-// SecurityConfig.java — RBAC con anotaciones
-@Path("/api/v1/operator")
-@RolesAllowed({"operator", "admin"})
-public class OperatorDashboardResource {
-    // Solo accesible para operadores y admins
-}
-
-// JwtAuthFilter.java — validación del token
-@Provider
-@Priority(Priorities.AUTHENTICATION)
-public class JwtAuthFilter implements ContainerRequestFilter {
-
-    @Inject JwtService jwtService;
-
-    @Override
-    public void filter(ContainerRequestContext ctx) {
-        String authHeader = ctx.getHeaderString(HttpHeaders.AUTHORIZATION);
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            ctx.abortWith(Response.status(401).build());
-            return;
-        }
-        String token = authHeader.substring(7);
-        try {
-            JwtClaims claims = jwtService.validate(token);
-            // Inyectar org_id en contexto PostgreSQL para RLS
-            ctx.setProperty("orgId", claims.orgId());
-        } catch (JwtException e) {
-            ctx.abortWith(Response.status(401).build());
-        }
-    }
-}
-```
+| Mecanismo | Implementación |
+|---|---|
+| Autenticación | JWT RSA (`logyx.jwt.ttl=PT8H`), claims `org_id`, `org_type`, `role`; grupos `PYME`, `CARRIER`, `DRIVER`, `OPERATOR` |
+| Autorización | `@RolesAllowed` + organización solo desde el JWT (`TenantContext`) + RLS |
+| Rate limiting | Login 50/15 min por IP y bloqueo tras 10 fallos por email; registro 10/15 min (`LOGYX-AUTH-429`, `Retry-After`) |
+| Cabeceras | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Cache-Control: no-store` en `/api/*`, HSTS en prod |
+| CORS | Desactivado en prod (la web es SSR y Android no usa CORS) |
+| Documentación | Swagger UI solo en dev (`/q/swagger-ui`) |
 
 ---
 
 ## 6. Integración de Servicios Externos
 
-### 6.1 OpenRouteService (ORS) — Cálculo de rutas
-
-```java
-// OpenRouteServiceClient.java (MicroProfile REST Client)
-@RegisterRestClient(configKey = "ors-api")
-@Path("/v2/directions/driving-hgv")
-public interface OpenRouteServiceClient {
-
-    @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    Uni<OrsResponse> getRoute(
-        @QueryParam("api_key") @RestClientDefault("${ors.api.key}") String apiKey,
-        @QueryParam("start")   String start,  // "lng,lat"
-        @QueryParam("end")     String end     // "lng,lat"
-    );
-}
-
-// application.properties
-quarkus.rest-client.ors-api.url=https://api.openrouteservice.org
-ors.api.key=${ORS_API_KEY}
-```
-
-### 6.2 MinIO — Almacenamiento de documentos
-
-```java
-// MinIOStorageService.java
-@ApplicationScoped
-public class MinIOStorageService {
-
-    @Inject MinioClient minioClient;
-
-    @ConfigProperty(name = "minio.bucket") String bucket;
-
-    public Uni<String> uploadDeliveryPhoto(UUID shipmentId, UUID stopId,
-                                            InputStream imageStream, String contentType) {
-        String objectKey = String.format("deliveries/%s/%s/photo.jpg", shipmentId, stopId);
-        return Uni.createFrom().completionStage(
-            CompletableFuture.supplyAsync(() -> {
-                minioClient.putObject(PutObjectArgs.builder()
-                    .bucket(bucket).object(objectKey)
-                    .stream(imageStream, -1, 10_485_760)
-                    .contentType(contentType).build());
-                return generatePresignedUrl(objectKey);
-            })
-        );
-    }
-
-    private String generatePresignedUrl(String objectKey) {
-        return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
-            .method(Method.GET).bucket(bucket).object(objectKey)
-            .expiry(7, TimeUnit.DAYS).build());
-    }
-}
-```
-
-### 6.3 Redis — Caché y Pub/Sub
-
-```java
-// application.properties
-quarkus.redis.hosts=redis://localhost:6379
-
-// RedisNotificationPublisher.java — publicar actualizaciones de estado
-@ApplicationScoped
-public class RedisNotificationPublisher {
-
-    @Inject ReactiveRedisClient redis;
-
-    public Uni<Void> publishShipmentUpdate(UUID shipmentId, ShipmentStatus newStatus) {
-        String channel = "shipment-updates:" + shipmentId;
-        String payload = Json.encode(Map.of(
-            "shipmentId", shipmentId,
-            "status", newStatus,
-            "timestamp", Instant.now()
-        ));
-        return redis.publish(channel, payload).replaceWithVoid();
-    }
-}
-```
+| Servicio | Estado | Detalle |
+|---|---|---|
+| **MapLibre GL + OpenFreeMap** | **Integrado** | Teselas sin API key (estilos *positron* y *dark*); en web `TrackingMap` y en Android `RouteMap`; el worker de MapLibre se sirve desde `public/maplibre/` y la CSP permite `tiles.openfreemap.org` |
+| **Cloudflare R2 / MinIO (API S3)** | **Integrado (adaptador); R2 pendiente de conectar en el VPS** | `S3DocumentStorage` (AWS SDK v2, `path-style` para MinIO, SSE-S3 opcional); `logyx.documents.storage=local|s3`; test con MinIO real (Testcontainers). En producción el endpoint apunta a Cloudflare R2 (`LOGYX_S3_ENDPOINT`); MinIO queda para staging local. Verificar con R2 el estilo de direcciones y que el cifrado en reposo (gestionado por R2) reemplace a `LOGYX_S3_SSE` |
+| **Rutas por carretera (ADR-0008)** | **Backend implementado (fases 1 y 2); faltan los mapas web y Android** | Módulo `routing` con matriz y geometrías precalculadas de OpenStreetMap vía OSRM (`scripts/routing/build_routes.py`), sin red en ejecución. `pricing` usa `RoadDistanceProvider` (km por carretera); retornos y Smart Load usan los mismos km; `GET /api/v1/routes` devuelve km, minutos, polyline y atribución OSM. Un tramo sin dato vial cae a línea recta × 1.35 marcado `estimated`. Pendiente: dibujar la ruta en los mapas web y Android. OpenRouteService quedó descartado |
+| **SUNAT (verificación de RUC)** | **Pendiente** | Hoy solo Módulo 11 (`ruc_verification = CHECKSUM`) |
+| **Email / push** | **Pendiente** | El outbox ya permite agregar un observador de envío |
+| **Redis** | **No se usa** | Reemplazado por outbox + `LISTEN/NOTIFY` (ADR-0006/0007); el rate limiting es en memoria por instancia |
+| **Google OAuth** | **No se implementó** | Solo email y contraseña |
 
 ---
 
 ## 7. CE0234 — Despliegue del Sistema
 
-### 7.1 Docker Compose (Desarrollo local)
+### 7.1 Docker Compose y despliegue en el VPS
 
-```yaml
-# docker-compose.yml
-version: '3.9'
+**Producción** se despliega en un **VPS Hostinger KVM 2** (2 vCPU, 8 GB RAM, 100 GB NVMe, Brasil) con este mismo Docker Compose, **Caddy** como proxy con HTTPS automático y **Cloudflare** (DNS/CDN/WAF) para `oncargo.tech` (web) y `api.oncargo.tech` (API para Android); los documentos y los respaldos `pg_dump` van a **Cloudflare R2**. El diseño completo (topología, firewall, backups, runbooks) está en el [área de Infraestructura](../../infraestructura/index.md); el aprovisionamiento del VPS y el servicio Caddy están **pendientes de ejecutar**, mientras el compose y las imágenes ya existen y se verificaron localmente.
 
-services:
-  postgres:
-    image: postgis/postgis:16-3.4
-    environment:
-      POSTGRES_DB: logyx_db
-      POSTGRES_USER: logyx_dba_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U logyx_dba_user -d logyx_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+`infra/docker-compose.yml` (staging local) levanta cuatro servicios; solo web y API se publican en `127.0.0.1`:
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
+| Servicio | Imagen | Notas |
+|---|---|---|
+| `db` | `postgres:16-alpine` | `init-roles.sh` crea `logyx_owner`, `logyx_app`, `logyx_api` y la BD; volumen `pgdata`; solo red interna |
+| `minio` | `chainguard/minio` (fijada por digest) | bucket privado; solo red interna; **solo staging local** (en producción lo reemplaza Cloudflare R2) |
+| `backend` | `backend/Dockerfile` | multi-stage Maven → JRE 21 Alpine, usuario 10001, *healthcheck* `/q/health/ready`; Flyway migra al arrancar |
+| `web` | `web/Dockerfile` | Astro standalone en `node:22-alpine`, usuario `node`, `API_URL=http://backend:8080` |
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-
-  backend:
-    build:
-      context: ./logyx-backend
-      dockerfile: src/main/docker/Dockerfile.jvm
-    environment:
-      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/logyx_db
-      QUARKUS_DATASOURCE_USERNAME: logyx_app_user
-      QUARKUS_DATASOURCE_PASSWORD: ${APP_DB_PASSWORD}
-      QUARKUS_REDIS_HOSTS: redis://redis:6379
-      MINIO_ENDPOINT: http://minio:9000
-      JWT_SECRET: ${JWT_SECRET}
-      ORS_API_KEY: ${ORS_API_KEY}
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  web:
-    build:
-      context: ./logyx-web
-      dockerfile: Dockerfile
-    ports:
-      - "4200:80"
-    environment:
-      API_URL: http://backend:8080
-
-volumes:
-  postgres_data:
-  redis_data:
-  minio_data:
-```
-
-### 7.2 Dockerfile Backend (Quarkus JVM)
+### 7.2 Dockerfile del backend
 
 ```dockerfile
-# logyx-backend/src/main/docker/Dockerfile.jvm
+FROM eclipse-temurin:21-jdk-alpine AS build
+# ... ./mvnw -B -q -DskipTests package -Dquarkus.smallrye-openapi.store-schema-directory=target/openapi
 FROM eclipse-temurin:21-jre-alpine
-
-WORKDIR /app
-COPY --chown=1001:root target/quarkus-app/lib/                  /app/lib/
-COPY --chown=1001:root target/quarkus-app/*.jar                 /app/
-COPY --chown=1001:root target/quarkus-app/app/                  /app/app/
-COPY --chown=1001:root target/quarkus-app/quarkus/              /app/quarkus/
-
-EXPOSE 8080
-USER 1001
-
-ENTRYPOINT ["java", \
-  "-Djava.util.logging.manager=org.jboss.logmanager.LogManager", \
-  "-jar", "/app/quarkus-run.jar"]
+RUN addgroup -S -g 10001 logyx && adduser -S -D -H -u 10001 -G logyx logyx
+COPY --from=build --chown=10001:10001 /src/target/quarkus-app/ /app/
+USER 10001:10001
+HEALTHCHECK CMD wget -qO- http://127.0.0.1:8080/q/health/ready >/dev/null || exit 1
+ENTRYPOINT ["java", "-jar", "/app/quarkus-run.jar"]
 ```
 
-### 7.3 Instrucciones de Ejecución Local
+### 7.3 Instrucciones de Ejecución
+
+**Desarrollo** (Docker solo para PostgreSQL vía Dev Services):
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/[org]/logyx.git
-cd logyx
-
-# 2. Copiar variables de entorno
-cp .env.example .env
-# Editar .env con credenciales locales
-
-# 3. Levantar infraestructura
-docker-compose up -d postgres redis minio
-
-# 4. Iniciar backend en modo dev (hot reload)
-cd logyx-backend
-./mvnw quarkus:dev
-
-# 5. Iniciar web en modo dev
-cd ../logyx-web
-npm install && ng serve
-
-# 6. El backend estará en: http://localhost:8080
-# 7. El frontend estará en: http://localhost:4200
-# 8. Swagger UI: http://localhost:8080/q/swagger-ui
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+cd backend && ./mvnw quarkus:dev            # API :8080, Swagger en /q/swagger-ui, datos demo
+cd web && npm install && npm run dev        # Web :4321 (API_URL=http://localhost:8080)
+cd android && ./gradlew installDebug        # emulador: API en http://10.0.2.2:8080
 ```
 
-### 7.4 Variables de Entorno Requeridas
+**Contenedores:**
 
-| Variable | Descripción | Ejemplo |
-|----------|-------------|---------|
-| `POSTGRES_PASSWORD` | Password del superusuario PostgreSQL | `dev_secret_123` |
-| `APP_DB_PASSWORD` | Password del usuario de aplicación | `app_secret_456` |
-| `JWT_SECRET` | Secreto para firmar JWT (mín. 256 bits) | `<cadena aleatoria 64 chars>` |
-| `ORS_API_KEY` | API key de OpenRouteService | `5b3ce3...` |
-| `MINIO_ROOT_USER` | Usuario admin MinIO | `logyx_admin` |
-| `MINIO_ROOT_PASSWORD` | Password admin MinIO | `minio_secret` |
-| `GOOGLE_CLIENT_ID` | Client ID para Google OAuth | `xxx.apps.googleusercontent.com` |
+```bash
+cp infra/.env.example infra/.env            # cambiar TODAS las contraseñas
+infra/scripts/gen-jwt-keys.sh               # par RSA del JWT en infra/secrets/ (no se versiona)
+docker compose -f infra/docker-compose.yml --env-file infra/.env build backend
+docker compose -f infra/docker-compose.yml --env-file infra/.env build web
+docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+# Web http://localhost:8580 · API http://localhost:8680/q/health/ready
+```
+
+Cuentas demo del perfil dev: `pyme@logyx.pe`, `carrier@logyx.pe`, `carrier2@logyx.pe`, `driver@logyx.pe`, `operator@logyx.pe` (contraseña `Logyx2026!`). El compose no trae datos demo: se registra una cuenta desde `/registro`.
+
+### 7.4 Variables de Entorno (backend, prod)
+
+| Variable | Uso |
+|---|---|
+| `DB_URL` | JDBC de la BD (ambos datasources) |
+| `DB_ADMIN_USER` / `DB_ADMIN_PASSWORD` | `logyx_owner`: Flyway y `SystemTx` |
+| `DB_APP_USER` / `DB_APP_PASSWORD` | `logyx_api`: Hibernate (todo lo demás) |
+| `JWT_PUBLIC_KEY` / `JWT_PRIVATE_KEY` | rutas a los PEM (compose: `/run/secrets/jwt_*`) |
+| `LOGYX_DOCUMENTS_STORAGE` | `local` o `s3` (+ `LOGYX_S3_*`; en producción `LOGYX_S3_ENDPOINT` apunta a R2) |
+| `CORS_ENABLED` / `CORS_ORIGINS` | CORS desactivado por omisión en prod |
+| `TRUSTED_PROXIES` | redes desde las que se acepta `X-Forwarded-For` |
+| Web: `API_URL`, `COOKIE_SECURE`, `HSTS` | URL de la API y comportamiento de la cookie/HSTS |
+
+### 7.5 CI
+
+Cinco workflows de GitHub Actions (`backend`, `web`, `android`, `contract`, `e2e`) más Dependabot: ver [CI/CD](../entregable-4/cicd.md).
 
 ---
 
@@ -908,11 +359,12 @@ npm install && ng serve
 
 | Item | Estado | Referencia |
 |------|--------|------------|
-| Repositorio GitHub con código fuente | Pendiente — URL por agregar | — |
-| Capturas del sistema en ejecución | Pendiente — agregar screenshots | — |
-| URL del sistema en staging | Pendiente — agregar URL | — |
-| Swagger UI / OpenAPI spec | Disponible en `/q/swagger-ui` local | — |
-| Docker Compose funcionando | Verificar con `docker-compose ps` | Ver sección 7.3 |
+| Código fuente (monorepo `logyx`) | Disponible | `backend/`, `web/`, `android/`, `infra/` |
+| Capturas del sistema en ejecución | **Incluidas** | [Arquitectura Frontend §6](arquitectura-frontend.md#6-capturas-de-pantalla-del-sistema-real) |
+| Contrato OpenAPI | Versionado | `docs/api/openapi.yaml`, historial en `docs/api/CHANGELOG.md` |
+| Swagger UI | Solo en dev | `/q/swagger-ui` |
+| Docker Compose | Verificado localmente con login web real | `infra/README.md` |
+| Estado por módulo | Mantenido | `docs/STATUS.md` |
 
 ---
 
@@ -920,12 +372,13 @@ npm install && ng serve
 
 | Fuente | Relación con E3 |
 |--------|----------------|
-| **E1 SRS** (RF01–RF67) | Cada funcionalidad F01–F20 mapea directamente a un rango de RF. Ver tabla sección 3.1. |
-| **E1 Arquitectura** (ADR-001 a ADR-005) | La arquitectura implementada respeta los 5 ADRs: monolito modular, Quarkus, 3 apps Flutter, PostgreSQL+PostGIS, ORS. |
-| **E1 UML** (diagramas de clase) | Las 18 clases del diagrama UML corresponden 1:1 con las entities Panache del backend. |
-| **E2 Modelo de datos** (22 tablas) | Los repositorios Panache consultan las mismas 22 tablas definidas en E2_ModeloDatos.md. |
-| **E2 Scripts** (triggers y funciones) | Los triggers activan lógica de negocio automáticamente: `trg_moderate_message` antes de `MessageRepository.persist()`, `trg_lock_vehicle_capacity_on_shipment` antes de `ShipmentRepository.persist()`. |
+| **E1 SRS** (RF01–RF67) | Cada módulo implementa un rango de RF; el SRS v1.1 indica el estado y el código de cada RF/RN. Ver §3.1 |
+| **E1 Arquitectura** (ADR 0001–0008) | La arquitectura implementada es la documentada en la v2.0: hexagonal modular, Astro, Kotlin, RLS, outbox, SSE |
+| **E1 UML** | Las clases del diagrama de dominio corresponden a los modelos de `*/domain/model` |
+| **E2 Modelo de datos** (24 tablas) | Los repositorios Panache consultan las tablas creadas por V1–V12 |
+| **E2 Scripts** | Las migraciones Flyway mostradas en E2 son las que ejecuta el sistema; la lógica de negocio vive en el dominio, no en triggers |
+| **E4** | Pruebas, CI/CD y auditoría documentan la verificación de este sistema |
 
 ---
 
-*LOGYX · E3 Sistema Desarrollado · Competencias CE0231–CE0234 · Versión 1.0 · Junio 2026*
+*OnCargo · E3 Sistema Desarrollado · Competencias CE0231–CE0234 · Versión 2.0 · Noviembre 2026*

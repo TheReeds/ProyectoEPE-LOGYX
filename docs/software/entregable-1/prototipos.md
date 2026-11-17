@@ -1,9 +1,15 @@
 # E1 — Prototipos Navegables
 > Competencia CE0212 · Diseño de interfaces y flujos de usuario  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
 > Herramienta: Figma  
 > Versión: 1.0 · Junio 2026
+
+!!! note "Marca del prototipo"
+    El prototipo de Figma se diseñó en junio de 2026, **antes del rebrand**: el archivo (`LOGYX-PROTOTIPOS`) y sus pantallas muestran la marca LOGYX. El producto se llama ahora **OnCargo**; en este documento se usa el nombre vigente. Ver [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger).
+
+!!! info "Prototipo vs. sistema implementado"
+    El prototipo (Figma, junio 2026) planteó tres apps móviles (Business, Driver, Operator). En la implementación, las pantallas se reorganizaron así (ADR-0003): **web Astro** para PYME, transportista y operador; **una app Android** con navegación por rol (transportista, PYME, conductor). Las pantallas del conductor (DRV-01 a DRV-07) y las del transportista/PYME se implementaron en Android; el panel del operador (OP-01 a OP-07) se implementó **solo en la web** (sin OP-04 Smart Load, ver RF59). La pantalla DRV-07 (modo sin conexión) se cubrió parcialmente con la cola persistente de evidencia. Las capturas reales de lo construido están en [Arquitectura Frontend](../entregable-3/arquitectura-frontend.md#6-capturas-de-pantalla-del-sistema-real) y el sistema de diseño propio en `docs/design/DESIGN.md` del repositorio del sistema. Este documento conserva el inventario de pantallas **diseñadas**; los flujos 1 a 5 se cumplen con las salvedades indicadas.
 
 ---
 
@@ -13,8 +19,8 @@
 |-------|---------|
 | **Herramienta** | Figma |
 | **Link al prototipo** | [Ver prototipo navegable en Figma](https://www.figma.com/proto/VPAgeR1zHUZCXKvBwKsYez/LOGYX-PROTOTIPOS?node-id=0-1&t=BFJbHyiHm6diGpam-1) |
-| **Plataformas cubiertas** | Web (Angular) · Mobile iOS/Android (Flutter) |
-| **Apps prototipadas** | LOGYX Business (PYME + Transportista) · LOGYX Driver · LOGYX Operator |
+| **Plataformas cubiertas** | Web · Mobile (prototipado como 3 apps; implementado como web Astro + una app Android por roles) |
+| **Apps prototipadas** | OnCargo Business (PYME + Transportista) · OnCargo Driver · OnCargo Operator (en el archivo de Figma figuran con la marca anterior, LOGYX) |
 | **Estado** | Prototipo navegable publicado en Figma |
 
 ---
@@ -39,7 +45,7 @@
 
 | ID | Pantalla | Actor | Descripción |
 |----|----------|-------|-------------|
-| AUTH-01 | Splash / Landing | Todos | Logo LOGYX, botones "Iniciar sesión" y "Registrarse" |
+| AUTH-01 | Splash / Landing | Todos | Logo de la marca, botones "Iniciar sesión" y "Registrarse" |
 | AUTH-02 | Login | Todos | Email + contraseña, botón Google OAuth, link "¿Olvidaste tu contraseña?" |
 | AUTH-03 | Registro — Paso 1 | Todos | Datos de cuenta: email, contraseña, confirmar contraseña |
 | AUTH-04 | Registro — Paso 2 | PYME / Transportista | Datos de empresa: nombre, RUC (con validación en tiempo real), tipo de organización |
@@ -50,7 +56,7 @@
 
 ---
 
-### 2.2 LOGYX Business — PYME
+### 2.2 OnCargo Business — PYME
 
 #### Dashboard y navegación
 
@@ -92,7 +98,7 @@
 
 ---
 
-### 2.3 LOGYX Business — Transportista
+### 2.3 OnCargo Business — Transportista
 
 #### Dashboard y navegación
 
@@ -137,7 +143,7 @@
 
 ---
 
-### 2.4 LOGYX Driver (App del Conductor)
+### 2.4 OnCargo Driver (App del Conductor)
 
 | ID | Pantalla | Descripción |
 |----|----------|-------------|
@@ -151,7 +157,7 @@
 
 ---
 
-### 2.5 LOGYX Operator (Panel del Operador)
+### 2.5 OnCargo Operator (Panel del Operador)
 
 | ID | Pantalla | Descripción |
 |----|----------|-------------|
@@ -226,7 +232,7 @@ CARR-01 → CARR-08 (publicar viaje)
 
 ## 4. Principios de Diseño UX
 
-| Principio | Aplicación en LOGYX |
+| Principio | Aplicación en OnCargo |
 |-----------|---------------------|
 | **Información progresiva** | Solo se revelan datos sensibles (nombre exacto, dirección, RUC completo) después de que se formaliza el contrato |
 | **Claridad del estado** | Cada solicitud, oferta y envío siempre muestra su estado con color y badge claro (verde = completado, amarillo = en proceso, rojo = en riesgo) |
@@ -269,4 +275,4 @@ CARR-01 → CARR-08 (publicar viaje)
 
 ---
 
-*LOGYX · E1 Prototipos Navegables · Competencia CE0212 · Versión 1.0 · Junio 2026*
+*OnCargo · E1 Prototipos Navegables · Competencia CE0212 · Versión 1.1 (nota de alineación, noviembre 2026) · Versión original 1.0, junio 2026*

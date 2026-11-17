@@ -58,7 +58,11 @@ El diagrama BPMN AS-IS se estructura en cuatro carriles (pools/lanes). Especific
 </tbody>
 </table>
 
-<img src="media/image3.png" style="width:6.4625in;height:2.47708in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (diagrama BPMN AS-IS; el flujo completo está en la especificación textual de la sección 4.2.2) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
+
+
+
 
 ## 4.2.3 Indicadores actuales (línea base)
 

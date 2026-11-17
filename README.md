@@ -1,12 +1,12 @@
-# LOGYX — Documentación EPE
+# OnCargo — Documentación EPE
 
-Sitio de documentación de la Evaluación del Perfil de Egreso (EPE) del proyecto **LOGYX**, generado con [MkDocs](https://www.mkdocs.org/) + [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
+Sitio de documentación de la Evaluación del Perfil de Egreso (EPE) del proyecto **OnCargo** (antes LOGYX; el repositorio y la URL de GitHub Pages conservan el nombre `ProyectoEPE-LOGYX`), generado con [MkDocs](https://www.mkdocs.org/) + [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
 
 Organizado por las tres áreas evaluadas del programa:
 
-- **Área de Software** — Entregables E1–E5 (CE021–CE024, CE0217)
+- **Área de Software** — Entregables E1–E5 (CE021–CE024, CE0217), alineados con el sistema construido (Quarkus 3.40 + Astro 7 + Android/Kotlin, PostgreSQL 16 con RLS, SSE). Ver [Cambios respecto al diseño inicial](docs/software/cambios-diseno-inicial.md)
 - **Área de Gestión de TI** — Entregables E1–E4 (CE0111–CE0135)
-- **Área de Infraestructura** — Semestre 1 (diseño) y Semestre 2 (implementación) (C1–C3)
+- **Área de Infraestructura** — Semestre 1 (diseño) y Semestre 2 (implementación) (C1–C3), rediseñada sobre un VPS Hostinger KVM 2 + Docker Compose + Caddy + Cloudflare (DNS/CDN y R2), dominio `oncargo.tech`
 
 ## Recursos
 
@@ -28,7 +28,14 @@ Abre `http://127.0.0.1:8000`.
 ## Estructura del repositorio
 
 - `docs/` — contenido publicado del sitio (única carpeta que MkDocs procesa)
-- `AreaSoftware/`, `AreaGestionTI/`, `AreaInfraestructura/`, `Guia*.md` — fuente original de la que se migró `docs/`; se conservan como archivo/respaldo y no se publican en el sitio
+- `AreaSoftware/`, `AreaGestionTI/`, `AreaInfraestructura/`, `Guia*.md` — **fuentes de respaldo CONGELADAS** (noviembre 2026): son la versión original (v1.0, junio 2026, con la marca LOGYX y la infraestructura en AWS) de la que se migró `docs/` y **ya no se sincronizan**. La versión vigente es siempre `docs/`: allí el área de Software se alineó con el sistema real, se corrigieron las cifras de costos y del Business Case y se repararon las referencias cruzadas. No se publican en el sitio.
+
+!!! note "Por qué congeladas y no sincronizadas"
+    Mantener dos copias en paralelo duplicaría el trabajo y las dejaría inconsistentes; además el contenido de `docs/` ya no es una transcripción de esas fuentes (p. ej. UML, modelo de datos y sistema se reescribieron desde el código). Se conservan solo como historial del diseño inicial. **No las edites; edita `docs/`.**
+
+## Fuente de verdad del software
+
+El sistema real vive en el monorepo `logyx` (backend, web, android, infra, ADR en `docs/adr/`, contrato OpenAPI en `docs/api/`). Este sitio lo documenta; ante cualquier diferencia, manda el código y `docs/STATUS.md` de ese repositorio. Los diagramas y fragmentos mostrados aquí son extractos del código real; las migraciones SQL de [Scripts SQL](docs/software/entregable-2/scripts.md) se incluyen como *snapshot* en `docs/software/entregable-2/sql/`.
 
 ## Build de producción
 

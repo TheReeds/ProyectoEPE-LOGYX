@@ -1,6 +1,6 @@
 # 3.7 Cumplimiento Normativo — Hallazgos del Análisis COBIT (extensión de CE0125)
 
-El análisis de gobierno de TI bajo COBIT 2019 (Entregable 1, sección 1.7) identificó obligaciones normativas concretas que la solución LOGYX debe satisfacer desde su diseño. El detalle técnico del cumplimiento de la Ley N° 29733 se desarrolla en la documentación técnica de la solución (fuera del alcance de esta ronda de evaluación); esta sección consolida las obligaciones accionables derivadas del análisis COBIT, sin repetir las medidas técnicas ya detalladas.
+El análisis de gobierno de TI bajo COBIT 2019 (Entregable 1, sección 1.7) identificó obligaciones normativas concretas que la solución OnCargo debe satisfacer desde su diseño. El detalle técnico del cumplimiento de la Ley N° 29733 se desarrolla en la documentación técnica de la solución (fuera del alcance de esta ronda de evaluación); esta sección consolida las obligaciones accionables derivadas del análisis COBIT, sin repetir las medidas técnicas ya detalladas.
 
 **Ley N° 29733 — Protección de Datos Personales**
 
@@ -18,11 +18,11 @@ El análisis de gobierno de TI bajo COBIT 2019 (Entregable 1, sección 1.7) iden
 
 - Riesgo de vigencia de la verificación: las licencias MTC y el SOAT pueden caducar entre la verificación inicial y la operación. El Trust Engine debe implementar alertas automáticas de vencimiento (SOAT 30 días antes, licencia MTC 60 días antes).
 
-- Responsabilidad vicaria: el proceso de verificación legal multicapa (RUC + MTC + SOAT) constituye la evidencia de diligencia debida de LOGYX frente a un eventual incidente con un transportista verificado.
+- Responsabilidad vicaria: el proceso de verificación legal multicapa (RUC + MTC + SOAT) constituye la evidencia de diligencia debida de OnCargo frente a un eventual incidente con un transportista verificado.
 
-- PCI-DSS: LOGYX delega el procesamiento de tarjetas a la pasarela de pagos (certificada PCI-DSS); el diseño no debe almacenar datos de tarjeta en ningún momento (tokenización delegada), política que debe quedar documentada explícitamente.
+- PCI-DSS: OnCargo delega el procesamiento de tarjetas a la pasarela de pagos (certificada PCI-DSS); el diseño no debe almacenar datos de tarjeta en ningún momento (tokenización delegada), política que debe quedar documentada explícitamente.
 
-**Top 5 riesgos críticos de TI para el gobierno de LOGYX**
+**Top 5 riesgos críticos de TI para el gobierno de OnCargo**
 
 |                                                              |               |                                                                                  |
 |--------------------------------------------------------------|---------------|----------------------------------------------------------------------------------|

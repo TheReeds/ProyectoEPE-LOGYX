@@ -1,0 +1,18 @@
+/* Marca OnCargo: azul marino #081F46 y cian #00C0E8 (ver docs/brand.md del monorepo) */
+:root,
+[data-md-color-scheme="default"],
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #081f46;
+  --md-primary-fg-color--light: #1b3a73;
+  --md-primary-fg-color--dark: #051530;
+  --md-accent-fg-color: #00a6cc;
+}
+[data-md-color-scheme="slate"] {
+  --md-accent-fg-color: #00c0e8;
+}
+/* El ícono de la app ya trae fondo marino: se funde con la cabecera */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2rem;
+  width: 2rem;
+}

@@ -2,6 +2,9 @@
 
 **Competencia general:** Diseña y ejecuta proyectos de infraestructura tecnológica para contribuir en la solución de problemas de la organización siguiendo estándares internacionales, presentando formalmente sus resultados con una actitud ética alineada a la **ACM**.
 
+!!! info "Rediseño de la infraestructura: de AWS a un VPS Hostinger"
+    La versión 1.0 de esta área diseñó el despliegue sobre AWS (VPC multi-AZ, EC2, RDS, S3, CloudFront). Con el sistema construido y el rebrand a **OnCargo**, la infraestructura se rediseñó por **costo y simplicidad**: un **VPS Hostinger KVM 2** (2 vCPU, 8 GB RAM, 100 GB NVMe, datacenter en Brasil) con Docker Compose y **Caddy** (HTTPS automático), documentos y backups en **Cloudflare R2**, y DNS/CDN en **Cloudflare** para el dominio `oncargo.tech`. Todos los documentos de esta área reflejan ese diseño; el detalle del cambio, con el antes y el después, está en [Rebrand OnCargo y migración a Hostinger](../software/cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger).
+
 ## Competencias específicas
 
 | Competencia | Nombre | Enfoque |

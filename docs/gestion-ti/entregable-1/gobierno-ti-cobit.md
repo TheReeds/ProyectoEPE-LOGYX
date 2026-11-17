@@ -1,14 +1,14 @@
 # 1.7 Refuerzo de Gobierno de TI bajo COBIT 2019 (AS-IS / TO-BE) — extensión de CE0115
 
-Como complemento al modelado de procesos operativos (secciones 3.1 a 3.6), se aplicó el marco COBIT 2019 de ISACA para diagnosticar el estado actual (AS-IS) y diseñar el estado objetivo (TO-BE) del gobierno de TI de LOGYX como organización. A diferencia del AS-IS/TO-BE operativo (proceso de contratación de transporte), este análisis cubre el nivel de gobierno: qué prácticas de gestión del riesgo, seguridad, cumplimiento y monitoreo debe establecer LOGYX para operar con confianza.
+Como complemento al modelado de procesos operativos (secciones 4.1 a 4.6), se aplicó el marco COBIT 2019 de ISACA para diagnosticar el estado actual (AS-IS) y diseñar el estado objetivo (TO-BE) del gobierno de TI de OnCargo como organización. A diferencia del AS-IS/TO-BE operativo (proceso de contratación de transporte), este análisis cubre el nivel de gobierno: qué prácticas de gestión del riesgo, seguridad, cumplimiento y monitoreo debe establecer OnCargo para operar con confianza.
 
-LOGYX no es una organización con TI de soporte: la tecnología es el producto. Por ello, el sistema de gobierno de TI no es un complemento de la operación —es la operación misma—, lo que eleva la relevancia de los procesos de gestión del riesgo, seguridad, gestión de servicios y monitoreo por encima del promedio de una organización de tamaño equivalente.
+OnCargo no es una organización con TI de soporte: la tecnología es el producto. Por ello, el sistema de gobierno de TI no es un complemento de la operación —es la operación misma—, lo que eleva la relevancia de los procesos de gestión del riesgo, seguridad, gestión de servicios y monitoreo por encima del promedio de una organización de tamaño equivalente.
 
 **1.7.1 Factores de Diseño (síntesis DF1–DF11)**
 
 |        |                                    |                                                                                                                                                                    |
 |--------|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **\#** | **Factor de Diseño**               | **Resultado aplicado a LOGYX**                                                                                                                                     |
+| **\#** | **Factor de Diseño**               | **Resultado aplicado a OnCargo**                                                                                                                                     |
 | DF1    | Estrategia empresarial             | Innovación/Diferenciación (5) + Servicio/Estabilidad (4): la plataforma es el diferenciador. Eleva procesos de calidad, riesgo y operación digital.                |
 | DF2    | Metas empresariales                | Metas primarias: EG02 (riesgo), EG06 (continuidad), EG03 (cumplimiento), EG12 (transformación digital). Sustenta EDM01, APO12, APO13, DSS05, MEA03.                |
 | DF3    | Perfil de riesgo                   | Riesgos críticos: ataques lógicos y datos personales/biométricos. Riesgos altos: incumplimiento normativo, acciones no autorizadas, incidentes de infraestructura. |
@@ -23,7 +23,7 @@ LOGYX no es una organización con TI de soporte: la tecnología es el producto. 
 
 **1.7.2 Cascada de metas: de la estrategia de negocio a los procesos priorizados**
 
-La cascada de metas justifica por qué los procesos de gobierno seleccionados son los correctos para LOGYX, partiendo de sus metas de negocio concretas:
+La cascada de metas justifica por qué los procesos de gobierno seleccionados son los correctos para OnCargo, partiendo de sus metas de negocio concretas:
 
 |                               |                                                                                                                                                                |
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -32,7 +32,7 @@ La cascada de metas justifica por qué los procesos de gobierno seleccionados so
 | ↓ Metas de alineamiento (AG)  | AG02 Gestión del riesgo de TI · AG07 Seguridad de información y privacidad · AG01 Cumplimiento de I&T con leyes externas · AG05 Entrega de servicios de I&T    |
 | ↓ Procesos COBIT prioritarios | APO12 Gestión del riesgo · APO13 Gestión de la seguridad · DSS05 Servicios de seguridad · MEA03 Cumplimiento de requisitos externos · EDM01 Marco de gobierno  |
 
-La cascada demuestra que los procesos de seguridad y cumplimiento no son opcionales para LOGYX: son la traducción directa de sus metas de negocio en capacidades de gobierno requeridas, lo que justifica su inclusión en el portafolio aunque el proyecto esté en fase MVP.
+La cascada demuestra que los procesos de seguridad y cumplimiento no son opcionales para OnCargo: son la traducción directa de sus metas de negocio en capacidades de gobierno requeridas, lo que justifica su inclusión en el portafolio aunque el proyecto esté en fase MVP.
 
 **1.7.3 Componentes del sistema de gobierno: AS-IS vs. TO-BE**
 

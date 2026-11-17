@@ -4,7 +4,7 @@
 
 El objeto del presente diagnóstico es el ecosistema logístico de las pequeñas y medianas empresas del corredor Lima–Sierra Sur (Lima–Arequipa–Juliaca–Puno–Cusco). Un ecosistema, a diferencia de una organización individual, carece de estructura jerárquica y documentos institucionales propios; por ello, para efectos operativos del análisis, se emplea como recurso metodológico declarado una PYME arquetipo: una empresa manufacturera o comercial del corredor, con envíos regulares de 0.5 a 5 toneladas y frecuencia semanal, que coordina su transporte de manera informal. Esta figura sintetiza el perfil de los segmentos identificados en el estudio de mercado del proyecto y permite aplicar los instrumentos de análisis estratégico (FODA, EFI, EFE, PESTEL, Porter, CAME) sobre un sujeto concreto sin perder la representatividad del ecosistema.
 
-LOGYX —plataforma colaborativa de logística B2B— constituye la solución TIC que se propondrá como resultado de este diagnóstico, y su diseño técnico se desarrolla en la documentación técnica de la solución (fuera del alcance de esta ronda de evaluación). Esta separación metodológica garantiza que el diagnóstico no esté sesgado hacia la solución: primero se caracteriza el problema del ecosistema con evidencia verificable, y solo después se justifica la intervención tecnológica.
+OnCargo —plataforma colaborativa de logística B2B— constituye la solución TIC que se propondrá como resultado de este diagnóstico, y su diseño técnico se desarrolla en la documentación técnica de la solución (fuera del alcance de esta ronda de evaluación). Esta separación metodológica garantiza que el diagnóstico no esté sesgado hacia la solución: primero se caracteriza el problema del ecosistema con evidencia verificable, y solo después se justifica la intervención tecnológica.
 
 ## 1.1.2 Descripción del sector y entorno competitivo
 
@@ -43,9 +43,13 @@ La función logística no existe como área: está distribuida informalmente ent
 
 Conclusión: los eslabones 2, 3, 4 y 5 concentran la destrucción de valor —actividades de coordinación e información, no de transporte físico—, evidenciando que el problema es de naturaleza informacional y abordable mediante una solución TIC.
 
-<img src="media/image7.png" style="width:6.45232in;height:3.84952in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (Cadena de Valor de Porter aplicada a OnCargo) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
 
-*Figura 5. Cadena de Valor de Porter aplicada a LOGYX (actividades primarias, de apoyo y margen).*
+
+
+
+*Figura 5. Cadena de Valor de Porter aplicada a OnCargo (actividades primarias, de apoyo y margen).*
 
 ## 1.1.5 Mapa de stakeholders
 
@@ -60,13 +64,13 @@ Conclusión: los eslabones 2, 3, 4 y 5 concentran la destrucción de valor —ac
 | MTC / SUNAT (reguladores)                      | Alto              | Bajo             | Mantener satisfechos       |
 | Clientes finales de las PYMEs                  | Bajo              | Medio            | Monitorear                 |
 
-## 1.1.6 Aspectos Generales de la Organización LOGYX
+## 1.1.6 Aspectos Generales de la Organización OnCargo
 
-A diferencia de las secciones 1.1.1 a 1.1.5 (que caracterizan el ecosistema de mercado en el que LOGYX opera), esta sección presenta a LOGYX como organización —el sujeto que ejecuta el proyecto—, con el mismo nivel de detalle institucional exigido en un diagnóstico organizacional formal.
+A diferencia de las secciones 1.1.1 a 1.1.5 (que caracterizan el ecosistema de mercado en el que OnCargo opera), esta sección presenta a OnCargo como organización —el sujeto que ejecuta el proyecto—, con el mismo nivel de detalle institucional exigido en un diagnóstico organizacional formal.
 
 **Reseña histórica**
 
-LOGYX nace como proyecto de fin de carrera del equipo de Ingeniería de Sistemas de la Universidad Peruana Unión (sede Juliaca), a partir de la identificación directa del problema de fragmentación logística que afecta a las PYMEs del corredor Lima–Sierra Sur. El proyecto se formaliza en el marco de la Evaluación del Perfil de Egreso (EPE), con el propósito de evolucionar de un ejercicio académico a un emprendimiento tecnológico viable.
+OnCargo nace como proyecto de fin de carrera del equipo de Ingeniería de Sistemas de la Universidad Peruana Unión (sede Juliaca), a partir de la identificación directa del problema de fragmentación logística que afecta a las PYMEs del corredor Lima–Sierra Sur. El proyecto se formaliza en el marco de la Evaluación del Perfil de Egreso (EPE), con el propósito de evolucionar de un ejercicio académico a un emprendimiento tecnológico viable.
 
 **Ubicación geográfica**
 
@@ -74,7 +78,7 @@ Sede principal del equipo: Juliaca, región Puno, Perú. Ámbito de operación p
 
 **Cobertura y modalidad de operación**
 
-LOGYX no opera locales físicos de atención al público: es una plataforma digital (aplicación web y móvil) con cobertura en todo el corredor Lima–Sierra Sur desde el lanzamiento del MVP, escalable a nuevos corredores en fases posteriores del roadmap (Entregable 1, sección 1.5).
+OnCargo no opera locales físicos de atención al público: es una plataforma digital (aplicación web y móvil) con cobertura en todo el corredor Lima–Sierra Sur desde el lanzamiento del MVP, escalable a nuevos corredores en fases posteriores del roadmap (Entregable 1, sección 1.5).
 
 **Equipo (número de integrantes y roles)**
 
@@ -86,7 +90,7 @@ LOGYX no opera locales físicos de atención al público: es una plataforma digi
 
 **Razón social y naturaleza jurídica**
 
-A la fecha de este documento, LOGYX opera como proyecto académico–emprendedor en fase de incubación, sin constitución legal formal. La forma societaria proyectada para la etapa de operación comercial es una Sociedad Anónima Cerrada (S.A.C.), conforme a la Ley General de Sociedades del Perú, a definirse formalmente al iniciar la fase de comercialización real (posterior al piloto de la solución).
+A la fecha de este documento, OnCargo opera como proyecto académico–emprendedor en fase de incubación, sin constitución legal formal. La forma societaria proyectada para la etapa de operación comercial es una Sociedad Anónima Cerrada (S.A.C.), conforme a la Ley General de Sociedades del Perú, a definirse formalmente al iniciar la fase de comercialización real (posterior al piloto de la solución).
 
 **Población objetivo y alcance**
 
@@ -106,9 +110,9 @@ PYMEs manufactureras y comerciales del corredor Lima–Sierra Sur con envíos re
 
 **Productos y servicios ofrecidos**
 
-Marketplace de carga con subasta inversa, motor de precios de referencia, negociación moderada, tracking multi-parada con evidencia digital, sistema de reputación verificable, y consolidación/aprovechamiento de cargas de retorno. Detalle funcional completo en la Documentación General del Producto LOGYX (fuera del alcance de esta ronda de evaluación).
+Marketplace de carga con subasta inversa, motor de precios de referencia, negociación moderada, tracking multi-parada con evidencia digital, sistema de reputación verificable, y consolidación/aprovechamiento de cargas de retorno. Detalle funcional completo en la Documentación General del Producto OnCargo (fuera del alcance de esta ronda de evaluación).
 
-**Identidad institucional: misión, visión y valores de LOGYX**
+**Identidad institucional: misión, visión y valores de OnCargo**
 
 **Misión:** democratizar el acceso a capacidades logísticas de nivel corporativo para las PYMEs y transportistas del corredor Lima–Sierra Sur, mediante una plataforma digital colaborativa que reduce costos, genera confianza verificable y elimina la ineficiencia de la coordinación informal.
 
@@ -128,5 +132,5 @@ Arquitectura de monolito modular sobre infraestructura cloud, con aplicaciones w
 
 **Logo institucional**
 
-**\[COMPLETAR POR EL EQUIPO — insertar aquí el logo institucional de LOGYX (imagen), una vez definido por el equipo.\]**
+**\[COMPLETAR POR EL EQUIPO — insertar aquí el logo institucional de OnCargo (imagen), una vez definido por el equipo.\]**
 

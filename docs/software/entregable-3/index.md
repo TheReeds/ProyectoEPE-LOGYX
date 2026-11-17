@@ -6,8 +6,8 @@ Este entregable corresponde a la implementación del sistema de software, integr
 
 ## Contenido
 
-- [**Sistema Implementado**](sistema.md) — Funcionalidad, integración, APIs, despliegue
-- [**Arquitectura Frontend**](arquitectura-frontend.md) — Estructura Angular, componentes, estado
+- [**Sistema Implementado**](sistema.md) — Funcionalidad, integración (OpenAPI, SSE), APIs, servicios externos, despliegue
+- [**Arquitectura Frontend**](arquitectura-frontend.md) — Web Astro + islas React, Android Compose, sistema de diseño y capturas reales
 
 ## Rúbrica Nivel 3 — CE023 (EPE)
 

@@ -7,8 +7,8 @@ Este entregable corresponde a la validación, automatización, evaluación técn
 ## Contenido
 
 - [**Backlog y Sprints**](backlog.md) — Historias de usuario, casos de uso, evidencia de sprints
-- [**Plan de Pruebas**](plan-pruebas.md) — Pruebas unitarias e integración, cobertura
-- [**CI/CD**](cicd.md) — Pipeline de build, test y deploy
+- [**Plan de Pruebas**](plan-pruebas.md) — Suite real: JUnit (182), Playwright + axe (85), Android (173)
+- [**CI/CD**](cicd.md) — Cinco workflows de GitHub Actions y chequeo de contrato
 - [**Auditoría y Evolución**](auditoria.md) — Informe de auditoría técnica y plan de mejora
 
 ## Rúbrica Nivel 3 — CE024 (EPE)

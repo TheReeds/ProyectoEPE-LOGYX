@@ -1,8 +1,11 @@
 # E1 — Documento de Arquitectura del Sistema
 > Estándar: IEEE 42010 + Modelo C4  · Competencia CE0213  
-> Proyecto: LOGYX — Sistema Operativo Logístico Colaborativo para PYMEs  
+> Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Versión: 1.0 · Junio 2026
+> Versión: 2.0 (alineada con el sistema construido) · Noviembre 2026 · Versión original 1.0, junio 2026
+
+!!! info "Cómo leer este documento"
+    La v1.0 describía el diseño previo a la construcción (Angular, tres apps Flutter, Quarkus reactivo, Redis). Esta v2.0 documenta la arquitectura **real**, que evolucionó durante el desarrollo mediante siete ADR. Las diferencias y su justificación están resumidas en [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md). La fuente primaria de las decisiones son los ADR del repositorio del sistema (`docs/adr/0001` a `0007`), resumidos aquí.
 
 ---
 
@@ -10,359 +13,360 @@
 
 | Campo | Detalle |
 |-------|---------|
-| **Estilo arquitectónico** | Monolito Modular → Microservicios (evolución planificada) |
-| **Estándar de documentación** | IEEE 42010 + Modelo C4 |
-| **Backend** | Quarkus 3.x (Java 21) |
-| **Frontend Web** | Angular 18+ |
-| **Mobile** | Flutter 3.x (3 apps) |
-| **Base de datos** | PostgreSQL 16 |
-| **Infraestructura** | Docker + Docker Compose (dev) · Cloud (prod) |
+| **Estilo arquitectónico** | Monolito modular con arquitectura hexagonal (puertos y adaptadores) por módulo; organización por feature en los clientes |
+| **Estándar de documentación** | IEEE 42010 (vistas y puntos de vista) + Modelo C4 |
+| **Backend** | Quarkus 3.40 · Java 21 · estilo bloqueante (JAX-RS + Hibernate ORM Panache) · Flyway · JWT RSA |
+| **Web** | Astro 7 (SSR, adapter Node) · Tailwind 4 · islas React + primitivas shadcn/ui · MapLibre GL (teselas OpenFreeMap) |
+| **Móvil** | Una app Android nativa: Kotlin · Jetpack Compose · Material 3 · Ktor · Koin · MapLibre. iOS (SwiftUI) planificado |
+| **Base de datos** | PostgreSQL 16 con Row-Level Security; dos usuarios de conexión (`logyx_api` / `logyx_owner`) |
+| **Archivos** | Cloudflare R2 en producción (API compatible con S3, adaptador `S3DocumentStorage`); MinIO en staging local; disco local en dev y test |
+| **Contrato** | `docs/api/openapi.yaml` generado por el backend: fuente de verdad de web y Android |
+| **Infraestructura** | Producción en un **VPS Hostinger KVM 2** (Brasil) con Docker Compose y Caddy (HTTPS automático); Cloudflare (DNS/CDN/WAF) para `oncargo.tech`; Docker multi-stage + `infra/docker-compose.yml` (PostgreSQL, backend, web; MinIO solo en staging local); CI en GitHub Actions |
+
+### 1.1 Partes interesadas y preocupaciones (IEEE 42010)
+
+| Parte interesada | Preocupaciones principales | Vistas que las atienden |
+|---|---|---|
+| PYME / transportista / conductor | Usabilidad por rol, tiempo real, confiabilidad del seguimiento | Contenedores (§4.2), flujo principal (§5) |
+| Operador OnCargo | Visibilidad de SLA e incidencias, asignación manual | Componentes (§4.3) |
+| Equipo de desarrollo | Mantenibilidad, módulos descubribles, contrato único | Estructura de módulos (§6), ADR-0002 |
+| Jurado / auditoría | Seguridad de datos, Ley N° 29733, trazabilidad | Seguridad (§8), multitenancy (§3.2) |
+| Operación | Despliegue reproducible, backups, observabilidad | Despliegue (§7) |
 
 ---
 
-## 2. Decisiones Arquitectónicas Clave (ADR)
+## 2. Decisiones Arquitectónicas Clave (evolución real)
 
-### ADR-01 — Monolito Modular como punto de partida
+El documento original definía cinco ADR (ADR-01 a ADR-05). Durante la construcción se tomaron ocho decisiones numeradas que los **reemplazan o precisan**. Cada una está en `docs/adr/` del repositorio del sistema.
 
-**Contexto:** El equipo tiene 8 meses y 3 desarrolladores. Un sistema de microservicios desde el inicio implicaría overhead de infraestructura que consumiría tiempo de desarrollo del producto.
+| ADR | Decisión | Relación con el diseño inicial |
+|---|---|---|
+| **0001** | Aislamiento por organización (una BD, un esquema, filas *org-scoped*) con doble barrera: filtros por JWT + RLS de PostgreSQL. **Multitenancy completo evaluado y descartado** | Nuevo (el diseño inicial no trataba el aislamiento de datos; la nota "RLS no implementado" quedó superada) |
+| **0002** | Monolito modular + hexagonal por módulo (`domain` / `application` / `infrastructure`); carpeta por feature en los clientes | Precisa ADR-01 (monolito modular) y reemplaza el estilo reactivo de ADR-02 por uno bloqueante y testeable |
+| **0003** | Web en Astro SSR; móvil nativo Kotlin (luego Swift) con una sola app por roles | Reemplaza ADR-03 (tres apps Flutter) y las restricciones RT02 (Angular) y RT03 (Flutter) |
+| **0004** | Eventos de dominio CDI, notificaciones in-app y escrituras acotadas del operador con RLS | Nuevo; sustituye al `notification-module` acoplado y a Redis Pub/Sub |
+| **0005** | Documentos tras un puerto `DocumentStorage` (disco local, luego S3-compatible: MinIO en staging local, Cloudflare R2 en producción), validación por firma binaria, descarga solo vía API | Concreta el uso de MinIO previsto |
+| **0006** | Producción con mínimo privilegio (`logyx_api` vs `logyx_owner`), outbox transaccional, almacenamiento S3 | Nuevo; resuelve riesgos abiertos de ADR-0001, 0004 y 0005 |
+| **0007** | Tiempo real por SSE alimentado por el outbox (`realtime_events`, `LISTEN/NOTIFY`) | Reemplaza el chat WebSocket + Redis Pub/Sub del diseño inicial |
+| **0008** | Rutas y distancias por carretera: precálculo OSM/OSRM versionado (módulo `routing`, backend implementado: `pricing`, `trip` y `GET /api/v1/routes`; faltan los mapas) y motor propio como paso siguiente; mapas con MapLibre + OpenFreeMap | Reemplaza OpenRouteService (ADR-05); `pricing` y `trip` ya usan los km por carretera; solo faltan los mapas de web y Android |
 
-**Decisión:** Iniciar con un monolito modular en Quarkus. Cada módulo tiene su propio paquete Java con interfaces públicas bien definidas. Los módulos se comunican internamente sin llamadas de red.
+Se mantienen del diseño original: **PostgreSQL como base única** (ADR-04) y la intención de **monolito modular migrable** (ADR-01). **OpenRouteService (ADR-05)** fue reemplazado por el ADR-0008: `pricing` obtiene la distancia de un `RoadDistanceProvider` sobre el módulo `routing`, tras el mismo puerto `DistanceProvider` (el antiguo `HaversineDistanceProvider` se retiró).
 
-**Consecuencia:** Despliegue simple (un contenedor), desarrollo ágil. Cuando el volumen lo justifique, los módulos de mayor carga (Pricing Engine, Matching Engine) se extraen como servicios independientes sin reescribir la lógica de dominio.
+### ADR-0001 — Aislamiento por organización (resumen)
 
----
+Ver la sección dedicada [§3.2 Evaluación de multitenancy](#32-evaluacion-de-multitenancy).
 
-### ADR-02 — Quarkus como framework backend
+### ADR-0002 — Monolito modular hexagonal
 
-**Contexto:** Se necesita un framework enterprise-grade con soporte para reactive programming, bajo footprint de memoria, y ecosistema robusto para futuros microservicios.
+Un solo desplegable Quarkus; dentro, un paquete por capacidad de negocio con capas `domain` (Java puro: entidades, value objects y políticas con nombre como `PriceFloorPolicy` = RN03), `application` (casos de uso, `@Transactional`) e `infrastructure` (JPA/Panache, recursos JAX-RS, jobs y clientes). Las dependencias apuntan hacia el dominio y un módulo usa a otro **solo a través de su `application`**; `ModuleBoundariesTest` lo verifica en cada build. *Alternativas descartadas:* Clean Architecture con capas globales (dispersa cada feature) y microservicios desde el inicio (costo operativo injustificado para 3 personas).
 
-**Decisión:** Quarkus con MutinyIO (reactive), Panache (ORM), RESTEasy Reactive (REST API) y Quarkus Scheduler (jobs).
+### ADR-0003 — Astro y Kotlin
 
-**Consecuencia:** Compilación nativa con GraalVM disponible para producción. Curva de aprendizaje mayor que Spring Boot, pero superior en alineación con la visión enterprise del sistema.
+La web usa Astro 7 en SSR: las páginas se renderizan en servidor, el JWT vive en una cookie `httpOnly` y **solo el servidor de Astro habla con la API**; la interactividad se limita a islas React. En móvil se construyó **una app Android** con navegación por rol (transportista, PYME, conductor); el operador usa solo la web. `core:model` y `core:network` son Kotlin puro para convertirse en Kotlin Multiplatform cuando se haga la app SwiftUI.
 
----
+### ADR-0004 — Eventos de dominio y notificaciones
 
-### ADR-03 — Tres aplicaciones Flutter independientes
+Cada módulo publica *records* inmutables (`BidPlaced`, `BidAccepted`, `MessagePosted`, `ShipmentStatusChanged`, `IncidentReported`, `ReviewSubmitted`, …) y los consumidores (`NotificationObservers`, `ReputationRecalculator`) reaccionan sin acoplar a los publicadores. Las notificaciones se insertan en una transacción de sistema porque `notifications` **no tiene política de INSERT** para `logyx_app`; así ningún usuario puede fabricar avisos para otra organización. La asignación manual del operador (RN10) corre **con RLS** mediante políticas acotadas a `app_org_type() = 'OPERATOR'`.
 
-**Contexto:** Los actores del sistema tienen necesidades radicalmente distintas. Mezclar el panel de la PYME con la app del conductor genera interfaces confusas y flujos innecesariamente complejos.
+### ADR-0005 — Documentos
 
-**Decisión:** Tres apps Flutter separadas que comparten un paquete de dominio compartido:
-- **LOGYX Business:** PYME + Empresa Transportista
-- **LOGYX Driver:** Conductor (solo ejecución de ruta)
-- **LOGYX Operator:** Panel del Operador (versión mobile)
+Puerto `DocumentStorage` con adaptadores local y S3. La clave del archivo la genera el servidor; el formato se valida por **firma binaria** (JPG/PNG/PDF, máx. 10 MB), se guarda el SHA-256 y la descarga pasa por la API (autorización = RLS de `documents`). Completar una entrega exige una foto `DELIVERY_PHOTO` previa.
 
-**Consecuencia:** Mayor trabajo de Flutter, pero UX limpia y enfocada por rol.
+### ADR-0006 — Producción: mínimo privilegio y outbox
 
----
+La aplicación se conecta como `logyx_api` (LOGIN, miembro solo de `logyx_app`, sin dueño ni `BYPASSRLS`); Flyway y `SystemTx` usan un datasource separado con `logyx_owner`. Una transacción sin JWT y fuera de `SystemTx` **no ve ninguna fila** (fail-closed). El **outbox transaccional** (`outbox_events`, V11) garantiza entrega al menos una vez de avisos y recálculos, con despacho inmediato, job de respaldo, `FOR UPDATE SKIP LOCKED` y reintentos exponenciales hasta `FAILED`.
 
-### ADR-04 — PostgreSQL como base de datos única
+### ADR-0007 — Tiempo real por SSE
 
-**Contexto:** El sistema tiene entidades relacionales complejas (envíos, paradas, ofertas, negociaciones) y necesita integridad referencial fuerte.
-
-**Decisión:** PostgreSQL 16 con extensión PostGIS para soporte geoespacial. Redis para caché de sesiones y pub/sub de notificaciones en tiempo real.
-
-**Consecuencia:** Sin base de datos NoSQL adicional en el MVP. Si analytics crece, se evalúa añadir una base columnar (TimescaleDB o ClickHouse) en Fase 2.
-
----
-
-### ADR-05 — OpenRouteService para cálculo de rutas
-
-**Contexto:** El sistema necesita distancias y rutas reales por carretera (no distancia en línea recta) para el motor de costos y el mapa de tracking.
-
-**Decisión:** OpenRouteService (ORS) en su tier gratuito (~2,000 req/día). La API key vive solo en el backend (nunca en el cliente).
-
-**Consecuencia:** Sin costo en el MVP. Migración a Google Maps Distance Matrix si se requiere mayor precisión o volumen en producción.
+`GET /api/v1/events/stream` entrega avisos con payload mínimo; una proyección `realtime_events` (V12) guarda **una fila por destinatario** y un trigger `pg_notify` permite el fan-out entre réplicas. La reanudación con `Last-Event-ID` corre bajo RLS. Los clientes tratan los eventos como avisos para refrescar por REST y conservan un polling lento de respaldo.
 
 ---
 
-## 3. Modelo C4
+## 3. Evaluación de multitenancy y decisión de aislamiento
+
+### 3.1 Cuestión evaluada
+
+Al diseñar la seguridad de datos se evaluó si OnCargo debía ser un sistema **multitenant** (SaaS clásico: BD por tenant, esquema por tenant o discriminador `@TenantId` de Hibernate).
+
+### 3.2 Evaluación de multitenancy
+
+| Opción | Cómo aísla | Veredicto para OnCargo |
+|---|---|---|
+| BD por tenant | Una base por organización | Descartada: el flujo central cruza organizaciones; imposible consultar el marketplace; costo operativo alto |
+| Esquema por tenant | Un esquema por organización | Descartada: mismas razones; migraciones N veces; consultas entre esquemas |
+| Discriminador `@TenantId` (Hibernate) | Filtro automático por columna | Descartada: asume que un tenant nunca ve datos de otro; el marketplace necesita visibilidad cruzada controlada |
+| **Una BD y un esquema con datos *org-scoped* + RLS** | Cada fila privada lleva su organización; filtros en aplicación y políticas RLS en PostgreSQL | **Elegida (ADR-0001)** |
+
+**Justificación.** OnCargo es un **marketplace**: una PYME publica, varios transportistas ofertan y uno ejecuta. Los datos *deben* cruzarse entre organizaciones de forma controlada (solicitudes `PUBLISHED`, perfil público, reputación), mientras que la flota, los usuarios, las ofertas ajenas y los envíos permanecen privados. Ese patrón de "visibilidad parcial por fila" lo expresan mejor las políticas RLS que un aislamiento por tenant.
+
+**Decisión implementada:**
+
+1. Cada fila privada lleva su organización dueña (`organization_id`, `requester_org_id`, `carrier_org_id`); donde hace falta se **denormaliza** (p. ej. `bids.requester_org_id`, `shipments.vehicle_plate`) para que las políticas no consulten otras tablas protegidas y no haya recursión.
+2. **Primera barrera (aplicación):** la organización actual sale del JWT (`TenantContext`) y el cliente nunca envía `organizationId`.
+3. **Segunda barrera (PostgreSQL):** al iniciar cada transacción de usuario, `TenantSessionBinder` ejecuta `set_config('app.org_id', …, true)` y `SET LOCAL ROLE logyx_app`. Si el código olvida un `WHERE`, la BD igual filtra (`RowLevelSecurityTest`).
+4. **Mínimo privilegio (ADR-0006):** la conexión es `logyx_api`, que no puede escalar privilegios (`DatabasePrivilegesTest`). Lo que corre sin usuario (login, registro, jobs, outbox) entra explícitamente por `SystemTx`, comentado en cada uso.
+
+**Riesgo residual documentado:** con una inyección SQL dentro de una transacción de usuario, `set_config('app.org_id', …)` podría suplantar a otra organización; se mitiga con consultas parametrizadas (JPA) y se plantea a futuro firmar el contexto (HMAC en el GUC).
+
+**Reevaluación:** si OnCargo se vendiera como SaaS de marca blanca a cooperativas, se reevaluaría un esquema por cooperativa.
+
+---
+
+## 4. Modelo C4
 
 ### Nivel 1 — Diagrama de Contexto del Sistema
 
 ```mermaid
-C4Context
-  title LOGYX — Contexto del Sistema
+graph TD
+  PYME["PYME<br/>publica cargas, compara ofertas, rastrea"]
+  CAR["Transportista<br/>oferta, publica viajes, administra flota"]
+  DRV["Conductor<br/>ejecuta paradas y sube evidencia"]
+  OPE["Operador OnCargo<br/>SLA, incidencias, asignación manual"]
 
-  Person(pyme, "PYME", "Empresa que necesita contratar transporte de carga")
-  Person(carrier, "Empresa Transportista", "Empresa con flota que oferta servicios de transporte")
-  Person(driver, "Conductor", "Ejecuta físicamente la ruta asignada")
-  Person(operator, "Operador LOGYX", "Supervisor interno del marketplace")
+  OnCargo["Sistema OnCargo<br/>marketplace B2B de fletes"]
 
-  System(logyx, "LOGYX", "Plataforma digital B2B de logística colaborativa. Marketplace, subastas, tracking, reputación.")
+  OSM["OpenFreeMap / MapLibre<br/>teselas de mapa"]
+  S3[("Cloudflare R2 (API S3)<br/>documentos y evidencia")]
+  SUNAT["SUNAT<br/>(pendiente)"]
+  ORS["Motor de rutas propio<br/>(ADR-0008, fase posterior)"]
+  MAIL["Email / push<br/>(pendiente)"]
 
-  System_Ext(sunat, "SUNAT API", "Validación de RUC de empresas")
-  System_Ext(ors, "OpenRouteService", "Cálculo de distancias y rutas reales por carretera")
-  System_Ext(email, "Servicio de Email (SMTP)", "Envío de notificaciones por correo electrónico")
-  System_Ext(google, "Google OAuth", "Autenticación con cuenta Google")
-
-  Rel(pyme, logyx, "Publica cargas, ve subastas, negocia, hace tracking", "HTTPS")
-  Rel(carrier, logyx, "Oferta en subastas, publica viajes, gestiona flota", "HTTPS")
-  Rel(driver, logyx, "Ve ruta asignada, actualiza estados, sube evidencias", "HTTPS")
-  Rel(operator, logyx, "Supervisa operaciones, asigna carriers, gestiona incidencias", "HTTPS")
-
-  Rel(logyx, sunat, "Valida RUC en el registro", "HTTPS/REST")
-  Rel(logyx, ors, "Consulta distancia y ruta real", "HTTPS/REST")
-  Rel(logyx, email, "Envía notificaciones", "SMTP")
-  Rel(logyx, google, "Autentica usuarios con OAuth", "HTTPS/OAuth2")
+  PYME --> OnCargo
+  CAR --> OnCargo
+  DRV --> OnCargo
+  OPE --> OnCargo
+  OnCargo --> OSM
+  OnCargo --> S3
+  OnCargo -.-> SUNAT
+  OnCargo -.-> ORS
+  OnCargo -.-> MAIL
 ```
 
----
+Las líneas punteadas son integraciones **diseñadas pero aún no implementadas** (SUNAT, motor de rutas propio para direcciones arbitrarias, email/push). Las distancias entre ciudades del catálogo vendrán de un precálculo OSM/OSRM versionado en el repositorio (ADR-0008, implementado en el módulo `routing`, ya conectado a `pricing` y `trip`).
 
 ### Nivel 2 — Diagrama de Contenedores
 
 ```mermaid
-C4Container
-  title LOGYX — Contenedores del Sistema
+graph TD
+  subgraph Clientes
+    BRW["Navegador<br/>HTML SSR + islas React + MapLibre"]
+    AND["App Android<br/>Kotlin · Compose · Ktor · Koin"]
+  end
 
-  Person(pyme, "PYME / Transportista", "Usuario web y mobile")
-  Person(driver, "Conductor", "Solo app Driver")
-  Person(operator, "Operador", "Web y app Operator")
+  subgraph "Servidor"
+    WEB["Web Astro SSR (Node)<br/>sesión en cookie httpOnly<br/>proxy /eventos y /documentos"]
+    API["API Quarkus (Java 21)<br/>monolito modular hexagonal<br/>OpenAPI /api/v1"]
+    DB[("PostgreSQL 16<br/>RLS · Flyway V1-V12<br/>outbox + realtime_events")]
+    OBJ[("Cloudflare R2<br/>bucket privado (API S3)")]
+  end
 
-  Container(web, "LOGYX Web", "Angular 18+", "SPA web para PYME, Transportista y Operador. Consume API REST.")
-  Container(mobile_biz, "LOGYX Business", "Flutter", "App mobile para PYME y Transportista")
-  Container(mobile_driver, "LOGYX Driver", "Flutter", "App simplificada del conductor")
-  Container(mobile_op, "LOGYX Operator", "Flutter", "Panel de operador en mobile")
-
-  Container(api, "LOGYX API", "Quarkus 3 · Java 21", "Monolito modular. Expone REST API. Contiene todos los módulos de negocio.")
-  ContainerDb(db, "Base de Datos", "PostgreSQL 16 + PostGIS", "Datos relacionales. Toda la persistencia del sistema.")
-  Container(cache, "Caché / Pub-Sub", "Redis 7", "Sesiones, rate limiting, notificaciones en tiempo real.")
-
-  System_Ext(sunat, "SUNAT API", "Validación RUC")
-  System_Ext(ors, "OpenRouteService", "Rutas y distancias")
-  System_Ext(email, "Email Service", "Notificaciones")
-
-  Rel(pyme, web, "Usa", "HTTPS")
-  Rel(pyme, mobile_biz, "Usa", "HTTPS")
-  Rel(driver, mobile_driver, "Usa", "HTTPS")
-  Rel(operator, web, "Usa", "HTTPS")
-  Rel(operator, mobile_op, "Usa", "HTTPS")
-
-  Rel(web, api, "REST API calls", "HTTPS/JSON")
-  Rel(mobile_biz, api, "REST API calls", "HTTPS/JSON")
-  Rel(mobile_driver, api, "REST API calls", "HTTPS/JSON")
-  Rel(mobile_op, api, "REST API calls", "HTTPS/JSON")
-
-  Rel(api, db, "Leer / Escribir", "JDBC / Panache")
-  Rel(api, cache, "Caché de sesiones / pub-sub RT", "Redis Protocol")
-  Rel(api, sunat, "Validar RUC", "HTTPS/REST")
-  Rel(api, ors, "Calcular ruta y distancia", "HTTPS/REST")
-  Rel(api, email, "Enviar notificaciones", "SMTP")
+  BRW -->|HTTPS| WEB
+  WEB -->|"REST + Bearer JWT<br/>API_URL"| API
+  AND -->|"REST + SSE + Bearer JWT"| API
+  API -->|"logyx_api (RLS)"| DB
+  API -->|"logyx_owner (Flyway, SystemTx)"| DB
+  API -->|"AWS SDK v2 (API S3)"| OBJ
+  API -. "LISTEN/NOTIFY" .-> DB
 ```
 
----
+| Contenedor | Tecnología | Responsabilidad |
+|---|---|---|
+| Web | Astro 7 SSR (Node), React islands | Renderiza páginas por rol; el JWT nunca llega al JS del navegador; actúa de proxy del stream SSE (`/eventos`) y de las descargas (`/documentos/[id]`) |
+| API | Quarkus 3.40 | Reglas de negocio, contrato OpenAPI, RLS, outbox, SSE |
+| Base de datos | PostgreSQL 16 | Datos org-scoped, RLS, outbox, proyección de tiempo real |
+| Objetos | Cloudflare R2 (S3-compatible) | Documentos y evidencia; descarga solo mediante la API |
+| Android | Kotlin + Compose | Transportista, PYME y conductor; SSE en primer plano |
 
-### Nivel 3 — Diagrama de Componentes (Quarkus API)
-
-```mermaid
-C4Component
-  title LOGYX API — Componentes internos (Monolito Modular)
-
-  Container_Boundary(api, "LOGYX API — Quarkus") {
-    Component(auth, "auth-module", "Quarkus Security + JWT", "Registro, login, OAuth, validación RUC, RBAC")
-    Component(shipment, "shipment-module", "Panache + RESTEasy", "Solicitudes de carga, estados, tracking multi-parada")
-    Component(auction, "auction-module", "Quarkus Scheduler", "Subastas inversas, bids, cierre automático, price floor")
-    Component(trip, "trip-module", "Panache + RESTEasy", "Viajes publicados por transportistas, reservas de espacio")
-    Component(negotiation, "negotiation-module", "WebSocket + Redis Pub/Sub", "Chat por solicitud+carrier, contra-ofertas")
-    Component(pricing, "pricing-module", "ORS client + reglas", "Motor de costos, precio sugerido, price floor")
-    Component(routing, "routing-module", "ORS client + algoritmos", "Smart Load Planner, matching de retornos, ETA")
-    Component(matching, "matching-module", "Score engine", "Ranking y filtrado de cargas por perfil de transportista")
-    Component(reputation, "reputation-module", "Bayesian scoring", "Trust Score, reviews, badges")
-    Component(fleet, "carrier-module", "Panache", "Flota, vehículos, conductores, capacidad en tiempo real")
-    Component(notification, "notification-module", "Redis Pub/Sub + Email", "Notificaciones in-app y email")
-    Component(documents, "documents-module", "MinIO/S3 client", "Upload/download de documentos logísticos")
-    Component(incident, "incident-module", "Panache", "Incidencias, hilos de comentarios, resolución")
-    Component(analytics, "analytics-module", "SQL views", "Dashboards de PYME, Carrier y Operador")
-  }
-
-  ContainerDb(db, "PostgreSQL 16", "Base de datos principal")
-  Container(cache, "Redis 7", "Caché / Pub-Sub")
-
-  Rel(auth, db, "users, organizations, profiles")
-  Rel(shipment, db, "shipment_requests, shipments, shipment_stops")
-  Rel(auction, db, "auctions, bids")
-  Rel(trip, db, "carrier_trips, trip_bookings")
-  Rel(negotiation, db, "messages, counter_offers")
-  Rel(negotiation, cache, "Pub/Sub para chat en tiempo real")
-  Rel(pricing, db, "pricing_snapshots, cost_calculations")
-  Rel(routing, db, "shipment_stops, carrier_trips")
-  Rel(reputation, db, "reviews, reputation_scores")
-  Rel(fleet, db, "vehicles, drivers")
-  Rel(notification, db, "notifications")
-  Rel(notification, cache, "Pub/Sub para notificaciones RT")
-  Rel(documents, db, "documents")
-  Rel(incident, db, "incidents, incident_comments")
-  Rel(analytics, db, "Consultas analíticas (read-only)")
-```
-
----
-
-## 4. Flujo de Datos — Flujo Principal (Publicar solicitud → Aceptar oferta)
-
-```mermaid
-sequenceDiagram
-  participant PYME as PYME (Angular/Flutter)
-  participant API as LOGYX API (Quarkus)
-  participant ORS as OpenRouteService
-  participant DB as PostgreSQL
-  participant Redis as Redis Pub/Sub
-  participant Carrier as Transportista (Angular/Flutter)
-
-  PYME->>API: POST /shipments/requests (origen, destino, peso, tipo, fecha)
-  API->>ORS: GET /directions (origen, destino)
-  ORS-->>API: distance_km, duration_min, geometry
-  API->>API: pricing-module: calcular precio sugerido
-  API->>DB: INSERT shipment_request (status=open, suggested_price)
-  API->>DB: INSERT auction (closes_at = now + 20min, max_bids = 5)
-  API->>Redis: PUBLISH "new_request" → transportistas compatibles
-  API-->>PYME: 201 Created {request_id, suggested_price, auction}
-
-  Redis-->>Carrier: Notificación: nueva carga compatible
-  Carrier->>API: GET /marketplace (filtrado por perfil del carrier)
-  API->>API: matching-module: score y ranking de solicitudes
-  API-->>Carrier: Lista rankeada de solicitudes abiertas
-
-  Carrier->>API: POST /auctions/{id}/bids (precio, vehicle_id, notas)
-  API->>API: Validar price floor, validar capacidad disponible
-  API->>DB: INSERT bid (status=pending)
-  API->>Redis: PUBLISH "new_bid" → PYME propietaria
-  Redis-->>PYME: Notificación: nueva oferta recibida
-
-  PYME->>API: POST /bids/{id}/accept
-  API->>DB: UPDATE bid (status=accepted), UPDATE otros bids (status=rejected)
-  API->>DB: INSERT shipment (tracking_code=LGX-XXXXX, status=pending)
-  API->>DB: UPDATE shipment_request (status=matched)
-  API->>Redis: PUBLISH "bid_accepted" → transportista
-  API-->>PYME: 200 OK {shipment_id, tracking_code}
-```
-
----
-
-## 5. Estructura de Módulos del Proyecto
-
-```
-logyx-backend/                    (Quarkus)
-├── src/main/java/com/logyx/
-│   ├── auth/
-│   │   ├── AuthResource.java      ← endpoints REST
-│   │   ├── AuthService.java       ← lógica de negocio
-│   │   ├── JwtUtil.java
-│   │   └── model/                 ← entidades JPA del módulo
-│   ├── shipment/
-│   │   ├── ShipmentResource.java
-│   │   ├── ShipmentService.java
-│   │   ├── AuctionScheduler.java  ← Quarkus Scheduler: cierre automático
-│   │   └── model/
-│   ├── auction/
-│   ├── trip/
-│   ├── negotiation/
-│   ├── pricing/
-│   ├── routing/
-│   ├── matching/
-│   ├── reputation/
-│   ├── carrier/
-│   ├── notification/
-│   ├── documents/
-│   ├── incident/
-│   └── analytics/
-└── src/main/resources/
-    ├── application.properties
-    └── db/migration/              ← Flyway migrations
-
-logyx-web/                        (Angular 18+)
-├── src/app/
-│   ├── core/                     ← guards, interceptors, auth service
-│   ├── shared/                   ← componentes reutilizables
-│   ├── features/
-│   │   ├── auth/
-│   │   ├── marketplace/
-│   │   ├── shipments/
-│   │   ├── fleet/
-│   │   ├── reputation/
-│   │   ├── operator/
-│   │   └── returns/
-│   └── layout/
-
-logyx-mobile/                     (Flutter)
-├── packages/
-│   ├── shared_domain/            ← lógica pura compartida (cálculos, modelos)
-│   ├── logyx_business/           ← app PYME + Transportista
-│   ├── logyx_driver/             ← app Conductor
-│   └── logyx_operator/           ← app Operador
-```
-
----
-
-## 6. Modelo de Despliegue
+### Nivel 3 — Diagrama de Componentes (API Quarkus = módulos hexagonales reales)
 
 ```mermaid
 graph TD
-  subgraph DEV["Desarrollo Local"]
-    DC[Docker Compose]
-    DC --> BE[quarkus-api :8080]
-    DC --> DB[postgres :5432]
-    DC --> RD[redis :6379]
-    DC --> MN[minio :9000]
+  subgraph shared["shared (kernel)"]
+    RESP["respuesta {data, meta} y errores LOGYX-XXX-NNN"]
+    TEN["tenancy: TenantContext, TenantSessionBinder, SystemTx"]
+    OUTB["outbox: OutboxRecorder / OutboxDispatcher"]
+    AUD["auditoría: audit_log"]
   end
 
-  subgraph PROD["Producción — Cloud"]
-    LB[Load Balancer / Nginx]
-    LB --> BE_PROD[quarkus-api · Docker container]
-    BE_PROD --> DB_PROD[PostgreSQL managed · Cloud]
-    BE_PROD --> RD_PROD[Redis managed · Cloud]
-    BE_PROD --> S3[Object Storage · S3/MinIO]
-  end
+  identity --> shared
+  fleet --> identity
+  catalog
+  pricing --> catalog
+  marketplace --> fleet
+  marketplace --> pricing
+  marketplace --> reputation
+  shipment --> marketplace
+  negotiation --> marketplace
+  documents --> shipment
+  reputation --> shipment
+  reputation --> documents
+  incident --> shipment
+  operator --> marketplace
+  operator --> shipment
+  operator --> incident
+  trip --> fleet
+  trip --> marketplace
+  trip --> shipment
+  dashboard --> trip
+  notification -. "@Observes @Outboxed" .-> OUTB
+  realtime -. "@Observes @Outboxed" .-> OUTB
+```
 
-  subgraph CI["CI/CD — GitHub Actions"]
-    GH[GitHub Push] --> LINT[Lint + Tests]
-    LINT --> BUILD[Docker Build]
-    BUILD --> DEPLOY[Deploy to Cloud]
-  end
+| Módulo | Qué hace | Tablas (migración) |
+|---|---|---|
+| `identity` | Registro, login, organizaciones, usuarios, consentimiento Ley 29733 | `organizations`, `profiles` (V1) |
+| `fleet` | Vehículos y conductores | `vehicles`, `drivers` (V1) |
+| `catalog` | Ciudades y tipos de carga (vocabulario compartido) | sin tablas |
+| `pricing` | Motor de costos por reglas, piso RN03, distancia por carretera (`RoadDistanceProvider` → `routing`) | sin tablas |
+| `marketplace` | Solicitudes, subasta inversa, ofertas, aceptación, asignación manual | `shipment_requests`, `auctions`, `bids` (V1, V3, V9) |
+| `shipment` | Envíos, paradas, app del conductor, tracking | `shipments`, `shipment_stops` (V1) |
+| `negotiation` | Chat con RN07 y contraofertas | `messages`, `counter_offers` (V4) |
+| `documents` | Evidencia y documentos del envío | `documents` (V5) |
+| `reputation` | Calificaciones y Trust Score bayesiano | `reviews`, `reputation_scores` (V6) |
+| `incident` | Incidencias y comentarios (RN11) | `incidents`, `incident_comments` (V7) |
+| `notification` | Centro de notificaciones por eventos | `notifications` (V8) |
+| `operator` | Alertas SLA, métricas, asignación manual (RN10) | políticas de escritura (V9) |
+| `trip` | Viajes publicados, reservas, retornos, Smart Load | `carrier_trips`, `trip_bookings`, `smart_load_*` (V10) |
+| `dashboard` | Resumen por rol | sin tablas |
+| `shared/outbox` | Outbox transaccional | `outbox_events` (V11) |
+| `realtime` | Stream SSE, proyección por destinatario | `realtime_events` (V12) |
 
-  subgraph CLIENTS["Clientes"]
-    ANG[Angular SPA · Vercel/Nginx]
-    FL_BIZ[Flutter Business · APK/IPA]
-    FL_DRV[Flutter Driver · APK/IPA]
-    FL_OP[Flutter Operator · APK/IPA]
-  end
+---
 
-  ANG --> LB
-  FL_BIZ --> LB
-  FL_DRV --> LB
-  FL_OP --> LB
+## 5. Flujo de Datos — Flujo Principal
+
+```mermaid
+sequenceDiagram
+  participant P as PYME (web)
+  participant W as Web Astro (SSR)
+  participant A as API Quarkus
+  participant D as PostgreSQL (RLS)
+  participant O as Outbox / SSE
+  participant T as Transportista
+  participant C as Conductor (Android)
+
+  P->>W: Publica solicitud (formulario + cotización en vivo)
+  W->>A: POST /shipment-requests (Bearer JWT)
+  A->>D: INSERT request + auction (org del JWT, RLS)
+  A->>O: BidPlaced / eventos en outbox_events (misma transacción)
+  T->>A: POST /shipment-requests/{id}/bids (RN02, RN03)
+  A->>O: BidPlaced -> notificación + realtime_events
+  O-->>P: SSE "bid.placed" -> la web refresca por REST
+  P->>A: POST /bids/{id}/accept (RN05)
+  A->>D: bid ACCEPTED, resto REJECTED, request MATCHED, shipment + stops
+  T->>A: PUT /shipments/{id}/driver (asigna conductor)
+  C->>A: arrive / complete por parada (RN08, RN11)
+  C->>A: POST /shipments/{id}/documents (foto de entrega, R2/S3)
+  A->>O: ShipmentStatusChanged -> avisos en vivo
+  P->>A: POST /shipments/{id}/reviews (RN06) -> Trust Score (RN09)
+```
+
+El detalle de cada paso con las clases reales está en [Modelado UML](uml.md).
+
+---
+
+## 6. Estructura de Módulos del Proyecto
+
+```
+logyx/                                (monorepo)
+├── backend/                          Quarkus 3.40 · Java 21
+│   └── src/main/java/pe/logyx/
+│       ├── identity/ fleet/ catalog/ pricing/ marketplace/ shipment/
+│       ├── negotiation/ documents/ reputation/ incident/ notification/
+│       ├── operator/ trip/ dashboard/ realtime/ devdata/
+│       │   └── <modulo>/{domain, application, infrastructure}
+│       └── shared/                   respuestas, errores, tenancy/RLS, outbox, auditoría
+│   └── src/main/resources/db/migration/   V1__schema.sql … V12__realtime.sql
+├── web/                              Astro 7 SSR
+│   └── src/{pages, features/<feature>, components/{ui,domain,layout}, lib/{api,session,realtime}, middleware.ts}
+├── android/                          Kotlin · Compose (multi-módulo)
+│   ├── app/                          Activity, navegación por rol, DI (Koin)
+│   ├── core/{model, network, data, designsystem}
+│   └── feature/{auth, loads, requests, shipments, driver, negotiation, reputation, documents, incidents, notifications, trips}
+├── ios/                              SwiftUI (fase posterior; reutilizará core:model/core:network vía KMP)
+├── docs/{api/openapi.yaml, adr/, architecture/, design/, domain/, security.md, STATUS.md}
+├── infra/                            docker-compose.yml, roles de BD, scripts de claves JWT
+└── .github/workflows/                backend, web, android, contract, e2e
 ```
 
 ---
 
-## 7. Seguridad de la Arquitectura
+## 7. Modelo de Despliegue
 
-| Capa | Mecanismo |
-|------|-----------|
-| **Transporte** | HTTPS/TLS 1.3 obligatorio en todos los endpoints |
-| **Autenticación** | JWT (access token 1h, refresh token 7 días) + Google OAuth 2.0 |
-| **Autorización** | RBAC a nivel de endpoint (`@RolesAllowed`) + filtros de datos a nivel de servicio |
-| **Contraseñas** | bcrypt con cost factor 12 |
-| **API Keys externas** | Solo en variables de entorno del servidor, nunca expuestas al cliente |
-| **Datos sensibles** | RUC/DNI parcialmente ofuscados antes del contrato en respuestas de API |
-| **Rate Limiting** | Redis-based rate limiting por IP y por usuario en endpoints de subasta y chat |
-| **CORS** | Orígenes permitidos explícitos (dominio de producción y localhost en dev) |
-| **SQL Injection** | Prevenido por Panache (ORM con parámetros vinculados) |
-| **XSS** | Angular escapa HTML por defecto; CSP headers en el servidor |
+```mermaid
+graph TD
+  subgraph DEV["Desarrollo local"]
+    QD["./mvnw quarkus:dev<br/>Dev Services levanta PostgreSQL"]
+    ND["npm run dev (Astro :4321)"]
+    GR["./gradlew installDebug<br/>emulador -> 10.0.2.2:8080"]
+  end
+
+  subgraph STG["Contenedores: infra/docker-compose.yml"]
+    PG[("db: postgres:16-alpine<br/>init-roles.sh")]
+    MN[("minio: chainguard/minio")]
+    BE["backend: Quarkus JVM, usuario 10001"]
+    WB["web: Astro standalone, usuario node"]
+    WB --> BE
+    BE --> PG
+    BE --> MN
+  end
+
+  subgraph PROD["Producción: VPS Hostinger KVM 2 (Brasil)"]
+    CF["Cloudflare<br/>DNS · CDN · WAF · oncargo.tech"]
+    PX["Caddy<br/>HTTPS automático<br/>sin buffering en SSE"]
+    CF --> PX
+    PX --> WB2["web: Astro SSR"]
+    PX --> BE2["backend: Quarkus<br/>api.oncargo.tech"]
+    WB2 --> BE2
+    BE2 --> PGM[("db: PostgreSQL 16<br/>pgdata")]
+    BE2 --> R2[("Cloudflare R2<br/>documentos y backups")]
+  end
+
+  subgraph CI["CI — GitHub Actions"]
+    GH["push / PR"] --> BT["backend: tests + contrato"]
+    GH --> WT["web: check + build"]
+    GH --> AT["android: assemble + unit tests"]
+    GH --> CT["contract: compatibilidad OpenAPI"]
+    NI["nightly / manual"] --> E2E["e2e: Playwright + axe"]
+  end
+```
+
+Requisitos de despliegue: TLS en el proxy (`COOKIE_SECURE=true` por omisión en prod), `TRUSTED_PROXIES` para el rate limiting por IP, backups diarios de la base hacia R2, y un proxy sin *buffering* ni compresión para `text/event-stream` con timeout de lectura ≥ 60 s. El despliegue de producción es un **único VPS** (sin réplicas por ahora): el backend ya admite varias réplicas, pero la disponibilidad se apoya en reinicio automático y respaldos (detalle y costos en [Diseño de Centro de Datos](../../infraestructura/semestre-1/diseno-datacenter.md)).
 
 ---
 
-## 8. Calidad y Estándar ISO/IEC 25010
+## 8. Seguridad de la Arquitectura
+
+| Capa | Mecanismo implementado |
+|------|-----------|
+| **Transporte** | TLS en el proxy; HSTS 1 año en prod (API siempre, web si llega por https) |
+| **Autenticación** | JWT RSA (`logyx.jwt.ttl=PT8H`), cookie `httpOnly` + `SameSite=Lax` + `Secure` en la web; sin refresh token ni Google OAuth |
+| **Autorización** | RBAC (`@RolesAllowed`: PYME, CARRIER, DRIVER, OPERATOR) + organización solo desde el JWT + **RLS** |
+| **Mínimo privilegio** | `logyx_api` (sin dueño, sin `BYPASSRLS`) frente a `logyx_owner` (solo Flyway y `SystemTx`) |
+| **Contraseñas** | Hash bcrypt (`BcryptPasswordHasher`) |
+| **Rate limiting** | `AuthRateLimits` en memoria: login 50/15 min por IP, bloqueo tras 10 fallos por email, registro 10/15 min por IP (`LOGYX-AUTH-429`); por instancia (Redis no se usa) |
+| **Web** | CSP `default-src 'self'`, `frame-ancestors 'none'`, `checkOrigin` de Astro contra CSRF |
+| **Archivos** | Formato por firma binaria, 10 MB máx., claves generadas por el servidor, bucket privado |
+| **Privacidad** | Consentimiento Ley 29733 obligatorio en el registro, política en `/privacidad`, `audit_log`, logs sin datos personales |
+| **SQL Injection** | JPA con parámetros; `DatabasePrivilegesTest` verifica que `RESET ROLE`, `ALTER`, `DROP POLICY` fallan |
+
+El modelo de amenazas completo (STRIDE) y el checklist de despliegue están en `docs/security.md` del repositorio del sistema.
+
+---
+
+## 9. Calidad y Estándar ISO/IEC 25010
 
 | Característica | Cómo se aborda en la arquitectura |
 |----------------|----------------------------------|
-| **Funcionalidad** | Módulos independientes por dominio de negocio, cobertura de todos los RF |
-| **Rendimiento** | Reactive programming (MutinyIO), índices PostgreSQL, caché Redis |
-| **Compatibilidad** | REST API estándar (JSON), Angular compatible con Chrome/Firefox/Edge, Flutter para Android/iOS |
-| **Usabilidad** | Tres apps separadas por actor (UX enfocada), Angular Material |
-| **Fiabilidad** | Transacciones ACID en PostgreSQL, manejo de errores centralizado |
-| **Seguridad** | JWT + RBAC + HTTPS + bcrypt + rate limiting |
-| **Mantenibilidad** | Monolito modular con límites claros, Flyway para migraciones, código documentado |
-| **Portabilidad** | Docker containers, variables de entorno para configuración, sin vendor lock-in de infraestructura |
+| **Funcionalidad** | Módulos por dominio, RN01–RN12 implementadas como políticas con nombre y probadas |
+| **Rendimiento** | Índices parciales y compuestos, pools acotados (8 + 20 conexiones por instancia), eventos livianos por SSE; no se midió con pruebas de carga |
+| **Compatibilidad** | REST/JSON con contrato OpenAPI; web verificada en Chromium; Android 10+ |
+| **Usabilidad** | Sistema de diseño propio, modo claro/oscuro, WCAG AA verificado con axe en e2e, una app por rol en móvil |
+| **Fiabilidad** | Transacciones ACID, outbox con reintentos, SSE con reanudación y polling de respaldo |
+| **Seguridad** | RLS + mínimo privilegio + rate limiting + CSP (ver §8) |
+| **Mantenibilidad** | Hexagonal con `ModuleBoundariesTest`, misma forma en todos los módulos, contrato versionado con chequeo de compatibilidad en CI |
+| **Portabilidad** | Contenedores multi-stage, configuración por variables de entorno, almacenamiento intercambiable (local / S3-compatible: R2, MinIO) y despliegue reproducible en cualquier VPS |
 
 ---
 
-*LOGYX · E1 Documento de Arquitectura · IEEE 42010 + C4 · Versión 1.0 · Junio 2026*
+*OnCargo · E1 Documento de Arquitectura · IEEE 42010 + C4 · Versión 2.0 · Noviembre 2026*

@@ -15,9 +15,31 @@
 | Sprint 7   | S13–S14     | Operación: incidencias, panel del operador, consolidación y retornos v1; integración en staging | 3.6 · 3.7        | H4 — MVP integrado en staging   |
 | Sprint 8   | S15–S16     | Endurecimiento y salida: seguridad, datos semilla, producción, demo final                       | 4.2 · 4.3        | H5 — MVP en producción          |
 
-<img src="media/image8.png" style="width:6.45232in;height:3.01837in" />
+```mermaid
+gantt
+    title Diagrama de Gantt de OnCargo (16 semanas, 8 sprints, hitos H1-H5)
+    dateFormat  YYYY-MM-DD
+    axisFormat  %d/%m
+    section Sprints
+    Sprint 1 · Fundaciones              :s1, 2026-08-03, 14d
+    Sprint 2 · Flota y solicitudes      :s2, after s1, 14d
+    Sprint 3 · Marketplace vivo         :s3, after s2, 14d
+    Sprint 4 · Negociación y contrato   :s4, after s3, 14d
+    Sprint 5 · Tracking y conductor     :s5, after s4, 14d
+    Sprint 6 · Confianza documental     :s6, after s5, 14d
+    Sprint 7 · Operación                :s7, after s6, 14d
+    Sprint 8 · Endurecimiento y salida  :s8, after s7, 14d
+    section Hitos
+    H1 arquitectura y base lista        :milestone, after s1, 0d
+    H2 marketplace operativo            :milestone, after s3, 0d
+    H3 tracking extremo a extremo       :milestone, after s5, 0d
+    H4 MVP integrado en staging         :milestone, after s7, 0d
+    H5 MVP en producción                :milestone, after s8, 0d
+```
 
-*Figura 6. Diagrama de Gantt del proyecto LOGYX (16 semanas, 8 sprints, 5 hitos H1–H5).*
+*Figura 6. Diagrama de Gantt del proyecto OnCargo (16 semanas, 8 sprints, 5 hitos H1–H5), reconstruido a partir de la tabla de sprints (inicio 03/08/2026, según la configuración de Azure DevOps).*
 
-Dependencias críticas de la ruta: 2.1 → 2.3 → 2.4 → 2.5 → 3.1 → 3.2 (el flujo transaccional completo). Los paquetes 3.3–3.5 pueden avanzar en paralelo desde el Sprint 5; 3.7 depende de que 2.3 y 2.6 estén estables. El diagrama de Gantt visual se elabora sobre esta tabla manteniendo estos vínculos.
+
+
+Dependencias críticas de la ruta: 2.1 → 2.3 → 2.4 → 2.5 → 3.1 → 3.2 (el flujo transaccional completo). Los paquetes 3.3–3.5 pueden avanzar en paralelo desde el Sprint 5; 3.7 depende de que 2.3 y 2.6 estén estables. El diagrama de Gantt se construye sobre esta tabla manteniendo estos vínculos.
 

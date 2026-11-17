@@ -1,6 +1,11 @@
-# LOGYX — Documentación EPE
+# OnCargo — Documentación EPE
 
-**LOGYX** es una plataforma B2B que conecta PYMEs peruanas del corredor Lima–Sierra Sur (Lima–Arequipa–Juliaca–Puno–Cusco) con transportistas mediante un marketplace de fletes, subasta/negociación de tarifas, motor de costos, tracking y gestión documental y de reputación. La tesis del proyecto: la colaboración entre PYMEs fragmentadas puede replicar el poder de negociación logístico de una gran corporación.
+<p align="center" markdown>
+![Logotipo de OnCargo](assets/img/OnCargo-web-fondo-claro.png#only-light){ width="320" }
+![Logotipo de OnCargo](assets/img/OnCargo-web-fondo-oscuro.png#only-dark){ width="320" }
+</p>
+
+**OnCargo** (antes LOGYX) es una plataforma B2B que conecta PYMEs peruanas del corredor Lima–Sierra Sur (Lima–Arequipa–Juliaca–Puno–Cusco) con transportistas mediante un marketplace de fletes, subasta/negociación de tarifas, motor de costos, tracking y gestión documental y de reputación. La tesis del proyecto: la colaboración entre PYMEs fragmentadas puede replicar el poder de negociación logístico de una gran corporación.
 
 Este sitio reúne la documentación de la **Evaluación del Perfil de Egreso (EPE)**, organizada según las tres áreas evaluadas del programa de Ingeniería de Sistemas de la Universidad Peruana Unión.
 
@@ -14,7 +19,7 @@ Este sitio reúne la documentación de la **Evaluación del Perfil de Egreso (EP
 
 - :material-laptop-account: **[Área de Software](software/index.md)**
 
-    Entregables E1–E5. Especificación (SRS, prototipos, arquitectura, UML), base de datos, sistema implementado (Quarkus + Angular), validación (pruebas, CI/CD, backlog, auditoría) y sustentación.
+    Entregables E1–E5. Especificación (SRS, prototipos, arquitectura, UML), base de datos con RLS, sistema implementado (Quarkus, Astro y Android/Kotlin), validación (pruebas, CI/CD, backlog, auditoría) y sustentación. Incluye [los cambios respecto al diseño inicial](software/cambios-diseno-inicial.md).
 
     Competencias: CE021–CE024, CE0217
 
@@ -31,6 +36,21 @@ Este sitio reúne la documentación de la **Evaluación del Perfil de Egreso (EP
     Competencias: C1–C3
 
 </div>
+
+## Stack del sistema implementado
+
+| Capa | Tecnología |
+|---|---|
+| Backend | Quarkus 3.40 · Java 21 · arquitectura hexagonal modular |
+| Web | Astro 7 (SSR) · islas React · Tailwind 4 · shadcn/ui · MapLibre |
+| Móvil | Android nativo: Kotlin · Jetpack Compose (iOS/SwiftUI planificado) |
+| Datos | PostgreSQL 16 con Row-Level Security (organizaciones aisladas en una BD compartida) · Flyway · documentos en Cloudflare R2 (S3-compatible) |
+| Tiempo real | SSE sobre outbox transaccional |
+| Mapas | MapLibre + OpenFreeMap; rutas por carretera en el backend, mapas pendientes ([ADR-0008](software/cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger)) |
+| Despliegue | VPS Hostinger KVM 2 (Brasil) · Docker Compose · Caddy (HTTPS automático) · Cloudflare (DNS/CDN, dominio `oncargo.tech`) · GitHub Actions |
+
+!!! note "Diseño inicial vs. sistema real"
+    El diseño original del EPE (Angular, Flutter, Redis, WebSocket, despliegue en AWS) evolucionó durante la construcción. Ver [Cambios respecto al diseño inicial](software/cambios-diseno-inicial.md), que incluye el **rebrand a OnCargo** y la **migración de la infraestructura de AWS a un VPS Hostinger**.
 
 ## Recursos
 

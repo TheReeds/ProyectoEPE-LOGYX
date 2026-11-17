@@ -1,5 +1,5 @@
 # E3 — Plan de Gestión del Proyecto
-> Competencia: CE0121–CE0125 · Proyecto: LOGYX
+> Competencia: CE0121–CE0125 · Proyecto: OnCargo
 
 ## Nota Metodológica
 

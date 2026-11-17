@@ -1,12 +1,12 @@
-# 4.6 Complemento Metodológico: Toolkit Lean Six Sigma aplicado a LOGYX
+# 4.6 Complemento Metodológico: Toolkit Lean Six Sigma aplicado a OnCargo
 
-Como refuerzo metodológico de la gestión de procesos, el proyecto de mejora AS-IS/TO-BE de LOGYX se desarrolla adicionalmente con el conjunto completo de herramientas de Lean Six Sigma utilizado por el equipo en el curso de Gestión de Procesos (ciclo 8): 5W2H, diagrama de Swimlane, diagrama de Ishikawa, árboles causales por categoría, diagrama de Pareto, sesión de brainstorming, plan de acción y plan de control. A diferencia de una síntesis tabular, cada herramienta se desarrolla aquí en su propio apartado, con introducción metodológica, desarrollo aplicado al caso real de LOGYX, el diagrama o espacio correspondiente, y su interpretación.
+Como refuerzo metodológico de la gestión de procesos, el proyecto de mejora AS-IS/TO-BE de OnCargo se desarrolla adicionalmente con el conjunto completo de herramientas de Lean Six Sigma utilizado por el equipo en el curso de Gestión de Procesos (ciclo 8): 5W2H, diagrama de Swimlane, diagrama de Ishikawa, árboles causales por categoría, diagrama de Pareto, sesión de brainstorming, plan de acción y plan de control. A diferencia de una síntesis tabular, cada herramienta se desarrolla aquí en su propio apartado, con introducción metodológica, desarrollo aplicado al caso real de OnCargo, el diagrama o espacio correspondiente, y su interpretación.
 
 ## 4.6.1 Herramienta 5W2H
 
 Introducción metodológica: el 5W2H es un instrumento de definición de problema que responde siete preguntas estructuradas (Qué, Dónde, Cuándo, Quién, Por qué, Cómo, Cuánto) para delimitar con precisión el alcance de un proyecto de mejora antes de diseñar la solución. Se utiliza típicamente en la fase de Antecedentes del formato A3 o en la fase Define de DMAIC.
 
-| **Elemento**      | **Respuesta aplicada a LOGYX**                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Elemento**      | **Respuesta aplicada a OnCargo**                                                                                                                                                                                                                                                                                                                                                                                  |
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | What (Qué)        | Dificultad estructural de las PYMEs del corredor Lima–Sierra Sur para contratar transporte de carga a un precio justo y con trazabilidad, debido a la coordinación informal (WhatsApp, llamadas, Excel) y a la ausencia de un sistema de información logística compartido entre los actores del ecosistema.                                                                                                     |
 | Where (Dónde)     | En el corredor logístico Lima–Arequipa–Juliaca–Puno–Cusco, en la interacción entre PYMEs manufactureras/comerciales, transportistas independientes y empresas de transporte medianas.                                                                                                                                                                                                                           |
@@ -49,7 +49,7 @@ Introducción metodológica: el diagrama de Swimlane (carriles funcionales) desc
 
 **\[COMPLETAR POR EL EQUIPO — insertar aquí la captura de pantalla del diagrama de Swimlane elaborado en Bizagi Modeler, mostrando los 4 carriles (PYME-Gerente, Intermediario, PYME-Almacén/Transportista, PYME-Administración) con los 12 pasos de la tabla anterior y su clasificación VA/NVA/NNVA codificada por color.\]**
 
-Interpretación: solo el 54.1% del tiempo total del proceso es de Valor Agregado, y ese porcentaje está dominado por el tiempo de traslado físico (que no puede eliminarse). De los pasos controlables por diseño de proceso, el 19.5% del tiempo corresponde a NVA puro (búsqueda de camión e intermediación, pasos 4 y 5) —exactamente el tramo que LOGYX elimina mediante el marketplace digital—, mientras que el 26.4% restante (NNVA) corresponde a coordinación y registro que LOGYX no elimina pero sí automatiza y acelera (de 6.1 horas acumuladas a minutos).
+Interpretación: solo el 54.1% del tiempo total del proceso es de Valor Agregado, y ese porcentaje está dominado por el tiempo de traslado físico (que no puede eliminarse). De los pasos controlables por diseño de proceso, el 19.5% del tiempo corresponde a NVA puro (búsqueda de camión e intermediación, pasos 4 y 5) —exactamente el tramo que OnCargo elimina mediante el marketplace digital—, mientras que el 26.4% restante (NNVA) corresponde a coordinación y registro que OnCargo no elimina pero sí automatiza y acelera (de 6.1 horas acumuladas a minutos).
 
 ## 4.6.3 Diagrama de Ishikawa (causa–efecto): desarrollo ampliado
 
@@ -66,11 +66,15 @@ Introducción metodológica: el diagrama de Ishikawa (espina de pescado) organiz
 | Mercado (estructura)    | La oferta de transporte está atómicamente fragmentada (transportistas de 1 a 5 unidades) sin mecanismo de agregación de demanda ni de consolidación de cargas compatibles. Los intermediarios informales capturan margen sin aportar tecnología, y la demanda de las PYMEs, también fragmentada, carece de poder de compra colectivo frente a esta oferta dispersa.                 |
 | Entorno                 | La infraestructura vial del corredor es estructuralmente vulnerable (puntaje de infraestructura 2.5/5 en el LPI 2023), lo que introduce variabilidad e imprevisibilidad en los tiempos de tránsito, mientras que la débil fiscalización del sector transporte perpetúa la informalidad de los actores (transportistas sin verificación de licencias ni SOAT vigente).               |
 
-<img src="media/image5.png" style="width:4.84688in;height:3.21986in" />
+!!! warning "Figura no disponible en el repositorio"
+    La imagen original de esta figura (diagrama de Ishikawa; las causas por categoría están en los árboles causales de 4.6.4) no se conserva en este repositorio; la información equivalente está en el texto y las tablas de esta sección. La versión gráfica se encuentra en el entregable PDF/DOCX publicado en el Drive del proyecto (ver la portada del sitio).
 
-*Figura 1. Diagrama de Ishikawa — causas del sobrecosto e imprevisibilidad logística de LOGYX, elaborado por el equipo a partir del análisis de la sección 4.6.3.*
 
-Interpretación: de las seis categorías, tres (Método, Información, Tecnología) son directamente resolubles mediante una solución TIC —son, de hecho, exactamente los tres pilares funcionales de LOGYX (proceso de subasta estructurado, motor de precios de referencia, y plataforma digital con trazabilidad). La categoría Personas se mitiga indirectamente al externalizar la coordinación del conocimiento tácito del gerente hacia un sistema. Las categorías Mercado y Entorno son estructurales del sector y no se resuelven por completo con tecnología, pero LOGYX actúa sobre Mercado mediante el mecanismo de consolidación de demanda y oferta.
+
+
+*Figura 1. Diagrama de Ishikawa — causas del sobrecosto e imprevisibilidad logística de OnCargo, elaborado por el equipo a partir del análisis de la sección 4.6.3.*
+
+Interpretación: de las seis categorías, tres (Método, Información, Tecnología) son directamente resolubles mediante una solución TIC —son, de hecho, exactamente los tres pilares funcionales de OnCargo (proceso de subasta estructurado, motor de precios de referencia, y plataforma digital con trazabilidad). La categoría Personas se mitiga indirectamente al externalizar la coordinación del conocimiento tácito del gerente hacia un sistema. Las categorías Mercado y Entorno son estructurales del sector y no se resuelven por completo con tecnología, pero OnCargo actúa sobre Mercado mediante el mecanismo de consolidación de demanda y oferta.
 
 ## 4.6.4 Árboles Causales por Categoría
 
@@ -86,7 +90,7 @@ Introducción metodológica: mientras que el Ishikawa identifica categorías amp
 | ¿Por qué? (3)             | Porque el conocimiento de “qué transportista es confiable” y “cuánto debería costar una ruta” ha sido siempre tácito, acumulado en la experiencia personal del gerente, nunca documentado. |
 | ¿Por qué? (4, causa raíz) | Porque no ha existido, hasta ahora, una herramienta accesible que capture y comparta ese conocimiento tácito de forma estructurada entre cualquier PYME del corredor.                      |
 
-Causa raíz: ausencia de un mecanismo que externalice y comparta el conocimiento tácito de confiabilidad y precios que hoy vive únicamente en la memoria del gerente. Solución asociada en LOGYX: el módulo de reputación verificable y el motor de precios de referencia convierten ese conocimiento tácito individual en un activo digital compartido por todo el ecosistema.
+Causa raíz: ausencia de un mecanismo que externalice y comparta el conocimiento tácito de confiabilidad y precios que hoy vive únicamente en la memoria del gerente. Solución asociada en OnCargo: el módulo de reputación verificable y el motor de precios de referencia convierten ese conocimiento tácito individual en un activo digital compartido por todo el ecosistema.
 
 **4.6.4.2 Árbol Causal — Planta (Infraestructura Tecnológica)**
 
@@ -100,7 +104,7 @@ Causa raíz: ausencia de un mecanismo que externalice y comparta el conocimiento
 | ¿Por qué? (3)             | Porque las soluciones enterprise existentes (SAP TM y similares) están diseñadas y valorizadas para grandes corporaciones, fuera del alcance económico y de complejidad operativa de una PYME.                    |
 | ¿Por qué? (4, causa raíz) | Porque no existía, hasta el desarrollo de este proyecto, una solución diseñada específicamente para el perfil de costo, escala y nivel de informalidad de las PYMEs y transportistas independientes del corredor. |
 
-Causa raíz: vacío de mercado —ausencia de una solución tecnológica diseñada para el segmento PYME/transportista independiente del corredor, a diferencia de las soluciones enterprise existentes. Solución asociada en LOGYX: arquitectura de monolito modular de bajo costo operativo (documentación técnica de la solución), con comisión escalonada 2%–8% accesible a la escala de la PYME.
+Causa raíz: vacío de mercado —ausencia de una solución tecnológica diseñada para el segmento PYME/transportista independiente del corredor, a diferencia de las soluciones enterprise existentes. Solución asociada en OnCargo: arquitectura de monolito modular de bajo costo operativo (documentación técnica de la solución), con comisión escalonada 2%–8% accesible a la escala de la PYME.
 
 **4.6.4.3 Árbol Causal — Procedimiento**
 
@@ -112,7 +116,7 @@ Causa raíz: vacío de mercado —ausencia de una solución tecnológica diseña
 | ¿Por qué? (3)             | Porque no existe una autoridad o estándar sectorial (gremial o tecnológico) que haya propuesto y difundido un procedimiento común de contratación para el segmento informal del transporte de carga.                                                    |
 | ¿Por qué? (4, causa raíz) | Porque la fragmentación de la oferta (miles de transportistas independientes sin organización gremial fuerte) impide que emerja orgánicamente un estándar de procedimiento sin un actor articulador que lo proponga y lo haga cumplir tecnológicamente. |
 
-Causa raíz: ausencia de un actor articulador que defina y haga cumplir un procedimiento estándar de contratación en un mercado estructuralmente fragmentado. Solución asociada en LOGYX: el flujo TO-BE (sección 4.3) impone un procedimiento único y obligatorio —publicación, subasta, aceptación, ejecución con evidencia— para todos los actores que operan en la plataforma, actuando LOGYX como el articulador tecnológico que el mercado no había producido por sí solo.
+Causa raíz: ausencia de un actor articulador que defina y haga cumplir un procedimiento estándar de contratación en un mercado estructuralmente fragmentado. Solución asociada en OnCargo: el flujo TO-BE (sección 4.3) impone un procedimiento único y obligatorio —publicación, subasta, aceptación, ejecución con evidencia— para todos los actores que operan en la plataforma, actuando OnCargo como el articulador tecnológico que el mercado no había producido por sí solo.
 
 ## 4.6.5 Diagrama de Pareto
 
@@ -136,9 +140,20 @@ Introducción metodológica: el diagrama de Pareto ordena las causas identificad
 | 12     | Infraestructura vial vulnerable del corredor                                | 4               | 4.6%            | 96.6%           |
 | 13     | Informalidad y débil fiscalización del sector transporte                    | 3               | 3.4%            | 100.0%          |
 
-<img src="media/image6.png" style="width:4.84688in;height:2.75295in" />
+```mermaid
+xychart-beta
+    title "Pareto de causas raíz (peso y % acumulado)"
+    x-axis [C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13]
+    y-axis "Peso (1-10) / % acumulado" 0 --> 100
+    bar [10, 9, 9, 8, 8, 7, 7, 6, 6, 5, 5, 4, 3]
+    line [11.5, 21.8, 32.2, 41.4, 50.6, 58.6, 66.7, 73.6, 80.5, 86.2, 92.0, 96.6, 100]
+```
 
-*Figura 2. Diagrama de Pareto — causas raíz del problema logístico de LOGYX ordenadas por peso, con línea de porcentaje acumulado y corte de la regla 80/20.*
+*Reconstrucción del diagrama a partir de la tabla anterior (la imagen original no se conserva): barras = peso de cada causa (C1–C13 según la columna #); línea = % acumulado; la regla 80/20 se cumple en la causa 9 (80.5%).*
+
+
+
+*Figura 2. Diagrama de Pareto — causas raíz del problema logístico de OnCargo ordenadas por peso, con línea de porcentaje acumulado y corte de la regla 80/20.*
 
 Interpretación (regla 80/20): las primeras 9 causas (de 13 totales) concentran el 80.5% del peso acumulado. Estas 9 causas —en orden— corresponden mayoritariamente a las categorías Tecnología, Método e Información del Ishikawa, confirmando cuantitativamente que la solución debe priorizar: (1) un sistema de información logística del dominio, (2) un mecanismo de matching que reemplace la búsqueda manual, (3) un motor de precios de referencia, (4) un sistema de reputación verificable, y (5) trazabilidad digital de extremo a extremo. Estas cinco prioridades coinciden exactamente con los cinco Factores Críticos de Éxito definidos en el Entregable 1 (sección 1.2.8), validando la coherencia del diagnóstico con el análisis cuantitativo de causas.
 
@@ -191,7 +206,7 @@ Interpretación: las ideas de la categoría Tecnología/Producto atacan directam
 
 ## 4.6.7 Plan de Acción
 
-Introducción metodológica: el plan de acción traduce las ideas priorizadas del brainstorming en compromisos concretos y verificables: qué se hará, quién es el responsable, cuándo se completará y cómo se logrará, alineado con el cronograma de sprints del Entregable 2.
+Introducción metodológica: el plan de acción traduce las ideas priorizadas del brainstorming en compromisos concretos y verificables: qué se hará, quién es el responsable, cuándo se completará y cómo se logrará, alineado con el cronograma de sprints del Entregable 3 (sección 3.3).
 
 | **\#** | **Oportunidad (¿por qué?)**                                                            | **Acción (¿qué?)**                                                                                           | **Responsable**                      | **Fecha objetivo**              |
 |--------|----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------|---------------------------------|
@@ -204,7 +219,7 @@ Introducción metodológica: el plan de acción traduce las ideas priorizadas de
 | 7      | Mitigar la resistencia cultural al cambio (RE1)                                        | Diseñar onboarding asistido y capacitación por rol en video corto                                            | Equipo de producto                   | Semana 8 de operación (Fase F2) |
 | 8      | Verificar el cierre de la brecha de costos prometida                                   | Medir el ahorro real por PYME activa desde el primer mes de piloto y reportarlo en el tablero de indicadores | Líder de proyecto + torre de control | Continuo desde semana 12        |
 
-El plan de acción se articula directamente con el cronograma de 8 sprints (Entregable 2, sección 2.3) y con las fases de implementación de la solución técnica, evitando duplicar planificación: cada acción aquí referencia el sprint o fase donde se ejecuta.
+El plan de acción se articula directamente con el cronograma de 8 sprints (Entregable 3, sección 3.3) y con las fases de implementación de la solución técnica, evitando duplicar planificación: cada acción aquí referencia el sprint o fase donde se ejecuta.
 
 ## 4.6.8 Plan de Control y Seguimiento
 
@@ -219,7 +234,7 @@ Introducción metodológica: el plan de control define cómo se sostendrá la me
 | Ahorro por PYME activa             | Brecha de costo cerrada (pp sobre ventas)        | Salida             | Tendencia hacia el cierre de ~5 pp                                 | Cálculo automático: precio de referencia histórico vs. precio pagado | Mensual, reportado por la torre de control |
 | Retorno de transportistas          | % de rutas con carga de retorno aceptada         | Salida             | Tendencia creciente sobre la línea base regional (40–45% en vacío) | Registro de aceptación de sugerencias del módulo de retornos         | Mensual                                    |
 
-Responsable del plan de control: la torre de control (Operador LOGYX), con revisión mensual consolidada por el líder de proyecto y presentación de resultados en la retrospectiva de cada fase de implementación de la solución técnica. Cualquier indicador que se desvíe del límite establecido durante dos periodos consecutivos activa una revisión de causa raíz siguiendo el mismo protocolo Ishikawa/árbol causal desarrollado en esta sección.
+Responsable del plan de control: la torre de control (Operador OnCargo), con revisión mensual consolidada por el líder de proyecto y presentación de resultados en la retrospectiva de cada fase de implementación de la solución técnica. Cualquier indicador que se desvíe del límite establecido durante dos periodos consecutivos activa una revisión de causa raíz siguiendo el mismo protocolo Ishikawa/árbol causal desarrollado en esta sección.
 
 ## 4.6.9 Síntesis en Formato A3
 
@@ -228,11 +243,11 @@ Finalmente, el desarrollo completo de las ocho herramientas anteriores se consol
 | **Bloque A3**                            | **Contenido (referencia a la sección desarrollada)**                                         |
 |------------------------------------------|----------------------------------------------------------------------------------------------|
 | 1\. Antecedentes                         | 5W2H completo (sección 4.6.1)                                                                |
-| 2\. Situación actual                     | Proceso AS-IS y Swimlane VA/NVA/NNVA (secciones 3.2 y 3.6.2)                                 |
+| 2\. Situación actual                     | Proceso AS-IS y Swimlane VA/NVA/NNVA (secciones 4.2 y 4.6.2)                                 |
 | 3\. Objetivos SMART                      | OP1–OP6 (Entregable 2, sección 2.2)                                                          |
-| 4\. Análisis de causa raíz               | Ishikawa ampliado + 3 árboles causales + Pareto (secciones 3.6.3–3.6.5)                      |
+| 4\. Análisis de causa raíz               | Ishikawa ampliado + 3 árboles causales + Pareto (secciones 4.6.3–4.6.5)                      |
 | 5\. Propuesta de mejora                  | Proceso TO-BE + brainstorming (secciones 4.3 y 4.6.6)                                        |
-| 6\. Plan de trabajo y recursos           | Plan de acción (sección 4.6.7) + cronograma de sprints (Entregable 2)                        |
+| 6\. Plan de trabajo y recursos           | Plan de acción (sección 4.6.7) + cronograma de sprints (Entregable 3, §3.3)                       |
 | 7\. Plan de control y seguimiento        | Plan de control (sección 4.6.8)                                                              |
 | 8\. Resultados esperados (antes/después) | Comparativo AS-IS/TO-BE (sección 4.5)                                                        |
 | 9\. Ahorros generados (estimado)         | USD 150–1,200 mensuales por PYME (Entregable 2, sección 2.5)                                 |
