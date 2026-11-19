@@ -1,10 +1,13 @@
 # Semestre 1 — Diseño
 
+!!! note "Diseño y realidad"
+    Los tres documentos son el diseño; cada uno abre con un recuadro que resume en qué difiere el despliegue real documentado en el [Semestre 2](../semestre-2/index.md).
+
 Producto final: **Documento Consolidado de Diseño Preliminar**, que integra los tres entregables con introducción general, conclusiones y declaración ética ACM.
 
 ## Entregables
 
-- **[C1.1 — Diseño de Red](diseno-red.md):** levantamiento de requerimientos técnicos/de negocio, topología lógica y física sobre un VPS con Cloudflare, segmentación (redes Docker, firewall, DMZ), redundancia y recuperación
+- **[C1.1 — Diseño de Red](diseno-red.md):** levantamiento de requerimientos técnicos/de negocio, topología lógica y física sobre un VPS (con Cloudflare como borde de diseño, no desplegado), segmentación (redes Docker, firewall, DMZ), redundancia y recuperación
 - **[C2.1 — Planificación de Seguridad](planificacion-seguridad.md):** identificación de activos críticos, análisis de riesgos (ISO 27005 / NIST), políticas de seguridad, roles y responsabilidades
 - **[C3.1 — Diseño de Centro de Datos](diseno-datacenter.md):** arquitectura Tier I–IV (Uptime Institute), layout físico, dimensionamiento de capacidad, virtualización y despliegue en VPS (equivalencia Tier I)
 
