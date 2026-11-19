@@ -3,10 +3,10 @@
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
 > Institución: Universidad Peruana Unión · Ingeniería de Sistemas  
-> Versión: 1.1 (revisada con el sistema implementado) · Noviembre 2026 · Versión original 1.0, junio 2026
+> Versión: 1.2 (revisada con el sistema implementado; RF68–RF90 añadidos el 19-nov-2026) · Noviembre 2026 · Versión original 1.0, junio 2026
 
 !!! info "Estado de la especificación frente al sistema construido"
-    Los requerimientos (RF, RNF, RN) se conservan tal como se especificaron en la v1.0; en la v1.1 cada uno lleva una columna de **estado y módulo de código** que indica si quedó implementado, parcial o fuera del MVP. Resumen: de los 67 RF, **51 están implementados, 13 parciales** y **3 no implementados** (RF06 Google OAuth, RF50 email, RF59 Smart Load en el panel del operador); **RN01–RN12 implementadas en su totalidad**. Las restricciones técnicas RT02 y RT03 cambiaron (Astro y Kotlin/Compose); ver [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md) y los ADR de [Arquitectura](arquitectura.md). La fuente de verdad del estado de cada módulo es `docs/STATUS.md` del repositorio del sistema.
+    Los requerimientos (RF, RNF, RN) se conservan tal como se especificaron en la v1.0; en la v1.1 cada uno lleva una columna de **estado y módulo de código** que indica si quedó implementado, parcial o fuera del MVP. Resumen: de los 67 RF originales, **52 están implementados, 13 parciales** y **2 no implementados** (RF06 Google OAuth, RF59 Smart Load en el panel del operador); En la v1.2, RF55 (estado final al resolver una incidencia) pasó a implementado y RF50 (correo) a parcial: está construido, pero el VPS aún no tiene proveedor SMTP. La v1.2 agrega **23 RF (RF68–RF90)** que surgieron al construir y están implementados (sección 7.1.1); **RN01–RN12 implementadas en su totalidad**. Las restricciones técnicas RT02 y RT03 cambiaron (Astro y Kotlin/Compose); ver [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md) y los ADR de [Arquitectura](arquitectura.md). La fuente de verdad del estado de cada módulo es `docs/STATUS.md` del repositorio del sistema.
 
 ---
 
@@ -19,7 +19,7 @@
 | **Tipo de entregable** | EPE — Evaluación del Perfil de Egreso |
 | **Curso / Línea** | Ingeniería de Software |
 | **Equipo** | Jorge Gutiérrez Miranda, Fabrizio Sanchez Saravia, Alex Coila Jarita |
-| **Versión del documento** | 1.1 (v1.0 de junio 2026 revisada contra el sistema construido) |
+| **Versión del documento** | 1.2 (v1.1 + requerimientos añadidos en la implementación, 19-nov-2026) |
 | **Fecha** | Noviembre 2026 |
 
 ---
@@ -249,14 +249,14 @@ Desarrollar una plataforma digital B2B que conecte PYMEs y empresas transportist
 |----|-------------|-------|---|
 | RF46 | Los participantes de un envío deben poder subir documentos asociados (orden de servicio, guía de remisión, comprobante, evidencia fotográfica) | PYME / Transportista | Implementado · documents · upload multipart jpg/png/pdf ≤ 10 MB (ADR-0005) |
 | RF47 | Los documentos deben estar clasificados por tipo y accesibles solo para los participantes del envío | Sistema | Implementado · RLS de `documents` (partes del envío + operador) |
-| RF48 | La PYME debe poder ver un listado consolidado de todos los documentos de sus envíos | PYME | Parcial · Pestaña de documentos por envío; sin listado consolidado global |
+| RF48 | La PYME debe poder ver un listado consolidado de todos los documentos de sus envíos | PYME | Parcial · documents · la API ya lista todos los documentos de la organización (`GET /documents`); falta la pantalla en web y Android |
 
 #### Módulo NOTIFICATIONS — Notificaciones
 
 | ID | Descripción | Actor | Estado · Módulo (código) |
 |----|-------------|-------|---|
 | RF49 | El sistema debe enviar notificaciones in-app ante los siguientes eventos: nueva oferta recibida, oferta aceptada/rechazada, cambio de estado del envío, nueva calificación, nuevo mensaje en chat, incidencia reportada/resuelta | Sistema | Implementado · notification · ADR-0004 |
-| RF50 | El sistema debe enviar notificaciones por email para eventos críticos: oferta aceptada, envío creado, entrega confirmada | Sistema | No implementado · Email pendiente (el outbox ya lo permite) |
+| RF50 | El sistema debe enviar notificaciones por email para eventos críticos: oferta aceptada, envío creado, entrega confirmada | Sistema | **Parcial** · notification · correo según preferencias (inmediato o resumen diario) construido en V24 (RF71); en el VPS falta configurar el proveedor SMTP |
 | RF51 | La PYME debe poder ver un centro de notificaciones con historial y marcar como leídas | PYME | Implementado · notification · `/notificaciones`, `read-all` |
 
 #### Módulo INCIDENTS — Incidencias y Disputas
@@ -266,7 +266,7 @@ Desarrollar una plataforma digital B2B que conecte PYMEs y empresas transportist
 | RF52 | Cualquier participante de un envío debe poder reportar una incidencia especificando categoría (carga dañada, retraso, extravío, otro) y descripción | PYME / Transportista / Conductor | Implementado · incident · `IncidentService` |
 | RF53 | El sistema debe cambiar automáticamente el estado del envío a "con incidencia" al reportarse una incidencia | Sistema | Parcial · RN11 se implementa como bloqueo de paradas (`hasActiveIncident`); sin estado `ISSUE` del envío |
 | RF54 | Los participantes y el operador deben poder añadir comentarios al hilo de la incidencia | PYME / Transportista / Operador | Implementado · incident · `incident_comments` |
-| RF55 | El operador debe poder resolver la incidencia indicando el estado final del envío (reencauzado, entregado, cancelado) | Operador | Parcial · El operador resuelve, pero no fija el estado final del envío |
+| RF55 | El operador debe poder resolver la incidencia indicando el estado final del envío (reencauzado, entregado, cancelado) | Operador | Implementado · incident · `shipment_outcome` (RESUME, DELIVERED, CANCELLED) al resolver (V13) |
 
 #### Módulo OPERATOR — Panel del Operador
 
@@ -295,6 +295,37 @@ Desarrollar una plataforma digital B2B que conecte PYMEs y empresas transportist
 | RF66 | El transportista debe poder asignar un conductor y vehículo específico a un envío aceptado | Transportista | Implementado · shipment · `AssignDriverUseCase` |
 | RF67 | El sistema debe impedir que un transportista oferte en cargas que superen la capacidad disponible real de sus vehículos activos | Sistema | Implementado · RN02 |
 
+
+#### 7.1.1 Requerimientos añadidos en la implementación (v1.2)
+
+Surgieron de la revisión de producto por roles (17-nov-2026) y se construyeron en las «olas» 1 y 2 (migraciones V14–V24, 16 al 19 de noviembre de 2026). No estaban en la v1.0. La columna de trazabilidad indica migración, ADR y módulo o ruta del código.
+
+| ID | Descripción | Actor | Estado · Trazabilidad |
+|----|-------------|-------|---|
+| RF68 | El usuario debe poder recuperar su contraseña con un enlace de un solo uso, cambiarla y cerrar todas sus sesiones | Todos | Implementado · `identity` · V14 · ADR-0009 |
+| RF69 | El ADMIN de una organización debe poder invitar usuarios y asignarles el rol ADMIN, OPS o VIEWER; un usuario sin permiso puede pedir acceso al ADMIN | ADMIN | Implementado · `identity` · V14–V16 · ADR-0009 |
+| RF70 | Cada persona debe recibir sus propios avisos y elegir por categoría y canal cuáles recibe | Todos | Implementado · `notification`, `activity` · V16 |
+| RF71 | El sistema debe enviar correos según las preferencias de cada persona (inmediato o resumen diario, horario de silencio y baja con enlace firmado) | Sistema | Implementado en el código · V24; en el VPS falta el proveedor SMTP |
+| RF72 | La PYME debe poder guardar direcciones frecuentes y duplicar una solicitud, con aviso si parece un duplicado reciente | PYME | Implementado · `places`, `marketplace` · V17 |
+| RF73 | El usuario debe poder buscar globalmente (Ctrl+K), filtrar y paginar en el servidor y exportar listados a CSV | Todos | Implementado · `search` · V17 |
+| RF74 | Los contactos, ventanas horarias e instrucciones de cada parada deben ser visibles para el transportista solo después de adjudicar (RN07) | Sistema | Implementado · `shipment` · V17, V19 |
+| RF75 | La PYME debe poder compartir un enlace público y revocable para seguir un envío sin iniciar sesión | PYME | Implementado · `shipment` · V19 · ADR-0011 |
+| RF76 | El operador debe poder ajustar parámetros del sistema (comisión, SLA y otros) con historial de cambios | Operador | Implementado · `operator` · V18 · ADR-0010 |
+| RF77 | El sistema debe calcular la comisión sobre el valor de venta y mostrar el precio con IGV desglosado y el neto del transportista | Sistema | Implementado · `pricing` · V18, V20 · ADR-0010 |
+| RF78 | El usuario debe aceptar los términos vigentes al registrarse, al aceptar una invitación y cuando cambia su versión | Todos | Implementado · `identity` · V18, V24 |
+| RF79 | Un visitante debe poder cotizar un envío en la web pública, con límite de peticiones | Visitante | Implementado · `pricing` · V18 |
+| RF80 | La capacidad (RN02) debe validarse por fecha de recojo con la agenda del vehículo; la flota se puede archivar y sus documentos tienen vencimiento | Transportista | Implementado · `fleet` · V20, V22 |
+| RF81 | La PYME debe poder crear plantillas y cargas recurrentes que se publiquen solas | PYME | Implementado · `templates` · V21 · ADR-0013 |
+| RF82 | La PYME debe poder marcar transportistas como preferidos o bloqueados, invitarlos a ofertar y adjudicar a la segunda mejor oferta | PYME | Implementado · `marketplace` · V21 |
+| RF83 | El transportista debe poder guardar búsquedas y recibir alertas de cargas nuevas en sus rutas | Transportista | Implementado · `alerts` · V22 |
+| RF84 | El transportista debe ver su posición en la subasta sin conocer los montos ajenos, mejorar su oferta y consultar el historial de precios por ruta | Transportista | Implementado · `marketplace` · V22 (vista `lane_price_stats`) |
+| RF85 | El transportista debe poder proponer ajustes al envío (peso real, estadía, peajes, maniobras) que la PYME acepta o rechaza, para fijar el precio final | Transportista, PYME | Implementado · `shipment` · V23 · ADR-0012 |
+| RF86 | Las incidencias deben tener severidad, SLA y notas internas del operador | Operador | Implementado · `incident` · V23 |
+| RF87 | El operador debe tener una vista 360 de cada organización, gestionar el cambio de RUC y revisar señales de fraude | Operador | Implementado · `operator` · V23 |
+| RF88 | El sistema debe registrar el cobro de cada envío entregado sin pasarela (factura, pago con número de operación, confirmación, disputa y recordatorios), con los datos de cobro cifrados | PYME, Transportista | Implementado · `settlement` · V24 · ADR-0014 |
+| RF89 | Cada rol debe poder obtener reportes y una liquidación imprimible (sin valor tributario) y exportarlos a CSV | Todos | Implementado · `reports` · V24 · ADR-0014 |
+| RF90 | El operador debe mantener un tarifario versionado y un calendario de feriados y paros que afectan plazos | Operador | Implementado · `operator`, `settlement` · V24 · ADR-0014 |
+
 ---
 
 ### 7.2 Requerimientos No Funcionales
@@ -314,7 +345,7 @@ Desarrollar una plataforma digital B2B que conecte PYMEs y empresas transportist
 | RNF11 | **Mantenibilidad** | El backend debe seguir arquitectura de monolito modular con límites de módulo claros, permitiendo extracción futura a microservicios | Implementado y vigilado por `ModuleBoundariesTest` |
 | RNF12 | **Compatibilidad web** | La aplicación web debe funcionar correctamente en Chrome 120+, Firefox 120+ y Edge 120+ | Implementado: Playwright sobre Chromium; no verificado en Firefox/Edge |
 | RNF13 | **Compatibilidad móvil** | La app mobile debe funcionar en Android 10+ e iOS 16+ | Android 10+ implementado; iOS (SwiftUI) planificado |
-| RNF14 | **Integridad de datos** | La base de datos debe implementar integridad referencial completa con claves foráneas y constraints | Implementado: FKs, `CHECK` y `UNIQUE` en V1–V12 |
+| RNF14 | **Integridad de datos** | La base de datos debe implementar integridad referencial completa con claves foráneas y constraints | Implementado: 178 FKs, 131 `CHECK` y 86 índices únicos en V1–V24 |
 | RNF15 | **Trazabilidad** | Todas las acciones de negocio críticas (aceptar oferta, cambiar estado, resolver incidencia) deben quedar registradas con timestamp y usuario responsable | Implementado: `audit_log` y outbox transaccional |
 | RNF16 | **Disponibilidad offline** | La app del conductor debe mantener en caché la ruta asignada y permitir actualización de estados sin conexión, sincronizando al recuperar conectividad | Parcial: cola persistente de evidencia con reintento automático en Android (`EvidenceRepository`); sin caché offline de la ruta |
 | RNF17 | **Cumplimiento normativo** | El sistema debe exponer una política de privacidad pública y visible en app y web, conforme al Art. 18 de la Ley N° 29733, antes del primer registro de usuario real | Implementado: `/privacidad` en la web |
@@ -357,7 +388,7 @@ Desarrollar una plataforma digital B2B que conecte PYMEs y empresas transportist
 | RT01 | El backend debe implementarse con Quarkus (Java/Kotlin) | **Sin cambio.** Quarkus 3.40, Java 21, estilo bloqueante con arquitectura hexagonal por módulo (ADR-0002) |
 | RT02 | El frontend web debe implementarse con Angular 18+ | **Modificada (ADR-0003):** Astro 7 en modo SSR (adapter Node), Tailwind 4 e islas React con primitivas shadcn/ui |
 | RT03 | Las aplicaciones móviles deben implementarse con Flutter | **Modificada (ADR-0003):** una app Android nativa en Kotlin + Jetpack Compose con navegación por rol; app iOS en SwiftUI **planificada** (fase posterior, reutilizando `core:model`/`core:network` vía KMP) |
-| RT04 | La base de datos debe ser PostgreSQL 16 | **Sin cambio.** Migraciones con Flyway (V1–V12) |
+| RT04 | La base de datos debe ser PostgreSQL 16 | **Sin cambio.** Migraciones con Flyway (V1–V24) |
 | RT05 | El cálculo de distancias y rutas debe usar la API de OpenRouteService | **Modificada (ADR-0008):** precálculo OSM/OSRM versionado en el repositorio (módulo `routing`). Implementado en el backend: `pricing` usa `RoadDistanceProvider` (km por carretera, tras el puerto `DistanceProvider`), `trip` (retornos y Smart Load) usa los mismos km y existe `GET /api/v1/routes`. Pendiente: dibujar la ruta en los mapas de web y Android. OpenRouteService descartado. Mapas con MapLibre GL y teselas OpenFreeMap (sin API key) |
 | RT06 | El sistema debe desplegarse en contenedores Docker | **Sin cambio.** `backend/Dockerfile`, `web/Dockerfile`, `infra/docker-compose.yml` (PostgreSQL, backend, web; MinIO solo en staging local). Destino de producción: **VPS Hostinger KVM 2** con Caddy y Cloudflare, documentos en Cloudflare R2 (sustituye al diseño en AWS; ver [Cambios respecto al diseño inicial](../cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger)) |
 | RT07 | El repositorio debe estar en GitHub con pipeline CI/CD mediante GitHub Actions | **Sin cambio.** Workflows `backend`, `web`, `android`, `contract` y `e2e` |
@@ -409,6 +440,7 @@ Ver [Modelado UML](uml.md) para los diagramas de casos de uso, clases, secuencia
 | RF56–RF60 | `operator` | `features/operator`, `/operador` | (no aplica: el operador usa solo web) |
 | RF61–RF63 | `trip` (`ReturnLoadPolicy`) | `/retornos` | `:feature:trips` |
 | RF64–RF67 | `fleet` | `features/fleet`, `/transportista/flota` | `:feature:shipments` (asignación) |
+| RF68–RF90 | `identity`, `notification`, `activity`, `places`, `search`, `shipment`, `operator`, `pricing`, `fleet`, `templates`, `marketplace`, `alerts`, `incident`, `settlement`, `reports` | Ver la columna de trazabilidad de la sección 7.1.1 | Parcial: publicar, duplicar y documentos de la PYME; avisos y cola offline del conductor |
 
 ---
 
@@ -421,7 +453,8 @@ Ver [Modelado UML](uml.md) para los diagramas de casos de uso, clases, secuencia
 | Entrevistas a PYMEs | Entrevistas a empresas con envíos regulares sobre puntos de dolor logísticos | Pendiente |
 | Revisión de prototipo | Sesión de validación de prototipos Figma con usuarios potenciales | Pendiente |
 | Revisión académica | Validación del SRS con docente / jurado del programa | Pendiente |
+| Revisión interna de producto por roles | Recorrido del sistema como PYME, transportista, conductor, operador y visitante (17-nov-2026); originó RF68–RF90 | Completado (interna; **no reemplaza** la validación con usuarios reales) |
 
 ---
 
-*OnCargo · E1 Especificación de Requerimientos del Sistema · SRS IEEE 29148 · Versión 1.1 · Noviembre 2026*
+*OnCargo · E1 Especificación de Requerimientos del Sistema · SRS IEEE 29148 · Versión 1.2 · Noviembre 2026*

@@ -3,7 +3,7 @@
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
 > Motor: PostgreSQL 16  
-> Versión: 2.0 (alineada con las migraciones V1–V12) · Noviembre 2026 · Versión original 1.0, junio 2026
+> Versión: 2.1 (cifras actualizadas a las migraciones V1–V24; el detalle de tablas corresponde a V1–V12) · Noviembre 2026 · Versión original 1.0, junio 2026
 
 !!! info "Modelo diseñado vs. modelo implementado"
     El modelo de la v1.0 (22 tablas, PostGIS, ENUM nativos, `cost_calculations`, códigos de tracking) se **reemplazó por el modelo real** que crean las migraciones Flyway `V1__schema.sql` a `V12__realtime.sql`: **24 tablas**, sin PostGIS (las ciudades son un vocabulario cerrado y la distancia se calcula en la aplicación), enums como `VARCHAR + CHECK` y columnas **denormalizadas a propósito** para que las políticas RLS no consulten otras tablas protegidas. Los scripts exactos están en [Scripts SQL](scripts.md).
@@ -18,7 +18,7 @@
 | **Paradigma** | Relacional normalizado (3FN) con desnormalizaciones documentadas para RLS y lectura |
 | **Total de tablas** | 24 (más `flyway_schema_history`) |
 | **Extensiones** | Ninguna adicional: `gen_random_uuid()` es nativo desde PostgreSQL 13 |
-| **Herramienta de migración** | Flyway (`quarkus.flyway.migrate-at-start=true`), 12 migraciones versionadas |
+| **Herramienta de migración** | Flyway (`quarkus.flyway.migrate-at-start=true`), 24 migraciones versionadas (57 tablas, 150 políticas RLS) |
 | **Identificadores** | UUID generados por el dominio (`gen_random_uuid()` como valor por omisión); `BIGSERIAL` solo para `audit_log`, `outbox_events.seq` y `realtime_events.seq` |
 | **Enums** | `VARCHAR(n) NOT NULL CHECK (col IN (...))`: agregar un valor es una migración trivial y Hibernate los mapea directo |
 | **Aislamiento** | Row-Level Security activada en las tablas de usuario; ver [Seguridad](seguridad.md) |
@@ -353,7 +353,7 @@ Notación: PK clave primaria, FK clave foránea, UK única, **D** denormalizada.
 | `pricing` | Sin tablas: el precio sugerido y el piso se guardan en `shipment_requests` (`distance_km`, `suggested_price`, `price_floor`) |
 | `shipment` | `shipments`, `shipment_stops` |
 | `reputation` | `reviews`, `reputation_scores` |
-| `documents` | `documents` (archivos en Cloudflare R2 / MinIO, API S3) |
+| `documents` | `documents` (archivos en MinIO, API S3) |
 | `notification` | `notifications` |
 | `incident` | `incidents`, `incident_comments` |
 | `operator` | Sin tablas propias: políticas RLS del rol `OPERATOR` sobre las demás (V9) |

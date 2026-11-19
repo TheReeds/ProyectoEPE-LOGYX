@@ -19,12 +19,12 @@
 | **Tipo de sistema** | Marketplace B2B de fletes con web, app móvil Android y API |
 | **Plataformas** | Web (Astro 7 SSR) · Android nativo (Kotlin + Compose) · iOS (SwiftUI) planificado |
 | **Componentes** | `backend/` (API Quarkus) · `web/` · `android/` · `ios/` (README) · `infra/` · `docs/` |
-| **Backend** | Quarkus 3.40, Java 21, monolito modular hexagonal, 16 módulos |
-| **Base de datos** | PostgreSQL 16 con RLS, 24 tablas, migraciones Flyway V1–V12 |
-| **Contrato** | `docs/api/openapi.yaml` generado por el backend (65 paths, 76 operaciones, 137 schemas a la fecha de esta revisión) |
+| **Backend** | Quarkus 3.40, Java 21, monolito modular hexagonal, 23 módulos de negocio + núcleo `shared` |
+| **Base de datos** | PostgreSQL 16 con RLS, 57 tablas y 150 políticas, migraciones Flyway V1–V24 |
+| **Contrato** | `docs/api/openapi.yaml` generado por el backend (210 rutas, 242 operaciones, 435 schemas al 19-nov-2026) |
 | **Roles** | PYME, Transportista, Conductor, Operador OnCargo (solo web) |
 | **Estado** | Sistema funcional probado de extremo a extremo; despliegue por contenedores verificado localmente |
-| **Dimensión** | ≈ 14,900 líneas Java, ≈ 9,500 de web, ≈ 15,700 de Kotlin (sin pruebas) |
+| **Dimensión** | ≈ 43,100 líneas Java (672 archivos), ≈ 27,600 de web (sin el cliente generado), ≈ 25,400 de Kotlin (sin pruebas) |
 
 ---
 
@@ -375,7 +375,7 @@ Cinco workflows de GitHub Actions (`backend`, `web`, `android`, `contract`, `e2e
 | **E1 SRS** (RF01–RF67) | Cada módulo implementa un rango de RF; el SRS v1.1 indica el estado y el código de cada RF/RN. Ver §3.1 |
 | **E1 Arquitectura** (ADR 0001–0008) | La arquitectura implementada es la documentada en la v2.0: hexagonal modular, Astro, Kotlin, RLS, outbox, SSE |
 | **E1 UML** | Las clases del diagrama de dominio corresponden a los modelos de `*/domain/model` |
-| **E2 Modelo de datos** (24 tablas) | Los repositorios Panache consultan las tablas creadas por V1–V12 |
+| **E2 Modelo de datos** (57 tablas) | Los repositorios Panache consultan las tablas creadas por V1–V24 |
 | **E2 Scripts** | Las migraciones Flyway mostradas en E2 son las que ejecuta el sistema; la lógica de negocio vive en el dominio, no en triggers |
 | **E4** | Pruebas, CI/CD y auditoría documentan la verificación de este sistema |
 

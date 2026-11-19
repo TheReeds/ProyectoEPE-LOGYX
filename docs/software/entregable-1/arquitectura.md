@@ -19,7 +19,7 @@
 | **Web** | Astro 7 (SSR, adapter Node) · Tailwind 4 · islas React + primitivas shadcn/ui · MapLibre GL (teselas OpenFreeMap) |
 | **Móvil** | Una app Android nativa: Kotlin · Jetpack Compose · Material 3 · Ktor · Koin · MapLibre. iOS (SwiftUI) planificado |
 | **Base de datos** | PostgreSQL 16 con Row-Level Security; dos usuarios de conexión (`logyx_api` / `logyx_owner`) |
-| **Archivos** | Cloudflare R2 en producción (API compatible con S3, adaptador `S3DocumentStorage`); MinIO en staging local; disco local en dev y test |
+| **Archivos** | MinIO en el VPS y en staging local (API compatible con S3, adaptador `S3DocumentStorage`); Cloudflare R2 como opción futura sin cambiar el adaptador; disco local en dev y test |
 | **Contrato** | `docs/api/openapi.yaml` generado por el backend: fuente de verdad de web y Android |
 | **Infraestructura** | Producción en un **VPS Hostinger KVM 2** (Brasil) con Docker Compose y Caddy (HTTPS automático); Cloudflare (DNS/CDN/WAF) para `oncargo.tech`; Docker multi-stage + `infra/docker-compose.yml` (PostgreSQL, backend, web; MinIO solo en staging local); CI en GitHub Actions |
 
@@ -37,7 +37,7 @@
 
 ## 2. Decisiones Arquitectónicas Clave (evolución real)
 
-El documento original definía cinco ADR (ADR-01 a ADR-05). Durante la construcción se tomaron ocho decisiones numeradas que los **reemplazan o precisan**. Cada una está en `docs/adr/` del repositorio del sistema.
+El documento original definía cinco ADR (ADR-01 a ADR-05). Durante la construcción se tomaron catorce decisiones numeradas (ADR-0001 a ADR-0014) que los **reemplazan o precisan**. Cada una está en `docs/adr/` del repositorio del sistema.
 
 | ADR | Decisión | Relación con el diseño inicial |
 |---|---|---|
@@ -45,10 +45,16 @@ El documento original definía cinco ADR (ADR-01 a ADR-05). Durante la construcc
 | **0002** | Monolito modular + hexagonal por módulo (`domain` / `application` / `infrastructure`); carpeta por feature en los clientes | Precisa ADR-01 (monolito modular) y reemplaza el estilo reactivo de ADR-02 por uno bloqueante y testeable |
 | **0003** | Web en Astro SSR; móvil nativo Kotlin (luego Swift) con una sola app por roles | Reemplaza ADR-03 (tres apps Flutter) y las restricciones RT02 (Angular) y RT03 (Flutter) |
 | **0004** | Eventos de dominio CDI, notificaciones in-app y escrituras acotadas del operador con RLS | Nuevo; sustituye al `notification-module` acoplado y a Redis Pub/Sub |
-| **0005** | Documentos tras un puerto `DocumentStorage` (disco local, luego S3-compatible: MinIO en staging local, Cloudflare R2 en producción), validación por firma binaria, descarga solo vía API | Concreta el uso de MinIO previsto |
+| **0005** | Documentos tras un puerto `DocumentStorage` (disco local, luego S3-compatible: MinIO en staging local y hoy también en el VPS; Cloudflare R2 como opción futura), validación por firma binaria, descarga solo vía API | Concreta el uso de MinIO previsto |
 | **0006** | Producción con mínimo privilegio (`logyx_api` vs `logyx_owner`), outbox transaccional, almacenamiento S3 | Nuevo; resuelve riesgos abiertos de ADR-0001, 0004 y 0005 |
 | **0007** | Tiempo real por SSE alimentado por el outbox (`realtime_events`, `LISTEN/NOTIFY`) | Reemplaza el chat WebSocket + Redis Pub/Sub del diseño inicial |
-| **0008** | Rutas y distancias por carretera: precálculo OSM/OSRM versionado (módulo `routing`, backend implementado: `pricing`, `trip` y `GET /api/v1/routes`; faltan los mapas) y motor propio como paso siguiente; mapas con MapLibre + OpenFreeMap | Reemplaza OpenRouteService (ADR-05); `pricing` y `trip` ya usan los km por carretera; solo faltan los mapas de web y Android |
+| **0008** | Rutas y distancias por carretera: precálculo OSM/OSRM versionado (módulo `routing`, backend implementado: `pricing`, `trip` y `GET /api/v1/routes`; desde la fase 2 los mapas web y Android también dibujan la ruta por carretera) y motor propio como paso siguiente; mapas con MapLibre + OpenFreeMap | Reemplaza OpenRouteService (ADR-05); `pricing` y `trip` ya usan los km por carretera; solo faltan los mapas de web y Android |
+| **0009** | Cuentas, sesiones revocables y roles de organización: versión de sesión (`sv`) en el JWT, tokens de un solo uso para recuperar la contraseña, *refresh token* para el móvil y roles ADMIN/OPS/VIEWER aplicados en el backend | Nuevo; el diseño inicial solo tenía login por rol |
+| **0010** | Parámetros de sistema administrables por el operador con historial (comisión, SLA), comisión sobre el valor de venta y términos versionados | Nuevo |
+| **0011** | Enlace público de seguimiento: token aleatorio de 128 bits del que solo se guarda el SHA-256, revocable, con lista blanca de campos y límite de peticiones | Reemplaza el código `LGX-XXXXX` del diseño inicial |
+| **0012** | Ajustes del envío (peso real, estadía, peajes, maniobras): los propone el transportista y los decide la PYME; fijan el precio final | Nuevo |
+| **0013** | Tenant sintético para trabajos programados (cargas recurrentes): el trabajo corre con la identidad de la organización y la RLS sigue activa | Nuevo; evita que un *job* salte la RLS |
+| **0014** | Cobros sin pasarela: un cobro por envío entregado (factura, pago con número de operación, confirmación, disputa), tarifario versionado y documentos internos sin valor tributario | Reemplaza la pasarela con *escrow* del diseño inicial, que queda fuera del MVP |
 
 Se mantienen del diseño original: **PostgreSQL como base única** (ADR-04) y la intención de **monolito modular migrable** (ADR-01). **OpenRouteService (ADR-05)** fue reemplazado por el ADR-0008: `pricing` obtiene la distancia de un `RoadDistanceProvider` sobre el módulo `routing`, tras el mismo puerto `DistanceProvider` (el antiguo `HaversineDistanceProvider` se retiró).
 
@@ -126,7 +132,7 @@ graph TD
   OnCargo["Sistema OnCargo<br/>marketplace B2B de fletes"]
 
   OSM["OpenFreeMap / MapLibre<br/>teselas de mapa"]
-  S3[("Cloudflare R2 (API S3)<br/>documentos y evidencia")]
+  S3[("MinIO en el VPS (API S3)<br/>documentos y evidencia")]
   SUNAT["SUNAT<br/>(pendiente)"]
   ORS["Motor de rutas propio<br/>(ADR-0008, fase posterior)"]
   MAIL["Email / push<br/>(pendiente)"]
@@ -156,8 +162,8 @@ graph TD
   subgraph "Servidor"
     WEB["Web Astro SSR (Node)<br/>sesión en cookie httpOnly<br/>proxy /eventos y /documentos"]
     API["API Quarkus (Java 21)<br/>monolito modular hexagonal<br/>OpenAPI /api/v1"]
-    DB[("PostgreSQL 16<br/>RLS · Flyway V1-V12<br/>outbox + realtime_events")]
-    OBJ[("Cloudflare R2<br/>bucket privado (API S3)")]
+    DB[("PostgreSQL 16<br/>RLS · Flyway V1-V24<br/>outbox + realtime_events")]
+    OBJ[("MinIO<br/>bucket privado (API S3)")]
   end
 
   BRW -->|HTTPS| WEB
@@ -174,7 +180,7 @@ graph TD
 | Web | Astro 7 SSR (Node), React islands | Renderiza páginas por rol; el JWT nunca llega al JS del navegador; actúa de proxy del stream SSE (`/eventos`) y de las descargas (`/documentos/[id]`) |
 | API | Quarkus 3.40 | Reglas de negocio, contrato OpenAPI, RLS, outbox, SSE |
 | Base de datos | PostgreSQL 16 | Datos org-scoped, RLS, outbox, proyección de tiempo real |
-| Objetos | Cloudflare R2 (S3-compatible) | Documentos y evidencia; descarga solo mediante la API |
+| Objetos | MinIO en el VPS (S3-compatible; Cloudflare R2 queda como opción futura) | Documentos y evidencia; descarga solo mediante la API |
 | Android | Kotlin + Compose | Transportista, PYME y conductor; SSE en primer plano |
 
 ### Nivel 3 — Diagrama de Componentes (API Quarkus = módulos hexagonales reales)
@@ -230,6 +236,17 @@ graph TD
 | `dashboard` | Resumen por rol | sin tablas |
 | `shared/outbox` | Outbox transaccional | `outbox_events` (V11) |
 | `realtime` | Stream SSE, proyección por destinatario | `realtime_events` (V12) |
+| `routing` | Distancias y geometría por carretera (precálculo OSM/OSRM) para `pricing`, `trip` y los mapas | sin tablas (datos versionados) |
+| `activity` | Autoría y actividad por persona en cada recurso | columnas de autoría (V16) |
+| `places` | Libreta de direcciones de la organización | `saved_places` (V17) |
+| `search` | Búsqueda global (Ctrl+K) | sin tablas propias |
+| `templates` | Plantillas y cargas recurrentes (tenant sintético, ADR-0013) | `request_templates`, `request_schedules`, `request_schedule_runs` (V21) |
+| `alerts` | Búsquedas guardadas y alertas de carga por ruta | `saved_searches`, `saved_search_alerts` (V22), `org_route_alerts` (V24) |
+| `settlement` | Cobros sin pasarela, recordatorios y datos de cobro cifrados (ADR-0014) | `shipment_settlements`, `settlement_history`, `settlement_notices`, `carrier_payout_accounts`, `commission_collections` (V24) |
+| `reports` | Reportes por rol, liquidación imprimible y CSV | sin tablas propias (lee envíos y cobros) |
+| `devdata` | Datos y cuentas de demostración (solo con `DEMO_DATA=true`) | sin tablas |
+
+**Tablas que las migraciones V13–V24 añadieron a módulos existentes:** `identity`: `password_tokens`, `refresh_tokens` (V14), `terms_acceptances` (V18), `organization_legal_changes` (V23); `notification`: `notification_preferences` (V16), `user_preferences`, `organization_preferences`, `notification_email_queue` (V24); `shared`: `idempotency_keys` (V17); `operator`: `system_parameters`, `system_parameter_history` (V18), `tariff_versions`, `calendar_days` (V24); `shipment`: `shipment_share_links` (V19), `shipment_adjustments` (V23); `marketplace`: `carrier_preferences`, `bid_backups` (V21), `bid_revisions` (V22); `fleet`: `fleet_documents`, `fleet_document_notices` (V22); `incident`: `incident_attachments` (V23). En total, **57 tablas**: 24 hasta V12 y 33 de V13 a V24.
 
 ---
 
@@ -256,7 +273,7 @@ sequenceDiagram
   A->>D: bid ACCEPTED, resto REJECTED, request MATCHED, shipment + stops
   T->>A: PUT /shipments/{id}/driver (asigna conductor)
   C->>A: arrive / complete por parada (RN08, RN11)
-  C->>A: POST /shipments/{id}/documents (foto de entrega, R2/S3)
+  C->>A: POST /shipments/{id}/documents (foto de entrega, MinIO/S3)
   A->>O: ShipmentStatusChanged -> avisos en vivo
   P->>A: POST /shipments/{id}/reviews (RN06) -> Trust Score (RN09)
 ```
@@ -312,14 +329,14 @@ graph TD
   end
 
   subgraph PROD["Producción: VPS Hostinger KVM 2 (Brasil)"]
-    CF["Cloudflare<br/>DNS · CDN · WAF · oncargo.tech"]
+    CF["DNS Hostinger<br/>oncargo.tech · api.oncargo.tech<br/>(Cloudflare: mejora planificada)"]
     PX["Caddy<br/>HTTPS automático<br/>sin buffering en SSE"]
     CF --> PX
     PX --> WB2["web: Astro SSR"]
     PX --> BE2["backend: Quarkus<br/>api.oncargo.tech"]
     WB2 --> BE2
     BE2 --> PGM[("db: PostgreSQL 16<br/>pgdata")]
-    BE2 --> R2[("Cloudflare R2<br/>documentos y backups")]
+    BE2 --> R2[("minio: documentos<br/>(respaldos cifrados en el VPS;<br/>copia en R2 pendiente)")]
   end
 
   subgraph CI["CI — GitHub Actions"]

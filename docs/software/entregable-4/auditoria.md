@@ -16,7 +16,7 @@
 | **Tipo de auditoría** | Auditoría técnica interna del sistema construido (estado al 2026-11-10) |
 | **Estándar de calidad aplicado** | ISO/IEC 25010 (Calidad del producto de software) |
 | **Dimensiones evaluadas** | Funcionalidad · Rendimiento · Seguridad · Mantenibilidad · Portabilidad (+ Usabilidad y Fiabilidad) |
-| **Evidencia** | Código, migraciones V1–V12, contrato OpenAPI, 182 pruebas backend, 85 e2e, 173 pruebas Android, workflows de CI, `docs/STATUS.md`, `docs/security.md` |
+| **Evidencia** | Código, migraciones V1–V24, contrato OpenAPI, 564 pruebas backend, ≈ 252 e2e, ≈ 545 pruebas Android, workflows de CI, `docs/STATUS.md`, `docs/security.md` |
 | **Auditores** | Equipo OnCargo (autoevaluación; la revisión por pares la cubre `ModuleBoundariesTest` y el chequeo de contrato en CI) |
 
 ---
@@ -29,8 +29,8 @@
 |---------------|----------------------|--------|-----------|
 | **Completitud funcional** | RF01–RF67 implementados | **51 completos, 13 parciales, 3 no implementados** (RF06, RF50, RF59) | Columna de estado del [SRS](../entregable-1/srs.md) |
 | **Reglas de negocio** | RN01–RN12 | **12 de 12 implementadas** con política de dominio y prueba | `docs/domain/business-rules.md` |
-| **Corrección** | Salidas correctas ante entradas válidas e inválidas | Verificado: errores de negocio con código `LOGYX-XXX-NNN` y campo (`field`) | 182 pruebas backend, e2e de errores inline |
-| **Coherencia web/móvil** | Mismo contrato, mismo comportamiento | Verificado: ambos clientes consumen el mismo OpenAPI; Android cubre sus flujos con pruebas | `docs/api/openapi.yaml` (65 paths, 76 operaciones, 137 schemas) |
+| **Corrección** | Salidas correctas ante entradas válidas e inválidas | Verificado: errores de negocio con código `LOGYX-XXX-NNN` y campo (`field`) | 564 pruebas backend, e2e de errores inline |
+| **Coherencia web/móvil** | Mismo contrato, mismo comportamiento | Verificado: ambos clientes consumen el mismo OpenAPI; Android cubre sus flujos con pruebas | `docs/api/openapi.yaml` (210 rutas, 242 operaciones, 435 schemas) |
 | **Trazabilidad RF → código** | Cada RF mapea a módulo | Verificado | [SRS §11](../entregable-1/srs.md) |
 
 **Hallazgos de funcionalidad:**
@@ -39,10 +39,10 @@
 |----|---------|-----------|--------|--------|
 | HLZ-101 | Distancia por Haversine × 1.35, no por carretera real: el precio sugerido y el piso RN03 eran aproximados | Media | pricing | **Cerrado en backend (ADR-0008):** `RoadDistanceProvider` usa km por carretera (dataset OSRM precalculado). Residual: ciudades del catálogo solamente (sin direcciones arbitrarias) y mapas web/Android aún sin la ruta |
 | HLZ-102 | Código de tracking `LGX-XXXXX`, ETA y estado `ISSUE` del envío no implementados (RF34, RF35, RF53) | Baja | shipment | Abierto; RN11 cubierto con bloqueo de paradas |
-| HLZ-103 | La resolución de una incidencia no fija el estado final del envío (RF55 parcial) | Media | incident | Abierto |
+| HLZ-103 | La resolución de una incidencia no fija el estado final del envío (RF55 parcial) | Media | incident | **Cerrado (V13):** el operador fija `shipment_outcome` al resolver |
 | HLZ-104 | Trust Score solo bayesiano sobre calificaciones; métricas compuestas RF42/RF43 pendientes | Baja | reputation | Abierto |
-| HLZ-105 | Sin notificaciones por email/push (RF50); las in-app y en vivo funcionan | Media | notification | Abierto; el outbox permite agregarlo sin tocar los casos de uso |
-| HLZ-106 | Sin listado consolidado de documentos (RF48) y sin Smart Load en el panel del operador (RF59) | Baja | documents, operator | Abierto |
+| HLZ-105 | Sin notificaciones por email/push (RF50); las in-app y en vivo funcionan | Media | notification | **Parcial (V24):** correo según preferencias construido; falta el proveedor SMTP en el VPS; push pendiente |
+| HLZ-106 | Sin listado consolidado de documentos (RF48) y sin Smart Load en el panel del operador (RF59) | Baja | documents, operator | **Parcial:** la API del listado consolidado de documentos (RF48) ya existe, falta su pantalla; sigue sin Smart Load en el panel del operador (RF59) |
 
 ### 2.2 Rendimiento y Eficiencia
 
@@ -83,7 +83,7 @@
 
 | Característica | Evidencia |
 |---|---|
-| Modularidad | 16 módulos hexagonales con la misma forma (`domain/application/infrastructure`) |
+| Modularidad | 23 módulos de negocio hexagonales con la misma forma (`domain/application/infrastructure`) |
 | Reutilización y límites | `ModuleBoundariesTest` falla si el dominio importa Quarkus/JPA o si un módulo importa la `infrastructure` de otro |
 | Analizabilidad | Una carpeta por feature en web y Android; guías `AGENTS.md` por componente; ADR numerados |
 | Modificabilidad | Cambios aditivos de contrato con `CHANGELOG`; el comparador de OpenAPI bloquea cambios incompatibles |
@@ -107,16 +107,16 @@
 
 ## 3. Métricas del Sistema
 
-### 3.1 Métricas de calidad de código (al 2026-11-10)
+### 3.1 Métricas de calidad de código (al 2026-11-19, commit `848ba00`)
 
 | Métrica | Valor | Fuente |
 |---------|-------|--------|
-| Líneas Java (backend, `src/main`) / archivos | ≈ 14,900 / 303 | conteo del repositorio |
-| Líneas de pruebas backend | ≈ 4,200 (42 clases, 182 casos) | ídem |
-| Líneas web (TS/TSX/Astro, sin el cliente generado) / líneas e2e | ≈ 9,500 / ≈ 2,100 (85 tests) | ídem |
-| Líneas Kotlin (Android, `src/main`) / pruebas | ≈ 15,700 / ≈ 3,900 (173 tests) | ídem |
-| Migraciones / tablas / políticas RLS | 12 / 24 / 62 | `db/migration` |
-| Contrato | 65 paths, 76 operaciones, 137 schemas | `docs/api/openapi.json` |
+| Líneas Java (backend, `src/main`) / archivos | ≈ 43,100 / 672 (al 10-nov: ≈ 14,900 / 303) | conteo del repositorio |
+| Líneas de pruebas backend | ≈ 15,100 (128 clases, 564 casos) | ídem |
+| Líneas web (TS/TSX/Astro, sin el cliente generado) / líneas e2e | ≈ 27,600 / ≈ 6,900 (≈ 252 tests en 42 specs) | ídem |
+| Líneas Kotlin (Android, `src/main`) / pruebas | ≈ 25,400 / ≈ 10,100 (≈ 545 tests) | ídem |
+| Migraciones / tablas / políticas RLS | 24 / 57 / 150 | `db/migration` aplicado en PostgreSQL 16 |
+| Contrato | 210 rutas, 242 operaciones, 435 schemas | `docs/api/openapi.json` |
 | Cobertura de líneas | No medida | pendiente (JaCoCo) |
 | Cumplimiento de límites hexagonales | 100 % (verificado en cada build) | `ModuleBoundariesTest` |
 

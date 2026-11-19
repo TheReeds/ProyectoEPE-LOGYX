@@ -25,10 +25,10 @@
 
 | Suite | Clases / specs | Casos | Origen del dato |
 |---|---|---|---|
-| Backend (JUnit 5) | 42 clases | **182 casos verdes** (148 métodos `@Test`/`@ParameterizedTest`; las pruebas parametrizadas se expanden) | `docs/STATUS.md` fase 6; conteo del código |
-| Web e2e (Playwright) | 18 specs | **85 tests** (suite completa 85/86 en la corrida de fase 6; el fallo era un test frágil de `incidents.spec.ts`, corregido y re-ejecutado 6/6) incluyendo **axe** en 7 pantallas base + incidencias, reputación, operador, negociación, viajes y modo oscuro | `web/tests/e2e/`, `docs/STATUS.md` |
-| Android unitarias | 17 clases de test | **165 casos** (11 módulos `:feature:*`, `:core:network`, `:core:designsystem`) | conteo del código |
-| Android instrumentadas | 5 clases | **8 tests** (RoleHome ×3, BidFlow, DriverAdvance, Chat, TripsFlow ×2) | `android/app/src/androidTest` |
+| Backend (JUnit 5) | 128 clases | **564 casos sin fallos** (533 métodos `@Test`/`@ParameterizedTest`; las parametrizadas se expanden). Fase 6: 182 casos verdes | Commit `68a4c13` («backend 564 tests sin fallos»); conteo del código |
+| Web e2e (Playwright) | 42 specs (9 de accesibilidad) | **≈ 252 tests** en el código al 19-nov-2026. Fase 6: **85 tests** (suite completa 85/86 en la corrida de fase 6; el fallo era un test frágil de `incidents.spec.ts`, corregido y re-ejecutado 6/6) incluyendo **axe** en 7 pantallas base + incidencias, reputación, operador, negociación, viajes y modo oscuro | `web/tests/e2e/`, `docs/STATUS.md` |
+| Android unitarias | 51 clases de test | **≈ 529 casos** (11 módulos `:feature:*`, `:core:network`, `:core:designsystem`). Fase 6: 165 | conteo del código |
+| Android instrumentadas | 6 clases | **16 tests** (fase 6: 8 — RoleHome ×3, BidFlow, DriverAdvance, Chat, TripsFlow ×2) | `android/app/src/androidTest` |
 | Contrato | 1 script + 1 test | Compatibilidad hacia atrás del OpenAPI | `scripts/` |
 
 ---

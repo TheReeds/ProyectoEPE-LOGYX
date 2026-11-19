@@ -6,7 +6,7 @@
 > Versión: 2.0 (alineada con el código) · Noviembre 2026 · Versión original 1.0, junio 2026
 
 !!! info "Alineación con el sistema construido"
-    Los diagramas de la v1.0 se rehicieron a partir del código del backend (`pe.logyx.*`), de las migraciones Flyway V1–V12 y del contrato OpenAPI. Los nombres de clases, estados y endpoints son los reales. Lo que el diseño inicial planteaba y no se construyó (Google OAuth, ORS, email, código `LGX-XXXXX`, estado de envío `ISSUE`) ya no aparece, o se marca como pendiente.
+    Los diagramas de la v1.0 se rehicieron a partir del código del backend (`pe.logyx.*`), de las migraciones Flyway V1–V12 y del contrato OpenAPI (corte de la fase 6; el sistema llegó luego a V24, con los módulos nuevos descritos en la [Arquitectura](arquitectura.md)). Los nombres de clases, estados y endpoints son los reales. Lo que el diseño inicial planteaba y no se construyó (Google OAuth, ORS, email, código `LGX-XXXXX`, estado de envío `ISSUE`) ya no aparece, o se marca como pendiente.
 
 ---
 
@@ -303,7 +303,7 @@ sequenceDiagram
   participant API as API Quarkus
   participant DB as PostgreSQL (RLS)
   participant OB as Outbox / realtime_events
-  participant S3 as Cloudflare R2 (API S3)
+  participant S3 as MinIO (API S3)
 
   PYME->>API: POST /pricing/calculate (cotización en vivo)
   API-->>PYME: distancia por carretera (RoadDistanceProvider), precio sugerido, piso 75 %

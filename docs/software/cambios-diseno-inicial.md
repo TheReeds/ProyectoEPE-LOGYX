@@ -17,8 +17,8 @@ Los documentos de especificación y diseño del EPE (SRS, Arquitectura, UML, Mod
 | 3 | Aislamiento solo por filtros de aplicación; RLS "no implementado"; modelo de 4 roles de BD | **Aislamiento por organización + RLS implementado**, mínimo privilegio (`logyx_api`/`logyx_owner`/`logyx_app`); multitenancy evaluado y **descartado** | 0001, 0006 | Seguridad BD, Arquitectura §3, SRS RNF21–RNF22 |
 | 4 | Backend **reactivo** (Mutiny, Hibernate Reactive), monolito modular | Monolito modular **bloqueante con arquitectura hexagonal** por módulo, vigilada por `ModuleBoundariesTest` | 0002 | Arquitectura, Sistema |
 | 5 | Chat y notificaciones por **WebSocket + Redis Pub/Sub** | **Outbox transaccional + SSE** (`realtime_events`, `LISTEN/NOTIFY`); sin Redis | 0004, 0006, 0007 | Sistema §4.5, Arquitectura |
-| 6 | Reglas de negocio y auditoría en **triggers y funciones** de BD; PostGIS; ENUM nativos; 22 tablas | Reglas en **políticas de dominio** (Java puro); `VARCHAR + CHECK`; sin PostGIS; **24 tablas** (migraciones V1–V12) | 0002 | Modelo de Datos, Scripts SQL |
-| 7 | Documentos en MinIO con SDK | Puerto `DocumentStorage` con adaptadores local y **S3-compatible** (MinIO en staging local, **Cloudflare R2** en producción); validación por firma binaria | 0005, 0006 | Sistema §6 |
+| 6 | Reglas de negocio y auditoría en **triggers y funciones** de BD; PostGIS; ENUM nativos; 22 tablas | Reglas en **políticas de dominio** (Java puro); `VARCHAR + CHECK`; sin PostGIS; **57 tablas** (migraciones V1–V24; 24 al cierre de la fase 6 con V12) | 0002 | Modelo de Datos, Scripts SQL |
+| 7 | Documentos en MinIO con SDK | Puerto `DocumentStorage` con adaptadores local y **S3-compatible** (MinIO en staging local y en el VPS; **Cloudflare R2** como opción futura); validación por firma binaria | 0005, 0006 | Sistema §6 |
 | 8 | Rutas con **OpenRouteService** (RT05) | **Distancia por carretera** tras el puerto `DistanceProvider` (ADR-0008: precálculo OSM/OSRM versionado, módulo `routing`, `RoadDistanceProvider` en pricing, `GET /api/v1/routes`; ORS descartado); falta dibujar la ruta en los mapas MapLibre + OpenFreeMap | 0008 | SRS RT05, Sistema §6 |
 | 9 | Pruebas con JUnit/Mockito, **Cypress**, flutter_test | JUnit 5 + PostgreSQL real, **Playwright + axe**, pruebas Android | — | Plan de Pruebas |
 | 10 | Un `ci.yml` con deploy a staging | **Cinco workflows** (backend, web, android, contract, e2e) + chequeo de compatibilidad del contrato OpenAPI | — | CI/CD |
@@ -53,7 +53,7 @@ Los documentos de especificación y diseño del EPE (SRS, Arquitectura, UML, Mod
 
 **Motivo.** RLS exige que cada transacción de usuario fije su contexto (`set_config` + `SET LOCAL ROLE`) sobre la misma conexión; con un modelo bloqueante, la transacción por petición es explícita y simple de razonar. La carga esperada del MVP no requiere Mutiny. La arquitectura hexagonal pone las reglas en clases de dominio sin Quarkus ni JPA, probables como unidad, y descubribles: para trabajar en "ofertas" se abre `marketplace/` y nada más.  
 **Alternativas descartadas.** Clean Architecture con capas globales (dispersa cada feature) y microservicios desde el inicio (costo operativo injustificado para 3 personas).  
-**Efecto.** 16 módulos con la misma forma, límites verificados automáticamente y extracción futura sin reescribir el dominio.
+**Efecto.** 23 módulos de negocio (más el núcleo `shared`) con la misma forma, límites verificados automáticamente y extracción futura sin reescribir el dominio.
 
 ### 2.5 WebSocket + Redis → outbox + SSE (ADR-0004, 0006, 0007)
 
@@ -81,7 +81,7 @@ El problema y los actores; las cuatro familias de usuarios; la arquitectura de s
 | [SRS](entregable-1/srs.md) | v1.1: columna de estado/módulo por RF, RNF y RN; RT02/RT03/RT05 actualizadas; RNF21–RNF25 nuevas |
 | [Arquitectura](entregable-1/arquitectura.md) | v2.0: ADR 0001–0007, C4 actualizado, evaluación de multitenancy |
 | [UML](entregable-1/uml.md) | v2.0: diagramas desde el código real |
-| [Modelo de Datos](entregable-2/modelo-datos.md), [Scripts](entregable-2/scripts.md), [Seguridad](entregable-2/seguridad.md) | v2.0: migraciones V1–V12 y RLS implementado |
+| [Modelo de Datos](entregable-2/modelo-datos.md), [Scripts](entregable-2/scripts.md), [Seguridad](entregable-2/seguridad.md) | v2.0: migraciones V1–V12 y RLS implementado; cifras actualizadas a V1–V24 (19-nov-2026) |
 | [Sistema](entregable-3/sistema.md), [Arquitectura Frontend](entregable-3/arquitectura-frontend.md) | v2.0: sistema real con capturas |
 | [Plan de Pruebas](entregable-4/plan-pruebas.md), [CI/CD](entregable-4/cicd.md), [Auditoría](entregable-4/auditoria.md) | v2.0: suite y workflows reales |
 | [Backlog](entregable-4/backlog.md) | v1.1: plan de sprints conservado + sección de trazabilidad |

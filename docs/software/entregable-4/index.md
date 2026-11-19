@@ -7,9 +7,10 @@ Este entregable corresponde a la validación, automatización, evaluación técn
 ## Contenido
 
 - [**Backlog y Sprints**](backlog.md) — Historias de usuario, casos de uso, evidencia de sprints
-- [**Plan de Pruebas**](plan-pruebas.md) — Suite real: JUnit (182), Playwright + axe (85), Android (173)
+- [**Plan de Pruebas**](plan-pruebas.md) — Suite real: JUnit (564 sin fallos), Playwright + axe (≈ 252 en 42 specs), Android (≈ 545)
 - [**CI/CD**](cicd.md) — Cinco workflows de GitHub Actions y chequeo de contrato
 - [**Auditoría y Evolución**](auditoria.md) — Informe de auditoría técnica y plan de mejora
+- [**Gestión del Desarrollo y Calidad**](gestion-calidad.md) — Comparación de marcos (Scrum, Kanban, XP), evolución medida por entrega, matriz ISO 25010, autoevaluación CMMI nivel 2 e indicadores de *code smells*
 
 ## Rúbrica Nivel 3 — CE024 (EPE)
 

@@ -129,7 +129,7 @@ Para mostrar el despliegue por contenedores (sin datos demo): `docker compose -f
 
 ### 4.1 Arquitectura
 
-**Tipo:** Monolito modular con arquitectura hexagonal por módulo (estilo bloqueante). **Justificación:** adecuado para un MVP con equipo de 3 personas; los 16 módulos están desacoplados (el dominio no importa Quarkus/JPA y nadie importa la infraestructura de otro módulo; lo verifica `ModuleBoundariesTest`) y los de mayor carga pueden extraerse a servicios. Ver [Arquitectura](../entregable-1/arquitectura.md) y los ADR 0001–0007.
+**Tipo:** Monolito modular con arquitectura hexagonal por módulo (estilo bloqueante). **Justificación:** adecuado para un MVP con equipo de 3 personas; los 23 módulos de negocio están desacoplados (el dominio no importa Quarkus/JPA y nadie importa la infraestructura de otro módulo; lo verifica `ModuleBoundariesTest`) y los de mayor carga pueden extraerse a servicios. Ver [Arquitectura](../entregable-1/arquitectura.md) y los ADR 0001–0007.
 
 **Componentes principales:**
 
@@ -172,7 +172,7 @@ Para mostrar el despliegue por contenedores (sin datos demo): `docker compose -f
 
 | Área | Control implementado |
 |------|---------------------|
-| **Pruebas** | 182 casos backend (JUnit 5 + PostgreSQL real), 85 e2e Playwright con axe, 165 unitarias + 8 instrumentadas Android. Ver [Plan de Pruebas](../entregable-4/plan-pruebas.md) |
+| **Pruebas** | 564 casos backend sin fallos (JUnit 5 + PostgreSQL real), ≈ 252 e2e Playwright en 42 specs con axe, ≈ 529 unitarias + 16 instrumentadas Android. Ver [Plan de Pruebas](../entregable-4/plan-pruebas.md) |
 | **CI/CD** | GitHub Actions: `backend`, `web`, `android`, `contract` y `e2e` nocturno. Ver [CI/CD](../entregable-4/cicd.md) |
 | **Seguridad** | JWT RSA, bcrypt, RLS + mínimo privilegio, rate limiting, CSP/HSTS, `docs/security.md` |
 | **Auditoría** | `audit_log` inmutable desde la aplicación + outbox. Ver [Auditoría](../entregable-4/auditoria.md) |

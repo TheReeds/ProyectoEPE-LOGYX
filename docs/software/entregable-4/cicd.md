@@ -41,7 +41,7 @@ flowchart LR
 ### 2.1 `backend.yml` — pruebas y contrato generado
 
 - Java 21 (Temurin) con caché Maven; `MAVEN_OPTS=-Xmx2g`.
-- `./mvnw -B test`: 42 clases de prueba (182 casos), incluidas RLS, privilegios, outbox y SSE contra PostgreSQL real (Testcontainers/Dev Services en el runner).
+- `./mvnw -B test`: 128 clases de prueba (564 casos sin fallos en `68a4c13`; 182 al cierre de la fase 6), incluidas RLS, privilegios, outbox y SSE contra PostgreSQL real (Testcontainers/Dev Services en el runner).
 - `./mvnw -B package -DskipTests` regenera `docs/api/openapi.yaml` y `openapi.json`.
 - **`git diff --exit-code docs/api/openapi.yaml docs/api/openapi.json`**: falla si el contrato versionado no coincide con el que genera el build (nadie puede cambiar un endpoint sin actualizar el contrato).
 - Sube `surefire-reports` si hay fallos.

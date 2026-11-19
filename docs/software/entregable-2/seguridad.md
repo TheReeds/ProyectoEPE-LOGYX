@@ -6,7 +6,7 @@
 > Versión: 2.0 (alineada con ADR-0001 y ADR-0006) · Noviembre 2026 · Versión original 1.0, junio 2026
 
 !!! success "Row-Level Security: IMPLEMENTADO"
-    La v1.0 de este documento incluía la nota *"RLS no implementado en el MVP"*. Esa nota **quedó superada**: RLS está implementada y probada desde la migración `V2__row_level_security.sql` (extendida en V4–V12) y el modelo de roles se rehízo con mínimo privilegio real (ADR-0006). Los roles `logyx_analytics`, `logyx_readonly` y `logyx_dba` de la v1.0 eran un diseño que no se construyó; el sistema real usa tres roles. Las secciones de backup, cifrado y ajuste de rendimiento se conservan como **plan operativo de producción** y se marcan como tales.
+    La v1.0 de este documento incluía la nota *"RLS no implementado en el MVP"*. Esa nota **quedó superada**: RLS está implementada y probada desde la migración `V2__row_level_security.sql` (extendida en V4–V24; 150 políticas en 56 tablas) y el modelo de roles se rehízo con mínimo privilegio real (ADR-0006). Los roles `logyx_analytics`, `logyx_readonly` y `logyx_dba` de la v1.0 eran un diseño que no se construyó; el sistema real usa tres roles. Las secciones de backup, cifrado y ajuste de rendimiento se conservan como **plan operativo de producción** y se marcan como tales.
 
 ---
 
@@ -62,7 +62,7 @@ SET LOCAL ROLE logyx_app;
 
 Las funciones `app_org()` y `app_org_type()` leen ese contexto; las políticas (`CREATE POLICY ... TO logyx_app`) deciden por fila. Si el código de aplicación olvida un `WHERE`, la base igual filtra.
 
-**Matriz de visibilidad (resumen de las 62 políticas):**
+**Matriz de visibilidad (resumen de las 62 políticas de V1–V12; hoy son 150 en V1–V24, con el mismo patrón por organización):**
 
 | Tabla | Quién lee | Quién escribe |
 |---|---|---|

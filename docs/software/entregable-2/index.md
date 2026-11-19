@@ -6,7 +6,7 @@ Este entregable corresponde al diseño, implementación y operación de la base 
 
 ## Contenido
 
-- [**Modelo de Datos**](modelo-datos.md) — 24 tablas (V1–V12), diagramas ER, diccionario de datos
+- [**Modelo de Datos**](modelo-datos.md) — 57 tablas (V1–V24; detalle de las 24 de V1–V12), diagramas ER, diccionario de datos
 - [**Scripts SQL**](scripts.md) — Migraciones Flyway reales: DDL, RLS, funciones y trigger
 - [**Seguridad y Administración**](seguridad.md) — Roles de mínimo privilegio, RLS implementado, auditoría, backup y optimización
 

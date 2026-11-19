@@ -3,10 +3,10 @@
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
 > Motor: PostgreSQL 16  
-> Versión: 2.0 (scripts reales V1–V12) · Noviembre 2026 · Versión original 1.0, junio 2026
+> Versión: 2.1 (scripts reales V1–V24; la v2.0 cubría V1–V12) · Noviembre 2026 · Versión original 1.0, junio 2026
 
 !!! info "Scripts reales"
-    Los scripts de la v1.0 (enums nativos, PostGIS, funciones y *triggers* de negocio, semilla SQL) eran un diseño previo. Esta versión muestra los **scripts que ejecuta realmente el sistema**: las doce migraciones Flyway del repositorio (`backend/src/main/resources/db/migration/`), copiadas aquí como *snapshot* en `docs/software/entregable-2/sql/` e incrustadas desde el archivo, de modo que el texto mostrado es el SQL real y no una transcripción. La fuente vigente es siempre el repositorio del sistema.
+    Los scripts de la v1.0 (enums nativos, PostGIS, funciones y *triggers* de negocio, semilla SQL) eran un diseño previo. Esta versión muestra los **scripts que ejecuta realmente el sistema**: las veinticuatro migraciones Flyway del repositorio (V1–V12 se muestran incrustadas abajo; V13–V24 están en la carpeta `sql/`) (`backend/src/main/resources/db/migration/`), copiadas aquí como *snapshot* en `docs/software/entregable-2/sql/` e incrustadas desde el archivo, de modo que el texto mostrado es el SQL real y no una transcripción. La fuente vigente es siempre el repositorio del sistema.
 
 ---
 
@@ -18,7 +18,7 @@
 | `V2__row_level_security.sql` | Rol `logyx_app`, funciones `app_org()`/`app_org_type()`, `GRANT`s, RLS y políticas |
 | `V3__contract_additions.sql` | Denormalización `bids.vehicle_type/vehicle_plate` con *backfill* |
 | `V4__negotiation.sql` | Mensajes y contraofertas |
-| `V5__documents.sql` | Documentos (metadatos; el archivo va a Cloudflare R2 en producción, MinIO en staging local) |
+| `V5__documents.sql` | Documentos (metadatos; el archivo va a MinIO por la API S3, en el VPS y en staging local) |
 | `V6__reputation.sql` | Calificaciones y Trust Score |
 | `V7__incident.sql` | Incidencias y comentarios |
 | `V8__notification.sql` | Notificaciones |
@@ -26,6 +26,18 @@
 | `V10__trip.sql` | Viajes, reservas, Smart Load |
 | `V11__outbox.sql` | Outbox transaccional |
 | `V12__realtime.sql` | Proyección de tiempo real + trigger `NOTIFY` |
+| `V13__flow_gaps.sql` | Huecos de flujo de la revisión del 16-nov: verificación de organizaciones por el operador, retiro de ofertas, cancelación con motivo, estado final del envío al resolver una incidencia (RF55), republicar |
+| `V14__accounts_and_roles.sql` | Tokens de contraseña y *refresh*, versión de sesión, roles ADMIN/OPS/VIEWER (ADR-0009) |
+| `V15__audit_and_bidder_read.sql` | Auditoría paginada del operador y lectura de la posición del ofertante |
+| `V16__per_person_notifications.sql` | Avisos por persona (`app_profile()`), preferencias por categoría y canal, autoría |
+| `V17__request_details_places_search.sql` | Libreta de direcciones, claves de idempotencia, detalle de la solicitud, búsqueda |
+| `V18__system_parameters_commission_terms.sql` | Parámetros del sistema con historial, comisión y aceptación de términos (ADR-0010) |
+| `V19__stop_contacts_tracking_links.sql` | Contactos por parada y enlaces públicos de seguimiento (ADR-0011) |
+| `V20__fleet_hygiene_and_bid_agenda.sql` | Archivado de flota, licencia única y agenda del vehículo para RN02 por fecha |
+| `V21__templates_preferences_backup_offers.sql` | Plantillas y cargas recurrentes, preferidos/bloqueados y segunda oferta (ADR-0013) |
+| `V22__carrier_alerts_fleet_docs_bid_improvement.sql` | Búsquedas guardadas y alertas, documentos de flota con vencimiento, historial de ofertas, vista `lane_price_stats` |
+| `V23__execution_adjustments_incidents_operator360.sql` | Ajustes del envío y precio final (ADR-0012), incidencias v2, cambio de RUC y guardas de integridad |
+| `V24__finance_settings_mail_preferences.sql` | Cobros sin pasarela, tarifario, calendario, cola de correo y preferencias (ADR-0014) |
 | `R__local_roles.sql` | **Solo dev/test:** crea `logyx_api` (en producción lo hace `init-roles.sh`) |
 | `init-roles.sh` | **Producción:** crea `logyx_owner`, `logyx_app`, `logyx_api` y la BD |
 
@@ -130,16 +142,20 @@ El trigger `realtime_events_notify` emite `pg_notify('logyx_realtime', seq)` al 
 
 | Tipo | Cantidad | Detalle |
 |------|----------|---------|
-| **Migraciones** | 12 (+ 1 repetible local) | V1–V12 |
-| **Tablas** | 24 | Ver [Modelo de Datos](modelo-datos.md) |
+| **Migraciones** | 24 (+ 1 repetible local) | V1–V24 |
+| **Tablas** | 57 (56 con RLS activada) | Ver [Modelo de Datos](modelo-datos.md) |
 | **Enums nativos** | 0 | `VARCHAR + CHECK` |
 | **Extensiones** | 0 | `gen_random_uuid()` nativo |
-| **Índices** | 36 (12 únicos o parciales) | `CREATE INDEX` en V1–V12 |
-| **Funciones** | 3 | `app_org()`, `app_org_type()`, `realtime_events_notify()` |
-| **Triggers** | 1 | `realtime_events_notify` |
+| **Índices** | 183 (86 únicos y 40 parciales, incluidas las claves primarias) | `pg_indexes` tras aplicar V1–V24 |
+| **Funciones** | 9 | `app_org()`, `app_org_type()`, `app_profile()`, `app_driver_id()`, `app_is_blocked_by()`, `realtime_events_notify()` y tres guardas de integridad (`organizations_guard_verification`, `profiles_guard_operator_suspension`, `shipment_settlements_guard`) |
+| **Triggers** | 4 | `realtime_events_notify` y los tres de las guardas anteriores |
 | **Roles** | 3 | `logyx_owner`, `logyx_app`, `logyx_api` |
-| **Políticas RLS** | 62 | `CREATE POLICY` en V2 y V4–V12 |
+| **Políticas RLS** | 150 | `pg_policies` tras aplicar V1–V24 |
+| **Vistas** | 1 | `lane_price_stats` (estadísticas de precio por ruta) |
+| **Claves foráneas / `CHECK`** | 178 / 131 | `pg_constraint` |
+
+*Conteo del 19-nov-2026: las 24 migraciones se aplicaron en un PostgreSQL 16 limpio con los tres roles de `infra/db/init-roles.sh` y se consultó el catálogo del sistema.*
 
 ---
 
-*OnCargo · E2 Scripts de Base de Datos · Competencias CE0222–CE0223 · Versión 2.0 · Noviembre 2026*
+*OnCargo · E2 Scripts de Base de Datos · Competencias CE0222–CE0223 · Versión 2.1 · Noviembre 2026*

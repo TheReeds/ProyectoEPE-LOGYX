@@ -100,6 +100,7 @@ nav:
           - Plan de Pruebas: software/entregable-4/plan-pruebas.md
           - CI/CD: software/entregable-4/cicd.md
           - Auditoría y Evolución: software/entregable-4/auditoria.md
+          - Gestión del Desarrollo y Calidad: software/entregable-4/gestion-calidad.md
       - "E5 · Video Pitch y Sustentación (CE0217)":
           - software/entregable-5/index.md
           - Sustentación: software/entregable-5/sustentacion.md

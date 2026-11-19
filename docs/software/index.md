@@ -23,8 +23,8 @@ El trabajo se organiza en cinco entregables progresivos (E1–E5), evaluados med
 | Backend | Quarkus 3.40 (Java 21), monolito modular con arquitectura hexagonal, estilo bloqueante |
 | Frontend Web | Astro 7 (SSR, adapter Node) + islas React + Tailwind 4 + shadcn/ui · MapLibre GL |
 | Móvil | App Android nativa: Kotlin + Jetpack Compose + Material 3 (Ktor, Koin) · iOS (SwiftUI) planificado |
-| Base de datos | PostgreSQL 16 con Row-Level Security · Flyway (V1–V12) |
-| Archivos | Cloudflare R2 (API S3-compatible) en producción; disco local en dev/test |
+| Base de datos | PostgreSQL 16 con Row-Level Security · Flyway (V1–V24, 57 tablas, 150 políticas RLS) |
+| Archivos | MinIO (API S3-compatible) en el VPS; Cloudflare R2 como opción futura; disco local en dev/test |
 | Tiempo real | Server-Sent Events (SSE) alimentado por un outbox transaccional |
 | Contrato | OpenAPI generado por el backend (fuente de verdad de web y Android) |
 | Infraestructura | VPS Hostinger KVM 2 · Docker (multi-stage) + Docker Compose · Caddy (TLS automático) · Cloudflare (DNS/CDN) · dominio `oncargo.tech` · CI en GitHub Actions |
