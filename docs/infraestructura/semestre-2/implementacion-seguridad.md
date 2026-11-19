@@ -646,19 +646,22 @@ graph LR
 
 ### 3.3 Escenarios de ataque simulado
 
+!!! info "Kit de simulaciones (commits `de503a6` y `becebcb` de `oncargo-code`)"
+    `infra/vps/demo/attacks/` tiene un script por escenario, no destructivo y de bajo volumen. Los activos (A1, A2, A3, A7 y A9) **no corren sin la autorización firmada**: piden `OC_AUTORIZACION` y `OC_AUT_HASTA`, y al terminar desbloquean la IP de origen. A5, A6 (estática) y A8 son pasivos. `run-all.sh` los ordena (pasivos → A1 → A2 → A3 → A9 → A7) y deja la salida en un archivo, con las IP enmascaradas. Para la exposición, `infra/vps/demo/demo.sh` muestra los controles en vivo con la salida enmascarada, y `GUION.md` tiene el recorrido de 10–12 minutos.
+
 Cada escenario indica el entorno, el comando, el resultado esperado según la configuración real y la detección esperada. En la v2.2 se ejecutaron A1 (parcial), A5 y una variante de A8; el resto sigue **Pendiente de ejecución**. No se registran salidas de herramientas que no se hayan ejecutado.
 
 | ID | Escenario | Entorno | Resultado esperado | Detección esperada | Resultado |
 |----|-----------|---------|--------------------|--------------------|-----------|
-| A1 | Escaneo de puertos con Nmap | VPS (externo) | Abiertos solo 22, 80 y 443; 5432/8080/4321/9000 cerrados o filtrados | Entradas `UFW BLOCK` en el *journal* | **Parcial (v2.2):** escaneo TCP de 9 puertos desde Lima con `bash /dev/tcp` (sin Nmap): solo 22, 80 y 443 abiertos (E3). Falta el barrido completo con Nmap |
-| A2 | Fuerza bruta al login | *Staging* local y, de forma acotada, el VPS | `429 LOGYX-AUTH-429` tras 10 fallos por correo y tras 50 intentos por IP | Logs del backend | Pendiente de ejecución |
-| A3 | Inyección SQL con sqlmap | *Staging* local | Sin inyección explotable; sin datos de otra organización | Logs | Pendiente de ejecución |
-| A4 | Escaneo dinámico con OWASP ZAP | *Staging* local | Sin hallazgos altos sin tratar | Informe HTML | Pendiente de ejecución |
+| A1 | Escaneo de puertos con Nmap | VPS (externo) | Abiertos solo 22, 80 y 443; 5432/8080/4321/9000 cerrados o filtrados | Entradas `UFW BLOCK` en el *journal* | **Parcial (v2.2):** escaneo TCP de 9 puertos desde Lima con `bash /dev/tcp` (sin Nmap): solo 22, 80 y 443 abiertos (E3). Falta el barrido completo con Nmap · **Script listo** (`infra/vps/demo/attacks/a1-escaneo.sh`); se ejecuta con la autorización firmada |
+| A2 | Fuerza bruta al login | *Staging* local y, de forma acotada, el VPS | `429 LOGYX-AUTH-429` tras 10 fallos por correo y tras 50 intentos por IP | Logs del backend | Pendiente de ejecución · **Script listo** (`infra/vps/demo/attacks/a2-fuerza-bruta-login.sh`); se ejecuta con la autorización firmada |
+| A3 | Inyección SQL con sqlmap | *Staging* local | Sin inyección explotable; sin datos de otra organización | Logs | Pendiente de ejecución · **Script listo** (`infra/vps/demo/attacks/a3-inyeccion-login.sh`); se ejecuta con la autorización firmada |
+| A4 | Escaneo dinámico con OWASP ZAP | *Staging* local | Sin hallazgos altos sin tratar | Informe HTML | Pendiente de ejecución · **Script listo** (`infra/vps/demo/attacks/a4-zap.sh`); se ejecuta con la autorización firmada |
 | A5 | Acceso a la BD y a MinIO desde fuera | VPS (externo) | Sin conexión a 5432 ni 9000 | Escaneo de A1 | **Ejecutado (v2.2):** 5432, 9000 y 9001 cerrados; además un puerto publicado por error (18080) queda bloqueado por `DOCKER-USER` (E3) |
-| A6 | Prueba de SSRF | *Staging* local | Ninguna petición saliente originada por datos del usuario | Captura de tráfico; revisión de código | Pendiente de ejecución |
-| A7 | Fuerza bruta SSH | VPS (acceso controlado) | Bloqueo de la IP por fail2ban | `fail2ban-client status sshd` | Pendiente de ejecución |
+| A6 | Prueba de SSRF | *Staging* local | Ninguna petición saliente originada por datos del usuario | Captura de tráfico; revisión de código | Pendiente de ejecución · **Script listo** (`infra/vps/demo/attacks/a6-ssrf.sh`); se ejecuta con la autorización firmada |
+| A7 | Fuerza bruta SSH | VPS (acceso controlado) | Bloqueo de la IP por fail2ban | `fail2ban-client status sshd` | Pendiente de ejecución · **Script listo** (`infra/vps/demo/attacks/a7-fuerza-bruta-ssh.sh`); se ejecuta con la autorización firmada |
 | A8 | Credenciales en texto claro por el acceso HTTP por IP | VPS (externo) | Desde la v2.2, `http://<IP>` responde `308` al dominio con HTTPS: el formulario de login ya no se sirve en claro | `curl` | **Ejecutado (v2.2):** `308 → https://oncargo.tech/login` (E6); H-01 cerrado |
-| A9 | Límite por IP compartido en la web | VPS (externo, cuenta inexistente) | Antes de la corrección: tras 50 intentos de login desde **un** equipo, el login web respondía 429 también desde **otro** equipo y otra red. Con `security.allowedDomains` (`848ba00`), el segundo equipo no debe verse afectado | Logs del backend (IP registrada = la del cliente, no la de `caddy`) | Pendiente de ejecución tras desplegar `848ba00` (cierra H-10 de Red) |
+| A9 | Límite por IP compartido en la web | VPS (externo, cuenta inexistente) | Antes de la corrección: tras 50 intentos de login desde **un** equipo, el login web respondía 429 también desde **otro** equipo y otra red. Con `security.allowedDomains` (`848ba00`), el segundo equipo no debe verse afectado | Logs del backend (IP registrada = la del cliente, no la de `caddy`) | Pendiente de ejecución tras desplegar `848ba00` (cierra H-10 de Red) · **Script listo** (`infra/vps/demo/attacks/a9-limite-compartido.sh`); se ejecuta con la autorización firmada |
 
 #### A1 — Escaneo de puertos (VPS, externo)
 

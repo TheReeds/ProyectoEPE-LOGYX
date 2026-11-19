@@ -40,7 +40,7 @@ El diseño acepta **un único dominio de falla** (equivalente a Tier I). Desde l
 | DNS | Registros A en el panel de Hostinger (público); DNS embebido de Docker (interno) | Desplegado (ver [Red, sección 1.5](implementacion-red.md)) |
 | Directorio (AD/LDAP) | **No aplica:** la identidad vive en la aplicación (JWT RSA, bcrypt, roles por organización); no hay un dominio de Windows ni usuarios de red | Decisión de diseño |
 | Correo saliente (restablecer contraseña, invitaciones y avisos por persona de V16) | Quarkus Mailer: el compose del VPS **no define** `SMTP_*`, así que esos correos no se entregan; los enlaces de los avisos usan `WEB_URL` (por omisión `https://oncargo.tech`) | No implementado (configurar SMTP) |
-| Monitoreo | `healthcheck` de Docker + `restart: unless-stopped`; `oncargo-health` cada 5 min (servicio, disco, memoria, certificado, respaldo) | Implementado (v2.2); monitor externo y canal de alertas: pendientes |
+| Monitoreo | `healthcheck` de Docker + `restart: unless-stopped`; `oncargo-health` cada 5 min (servicio, disco, memoria, certificado, respaldo) | Implementado (v2.2); alertas por ntfy implementadas (v2.3); monitor externo: pendiente |
 | Respaldo | `oncargo-backup` diario (03:30, Lima): Postgres, MinIO y `state/` cifrados con age, 14 días | Implementado (v2.2) en el VPS; copia externa pendiente |
 
 ---
@@ -461,6 +461,8 @@ $ ssh deploy@<IP> 'sudo oncargo-backup verify -' < backup-age-identity.txt     (
 
 **Estado:** SIM-1 **ejecutado** el 19-nov-2026 (dos veces, con los respaldos de las 10:40 y 10:48). Frecuencia: mensual (sección 4.5).
 
+**Medición fuera del VPS (`infra/vps/demo/sim1-restore.sh`, commit `6218f11`).** El script baja el último respaldo cifrado, lo descifra con la identidad age del equipo del administrador, lo restaura en un PostgreSQL temporal **sin red** y compara los conteos tabla por tabla con producción, con el tiempo de cada fase. En la medición registrada en el guion de la demo, la restauración completa tardó **10,6 s**, muy por debajo del RTO de 1–2 h. La captura enmascarada (`sim1-restauracion.png`) debe guardarse en `img/`.
+
 ---
 
 ## Sección 3 — SLA y Monitoreo (C3.3)
@@ -495,7 +497,7 @@ Es un **SLA interno de objetivos**, no un contrato con clientes: Hostinger no of
 | Interna | **`oncargo-health`** (`infra/vps/healthcheck.sh`, cada 5 min) | Web, `/login`, `/app/` y APK con `200`; `/q/health/ready`; los cinco contenedores en marcha y sanos; reinicios u OOM; disco < 85 %; memoria disponible ≥ 500 MB; swap ≤ 1 GB; certificados con ≥ 14 días; último respaldo < 26 h; reinicio pendiente > 7 días. Estado en `/var/lib/oncargo/health.txt` y `journalctl -t oncargo-health`; alerta solo al cambiar el estado | Implementado (v2.2) |
 | Canal de alertas | `ALERT_WEBHOOK_URL` (p. ej. un tema aleatorio de ntfy) en `/etc/oncargo/alert.env` | Mensaje al pasar a FALLA y al volver a OK | **Implementado (v2.3)**: tema aleatorio de ntfy.sh, fuera del repositorio; probado con `oncargo-health --test-alert` (Seguridad, E14) |
 | Externa | **UptimeRobot** o **healthchecks.io** (`HEARTBEAT_URL`, latido en cada chequeo correcto) | Caída del VPS entero, que el chequeo interno no puede reportar | Pendiente (decisión del usuario: cuenta gratuita) |
-| Uptime Kuma | — | — | Descartado: `oncargo-health` cubre lo mismo sin otro servicio residente |
+| Uptime Kuma | Página de estado | — | Opcional (perfil `status` del compose, no lo arranca `deploy.sh`; `oncargo-health` ya cubre lo mismo sin otro servicio residente) |
 
 ### 3.3 Métricas del host y umbrales
 

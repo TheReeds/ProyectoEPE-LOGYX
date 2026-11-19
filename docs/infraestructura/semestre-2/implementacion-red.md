@@ -637,7 +637,7 @@ Un VPS de 8 GB comparte la memoria entre la base de datos y el backend, por lo q
 | Recursos del host y servicio | `oncargo-health` (temporizador de systemd, cada 5 min) | Web, API, APK, contenedores, disco, memoria, swap, certificado, antigüedad del respaldo | **Implementado (v2.2)**; alertas por ntfy.sh al pasar a FALLA y al volver a OK: **implementado (v2.3)** |
 | Aplicación | Logs y tabla `outbox_events` | Errores `ERROR`; eventos en `FAILED` | Implementado en el repositorio (revisión manual) |
 | Disponibilidad externa (UptimeRobot o latido a healthchecks.io) | — | Caída del propio VPS | Pendiente (decisión del usuario: requiere una cuenta; `HEARTBEAT_URL` ya soportado) |
-| Monitoreo interno (Uptime Kuma) | — | — | Descartado: `oncargo-health` cubre certificado, salud y latido de respaldos sin otro servicio residente |
+| Monitoreo interno (Uptime Kuma) | Página de estado | — | Opcional (perfil `status` del compose, no lo arranca `deploy.sh`; `oncargo-health` ya cubre lo mismo sin otro servicio residente) |
 
 **Sobre SNMP.** La rúbrica menciona SNMP porque asume equipos de red propios. En un VPS no hay conmutadores ni *routers* gestionables y el proveedor no expone SNMP; el equivalente funcional son las métricas del host y los registros anteriores.
 
