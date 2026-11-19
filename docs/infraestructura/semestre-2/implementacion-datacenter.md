@@ -39,7 +39,7 @@ El diseño acepta **un único dominio de falla** (equivalente a Tier I). **Hoy n
 | Distribución de la app | Página `https://oncargo.tech/app/` con QR, `oncargo.apk` y `version.json` (`publish-apk.sh`) | Desplegado en el VPS |
 | DNS | Registros A en el panel de Hostinger (público); DNS embebido de Docker (interno) | Desplegado (ver [Red, sección 1.5](implementacion-red.md)) |
 | Directorio (AD/LDAP) | **No aplica:** la identidad vive en la aplicación (JWT RSA, bcrypt, roles por organización); no hay un dominio de Windows ni usuarios de red | Decisión de diseño |
-| Correo saliente (restablecer contraseña, invitaciones) | Quarkus Mailer: el compose del VPS **no define** `SMTP_*`, así que esos correos no se entregan | No implementado (configurar SMTP) |
+| Correo saliente (restablecer contraseña, invitaciones y avisos por persona de V16) | Quarkus Mailer: el compose del VPS **no define** `SMTP_*`, así que esos correos no se entregan; los enlaces de los avisos usan `WEB_URL` (por omisión `https://oncargo.tech`) | No implementado (configurar SMTP) |
 | Monitoreo | `healthcheck` de Docker + `restart: unless-stopped`; revisión manual | Desplegado (básico); UptimeRobot/Uptime Kuma: no implementado |
 
 ---
@@ -262,7 +262,8 @@ DOWNLOADS_DIR=/opt/oncargo/downloads
 |----------|--------------|-----------------------|
 | `DEMO_DATA` | `true` (cuentas `*@logyx.pe` con contraseña conocida) | `false` y base de datos nueva |
 | `COOKIE_SECURE` | `false` | `true` |
-| `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM` | No definidas | Definir (y añadirlas al `environment` del backend) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM` | No definidas (el backend cae a `localhost:587`) | Definir (y añadirlas al `environment` del backend) |
+| `WEB_URL`, `PASSWORD_RESET_URL` | No definidas: valen por omisión `https://oncargo.tech` y `https://oncargo.tech/restablecer` | Correctas para el dominio actual; definirlas solo si cambia el dominio |
 
 ### 1.6 PostgreSQL: roles y migraciones
 
@@ -277,7 +278,7 @@ DOWNLOADS_DIR=/opt/oncargo/downloads
 
 **Parámetros.** El compose no fija parámetros: PostgreSQL usa los valores por omisión de la imagen (`shared_buffers` 128 MB, `max_connections` 100), suficientes para el volumen de pruebas. Los pools del backend usan 8 conexiones (`logyx_owner`) + 20 (`logyx_api`). El ajuste de diseño (`shared_buffers` ≈ 25 % del límite, `log_min_duration_statement` 1000 ms) queda como mejora.
 
-**Migraciones (Flyway).** El backend migra la base al arrancar con `logyx_owner`. El código desplegado tiene las migraciones **V1 a V15**.
+**Migraciones (Flyway).** El backend migra la base al arrancar con `logyx_owner`. El código del repositorio tiene las migraciones **V1 a V18** (V16 avisos por persona, V17 direcciones frecuentes y búsqueda, V18 parámetros de sistema, comisión y términos versionados; ADR-0010). Las que estén aplicadas en el VPS dependen del commit desplegado: se confirman con la consulta siguiente.
 
 ```bash
 cd /opt/oncargo/src/infra/vps
@@ -658,7 +659,7 @@ Sin monitor externo no hay mediciones de disponibilidad; las filas permanecen pe
 | `infra/vps/compose.yml`, `Caddyfile`, `bootstrap.sh`, `deploy.sh`, `publish-apk.sh`, `downloads/index.html`, `README.md` | Repositorio (commit `cad2b77`) | Disponible |
 | `infra/db/init-roles.sh`, `infra/scripts/gen-jwt-keys.sh`, `backend/Dockerfile`, `web/Dockerfile` | Repositorio | Disponible |
 | Trabajos programados (`AuctionScheduler`, `OutboxDispatcher`, `TripScheduler`, `RealtimeMaintenance`, `AuthTokenCleanup`) | Repositorio | Implementado en el repositorio |
-| Migraciones Flyway V1–V15 y pruebas de aislamiento (`RowLevelSecurityTest`, `DatabasePrivilegesTest`) | Repositorio / CI | Implementado en el repositorio |
+| Migraciones Flyway V1–V18 y pruebas de aislamiento (`RowLevelSecurityTest`, `DatabasePrivilegesTest`) | Repositorio / CI | Implementado en el repositorio |
 | Panel de Hostinger: VPS KVM 2, Ubuntu 24.04, región del centro de datos | Hostinger | Pendiente de captura |
 | `docker compose ps` con los cinco servicios y `cat /opt/oncargo/state/DEPLOYED` | VPS | Pendiente de captura |
 | `docker stats --no-stream`, `free -m`, `df -h /` en operación normal | VPS | Pendiente de captura |

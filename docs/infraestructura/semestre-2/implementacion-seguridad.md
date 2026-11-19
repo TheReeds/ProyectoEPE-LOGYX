@@ -348,6 +348,7 @@ Cada escenario indica el entorno, el comando, el resultado esperado según la co
 | A6 | Prueba de SSRF | *Staging* local | Ninguna petición saliente originada por datos del usuario | Captura de tráfico; revisión de código | Pendiente de ejecución |
 | A7 | Fuerza bruta SSH | VPS (acceso controlado) | Bloqueo de la IP por fail2ban | `fail2ban-client status sshd` | Pendiente de ejecución |
 | A8 | Credenciales en texto claro por el acceso HTTP por IP | VPS (externo) | El login por `http://<IP>` viaja sin cifrar mientras exista el bloque de pruebas | Captura con `tcpdump` en el equipo del tester | Pendiente de ejecución (confirma el hallazgo H-01 de Red) |
+| A9 | Límite por IP compartido en la web | VPS (externo, cuenta inexistente) | Con H-10 abierto: tras 50 intentos de login desde **un** equipo, el login web responde 429 también desde **otro** equipo y otra red. Tras corregirlo, el segundo equipo no se ve afectado | Logs del backend (IP registrada = la de `caddy`) | Pendiente de ejecución (confirma el hallazgo H-10 de Red) |
 
 #### A1 — Escaneo de puertos (VPS, externo)
 
@@ -482,7 +483,7 @@ La versión 1.0 apoyaba la seguridad en servicios de IA/ML de AWS (GuardDuty, De
 
 ### 4.1 Protección en el borde (Cloudflare): no implementada
 
-El diseño v2.0 ponía Cloudflare delante del VPS (WAF gestionado, *Bot Fight Mode*, mitigación DDoS y una regla de *rate limiting*, todo en el plan gratuito). **No se desplegó**: el DNS apunta directo al VPS. Hoy la contención del abuso depende de la aplicación (`AuthRateLimits`, límite de 5 streams SSE por usuario, límite de cuerpo de 12 MB) y de fail2ban para SSH.
+El diseño v2.0 ponía Cloudflare delante del VPS (WAF gestionado, *Bot Fight Mode*, mitigación DDoS y una regla de *rate limiting*, todo en el plan gratuito). **No se desplegó**: el DNS apunta directo al VPS. Hoy la contención del abuso depende de la aplicación (`AuthRateLimits` en login, registro, restablecer contraseña, *refresh* y la cotización pública sin sesión `/public/pricing/quote`; límite de 5 streams SSE por usuario; límite de cuerpo de 12 MB) y de fail2ban para SSH. Ojo: desde la web esos límites por IP hoy se comparten entre todos los usuarios (hallazgo H-10 de Red).
 
 | Capacidad | Estado | Observación |
 |-----------|--------|-------------|
