@@ -2,7 +2,7 @@
 > Competencias C1.2 (Implementación) · C1.3 (Testing y control)  
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.2 (endurecimiento aplicado y pruebas ejecutadas, 19-nov-2026)** · v2.1: estado real del despliegue · v2.0: diseño previo al despliegue · v1.0: AWS
+> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.3 (H-03, H-10 y H-11 cerrados en el código, alertas por ntfy, 19-nov-2026)** · v2.2: endurecimiento aplicado y pruebas ejecutadas · v2.1: estado real del despliegue · v2.0: diseño previo al despliegue · v1.0: AWS
 
 
 !!! info "Versión 2.1: lo que realmente está desplegado en el VPS Hostinger"
@@ -19,9 +19,9 @@
 
 La red de OnCargo se implementó en un único **VPS Hostinger KVM 2** (Ubuntu 24.04, 2 vCPU, 8 GB de RAM, 96 GB de disco) con tres capas: (1) el **host**, protegido con UFW (solo 22, 80 y 443 entrantes), SSH solo con clave y fail2ban; (2) **Caddy** como único proceso que publica puertos (80/443 TCP y 443/UDP para HTTP/3), con HTTPS automático de Let's Encrypt, cabeceras de seguridad y *streaming* SSE sin *buffer*; y (3) dos **redes Docker** (`edge` e `internal`) que separan lo expuesto (proxy, web, API) de lo que guarda datos (PostgreSQL y MinIO).
 
-Los nombres públicos son `oncargo.tech` (web Astro SSR, con la página de descarga del APK en `/app/`) y `api.oncargo.tech` (API Quarkus para la app Android y el stream SSE). Mientras el DNS no apunte al VPS, Caddy también atiende `http://<IP_PUBLICA_VPS>` sin TLS, solo para pruebas.
+Los nombres públicos son `oncargo.tech` (web Astro SSR, con la página de descarga del APK en `/app/`) y `api.oncargo.tech` (API Quarkus para la app Android y el stream SSE). El acceso por `http://<IP_PUBLICA_VPS>` sirvió sin TLS solo mientras el DNS propagaba; desde la v2.2 responde `308` a `https://oncargo.tech`.
 
-El plan de pruebas (sección 4) se mantiene con comandos y criterios de aceptación ajustados a la red real. Los resultados se registran al ejecutarlas sobre el VPS, que ya está en operación.
+El plan de pruebas (sección 4) se mantiene con comandos y criterios de aceptación ajustados a la red real. Los resultados del 19-nov-2026 se registran en cada prueba; las que siguen pendientes lo indican.
 
 **Leyenda de estados usada en todo el documento:**
 
@@ -634,7 +634,7 @@ Un VPS de 8 GB comparte la memoria entre la base de datos y el backend, por lo q
 | Registro de accesos HTTP de Caddy | `log` (snippet `access_log`) → `/var/log/oncargo/caddy/access.log` | Estado, ruta, IP y latencia de cada petición | **Implementado (v2.2)** (sección 5.2) |
 | Intrusión SSH | fail2ban (`sshd`, `recidive`) | Fuerza bruta contra SSH y reincidentes | Desplegado en el VPS (`recidive`: v2.2) |
 | Escaneo y abuso web | fail2ban (`oncargo-caddy-probe`, `oncargo-caddy-auth`) | Rutas de escaneo; IP que siguen insistiendo tras el `429` | **Implementado (v2.2)** |
-| Recursos del host y servicio | `oncargo-health` (temporizador de systemd, cada 5 min) | Web, API, APK, contenedores, disco, memoria, swap, certificado, antigüedad del respaldo | **Implementado (v2.2)**; canal de alerta pendiente |
+| Recursos del host y servicio | `oncargo-health` (temporizador de systemd, cada 5 min) | Web, API, APK, contenedores, disco, memoria, swap, certificado, antigüedad del respaldo | **Implementado (v2.2)**; alertas por ntfy.sh al pasar a FALLA y al volver a OK: **implementado (v2.3)** |
 | Aplicación | Logs y tabla `outbox_events` | Errores `ERROR`; eventos en `FAILED` | Implementado en el repositorio (revisión manual) |
 | Disponibilidad externa (UptimeRobot o latido a healthchecks.io) | — | Caída del propio VPS | Pendiente (decisión del usuario: requiere una cuenta; `HEARTBEAT_URL` ya soportado) |
 | Monitoreo interno (Uptime Kuma) | — | — | Descartado: `oncargo-health` cubre certificado, salud y latido de respaldos sin otro servicio residente |
@@ -686,15 +686,15 @@ Riesgos de configuración identificados al documentar el despliegue real (no son
 |----|----------|--------|-------------------|--------|
 | H-01 | Bloque `http://{$PUBLIC_IP}` sin TLS | La web, la API y el login viajan sin cifrar si se usa la IP | El bloque ahora responde `308` a `https://oncargo.tech` | **Cerrado (v2.2)**: T4 |
 | H-02 | `COOKIE_SECURE=false` en `state/.env` | La cookie de sesión también viaja por HTTP | `COOKIE_SECURE=true` en el VPS y por omisión en `bootstrap.sh` | **Cerrado (v2.2)** |
-| H-03 | `DEMO_DATA=true`: cuentas demo con contraseña conocida (publicada en el repositorio) | Cualquiera puede entrar como PYME, transportista u operador de prueba | Corto plazo: `DEMO_PASSWORD` propia del VPS ([Seguridad, 1.4](implementacion-seguridad.md)); producción: `DEMO_DATA=false` y base nueva | Abierto (pendiente de decisión y de un cambio en el backend) |
+| H-03 | `DEMO_DATA=true`: cuentas demo con contraseña conocida (publicada en el repositorio) | Cualquiera puede entrar como PYME, transportista u operador de prueba | Corto plazo: `DEMO_PASSWORD` propia del VPS ([Seguridad, 1.4](implementacion-seguridad.md)); producción: `DEMO_DATA=false` y base nueva | **Mitigado (v2.3)**: el VPS usa `LOGYX_DEMO_PASSWORD` propia (Seguridad, E13). Sigue `DEMO_DATA=true` hasta pasar a producción |
 | H-04 | El Caddyfile no restringe `/q/*` | `/q/openapi` era público (`200`) | `respond 404` para `/q/*` salvo `/q/health*` | **Cerrado (v2.2)**: T13 |
 | H-05 | `encode` aplicado también al stream SSE | Posible retraso de eventos | Verificado con T11: Caddy no comprime `text/event-stream` | **Cerrado (v2.2)**, sin cambios |
 | H-06 | La red `internal` no tiene `internal: true` | `db` y `minio` conservan salida a Internet | `internal: true` en `compose.yml` | **Cerrado (v2.2)**: T6 |
 | H-07 | Sin CDN ni WAF delante del origen | El VPS recibe todo el tráfico directamente, incluido un DDoS | Plan de Cloudflare en [Seguridad, 4.1](implementacion-seguridad.md) (sin *Bot Fight Mode* en la API) | Aceptado en pruebas; pendiente (decisión del usuario) |
 | H-09 | Caddy sin registro de accesos | No hay rastro de peticiones para investigar un incidente | Snippet `access_log` con tokens redactados (sección 5.2) | **Cerrado (v2.2)** |
 | H-12 | Docker se salta UFW en los puertos publicados | Un `ports:` añadido por error quedaría expuesto | `DOCKER-USER` como lista blanca por puerto original (sección 1.4) | **Cerrado (v2.2)**: prueba con el puerto 18080 |
-| H-10 | Astro sin `security.allowedDomains` detrás de Caddy | La web ve como IP de todos los usuarios la del contenedor `caddy` (Astro 7 solo confía en `X-Forwarded-For` si el host está validado) y la reenvía al backend: los límites por IP de login (50), registro (10), restablecer contraseña (20/30) y cotización pública (30, cada 15 min) se **comparten entre todos los usuarios de la web**. Unos pocos intentos fallidos de cualquiera bloquean el login web de todos | Añadir `security: { allowedDomains: [{ hostname: 'oncargo.tech', protocol: 'https' }] }` en `web/astro.config.mjs` y verificar con T13 | Abierto (corresponde al repositorio de código) |
-| H-11 | El APK publicado en `/app/` es una compilación **debug** (`publish-apk.sh` espera `assembleDebug`) | Permite tráfico sin cifrar y muestra accesos demo; su URL de API depende de `-PapiBaseUrl` al compilar (por omisión `http://10.0.2.2:8080`, solo emulador) | Compilar con `-PapiBaseUrl=https://api.oncargo.tech` y, para producción, publicar un *release* firmado (el *release* usa por omisión `https://api.logyx.pe`, que no es el dominio desplegado) | Abierto (entorno de pruebas) |
+| H-10 | Astro sin `security.allowedDomains` detrás de Caddy | La web ve como IP de todos los usuarios la del contenedor `caddy` (Astro 7 solo confía en `X-Forwarded-For` si el host está validado) y la reenvía al backend: los límites por IP de login (50), registro (10), restablecer contraseña (20/30) y cotización pública (30, cada 15 min) se **comparten entre todos los usuarios de la web**. Unos pocos intentos fallidos de cualquiera bloquean el login web de todos | Añadir `security: { allowedDomains: [{ hostname: 'oncargo.tech', protocol: 'https' }] }` en `web/astro.config.mjs` y verificar con T13 | **Corregido en el código** (`848ba00` de `oncargo-code`, con `oncargo.tech` y `www.oncargo.tech`). Pendiente: desplegarlo y confirmarlo con A9 |
+| H-11 | El APK publicado en `/app/` es una compilación **debug** (`publish-apk.sh` espera `assembleDebug`) | Permite tráfico sin cifrar y muestra accesos demo; su URL de API depende de `-PapiBaseUrl` al compilar (por omisión `http://10.0.2.2:8080`, solo emulador) | Compilar con `-PapiBaseUrl=https://api.oncargo.tech` y, para producción, publicar un *release* firmado (el *release* usa por omisión `https://api.logyx.pe`, que no es el dominio desplegado) | **Cerrado para pruebas** (`ddd3f33`, `f11fea9`): `/app/` publica la variante *staging* (R8, API `https://api.oncargo.tech`, firmada con un keystore de pruebas) y `publish-apk.sh` rechaza un APK firmado con la clave de *debug*. Producción: *release* firmado, pendiente |
 | H-08 | Un solo VPS | Servicio indisponible si cae el proveedor | Reconstrucción documentada ([Datacenter, sección 4.3](implementacion-datacenter.md)) | Aceptado (equivalente Tier I) |
 
 ---

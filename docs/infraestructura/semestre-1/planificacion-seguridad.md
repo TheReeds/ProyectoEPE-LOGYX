@@ -17,7 +17,7 @@
     - **POL-03 implementada en parte (v2.2):** hay respaldos diarios cifrados con prueba de restauración, pero quedan en el mismo VPS. El riesgo de pérdida de datos ante la pérdida del servidor sigue siendo mayor que el valorado aquí hasta tener la copia externa.
     - **Acceso:** un único usuario administrativo `deploy` con `sudo` y `root` con clave (sin contraseñas); la política de cuentas separadas (`admin`/`deploy`) queda como mejora.
     - **Secretos:** generados en el propio VPS por `bootstrap.sh` (`/opt/oncargo/state/`, `700`/`600` desde la v2.2); incluidos en el respaldo cifrado, sin copia fuera del servidor.
-    - **Modo de pruebas:** cuentas demo activas con contraseña publicada en el repositorio; deben retirarse antes de tratar datos reales. La cookie sin `Secure` y el acceso HTTP por IP se corrigieron en la v2.2.
+    - **Modo de pruebas:** cuentas demo activas; desde la v2.3 con una contraseña propia del VPS (ya no la publicada en el repositorio). Deben retirarse antes de tratar datos reales. La cookie sin `Secure` y el acceso HTTP por IP se corrigieron en la v2.2.
 
 ---
 

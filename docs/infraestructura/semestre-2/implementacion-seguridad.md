@@ -85,6 +85,8 @@ Lo que **sigue pendiente** se declara con honestidad: la copia de los respaldos 
 | Monitor externo (UptimeRobot, healthchecks.io) y registro CAA | Con aprobación | **Pendiente (decisión del usuario)**: requieren su cuenta o su panel DNS; guía en `infra/vps/README.md` § Pendiente del dueño | — |
 | Parches del sistema | Ya estaba (`unattended-upgrades`) | Se instalaron a mano las pendientes (`docker-compose-plugin`, `libgstreamer`). **Reinicio por kernel hecho (v2.3)**: 6.8.0-147 → 6.8.0-149, todo volvió solo | E12, E15 |
 | Contraseña demo publicada (`Logyx2026!`, H-03) | Aprobado (v2.3) | **Implementado (v2.3)**: contraseña propia del VPS (`LOGYX_DEMO_PASSWORD` en `state/.env`), cambiada por la API en las 7 cuentas demo; el APK de pruebas la toma de una propiedad de Gradle fuera del repositorio (sección 1.4) | E13 |
+| IP real del cliente en la web (`security.allowedDomains`, H-10 de Red) | Aplicar ahora | **Corregido en el código** (`848ba00`): sin esto, los límites por IP de login, registro y cotización se compartían entre todos los usuarios de la web. Pendiente: desplegar y verificar con A9 | A9 (pendiente) |
+| APK de pruebas firmado (H-11 de Red) | Aplicar ahora | **Implementado**: `/app/` publica la variante *staging* con keystore de pruebas y `publish-apk.sh` rechaza un APK de *debug*. Producción: *release* firmado, pendiente | Red, T15 |
 | Cloudflare (proxy, WAF; sin *Bot Fight Mode*, que rompería la app Android) | Solo evaluación | **Pendiente (decisión del usuario)**: plan en la sección 4.1 y resumen en `infra/vps/README.md` § Pendiente del dueño | — |
 
 ### 0.3 Evidencias (salidas recortadas, sin secretos)
@@ -656,7 +658,7 @@ Cada escenario indica el entorno, el comando, el resultado esperado según la co
 | A6 | Prueba de SSRF | *Staging* local | Ninguna petición saliente originada por datos del usuario | Captura de tráfico; revisión de código | Pendiente de ejecución |
 | A7 | Fuerza bruta SSH | VPS (acceso controlado) | Bloqueo de la IP por fail2ban | `fail2ban-client status sshd` | Pendiente de ejecución |
 | A8 | Credenciales en texto claro por el acceso HTTP por IP | VPS (externo) | Desde la v2.2, `http://<IP>` responde `308` al dominio con HTTPS: el formulario de login ya no se sirve en claro | `curl` | **Ejecutado (v2.2):** `308 → https://oncargo.tech/login` (E6); H-01 cerrado |
-| A9 | Límite por IP compartido en la web | VPS (externo, cuenta inexistente) | Con H-10 abierto: tras 50 intentos de login desde **un** equipo, el login web responde 429 también desde **otro** equipo y otra red. Tras corregirlo, el segundo equipo no se ve afectado | Logs del backend (IP registrada = la de `caddy`) | Pendiente de ejecución (confirma el hallazgo H-10 de Red) |
+| A9 | Límite por IP compartido en la web | VPS (externo, cuenta inexistente) | Antes de la corrección: tras 50 intentos de login desde **un** equipo, el login web respondía 429 también desde **otro** equipo y otra red. Con `security.allowedDomains` (`848ba00`), el segundo equipo no debe verse afectado | Logs del backend (IP registrada = la del cliente, no la de `caddy`) | Pendiente de ejecución tras desplegar `848ba00` (cierra H-10 de Red) |
 
 #### A1 — Escaneo de puertos (VPS, externo)
 

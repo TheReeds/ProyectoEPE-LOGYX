@@ -2,12 +2,12 @@
 > Competencias C3.2 (Implementación) · C3.3 (Control y operación)  
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.2 (respaldos, monitoreo y endurecimiento aplicados, 19-nov-2026)** · v2.1: estado real del despliegue · v2.0: diseño previo al despliegue · v1.0: AWS
+> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.3 (alertas por ntfy, contraseña demo propia y reinicio por kernel, 19-nov-2026)** · v2.2: respaldos, monitoreo y endurecimiento aplicados · v2.1: estado real del despliegue · v2.0: diseño previo al despliegue · v1.0: AWS
 
 !!! info "Versión 2.1: el centro de datos tal como está en operación"
     La versión 1.0 implementaba el centro de datos con Terraform sobre AWS. La versión 2.0 lo rediseñó para un VPS Hostinger con Cloudflare, R2, respaldos cifrados y Uptime Kuma, pero se escribió **antes** de aprovisionar el servidor. Esta versión 2.1 documenta **lo que se desplegó**, tomado de `infra/vps/` del monorepo (`compose.yml`, `Caddyfile`, `bootstrap.sh`, `deploy.sh`, `publish-apk.sh`, `downloads/` y `README.md`; commit `cad2b77` del 16-nov-2026).
 
-    **En operación:** VPS Hostinger KVM 2 con Ubuntu 24.04, cinco contenedores (Caddy, web, backend, PostgreSQL, MinIO), HTTPS automático, despliegue por script con vuelta atrás y página de descarga del APK. **Desde la v2.2 (19-nov-2026):** respaldo diario cifrado con prueba de restauración, chequeo de salud cada 5 minutos y endurecimiento del host versionado en `infra/vps/harden.sh` (commits `9d1f6a2` y `b44014a` de `oncargo-code`). **Pendiente:** copia de los respaldos fuera del VPS, monitor externo y canal de alertas, Cloudflare/R2 y la salida del modo de pruebas. El servidor funciona hoy como **entorno de pruebas** con cuentas demo (`DEMO_DATA=true`).
+    **En operación:** VPS Hostinger KVM 2 con Ubuntu 24.04, cinco contenedores (Caddy, web, backend, PostgreSQL, MinIO), HTTPS automático, despliegue por script con vuelta atrás y página de descarga del APK. **Desde la v2.2 (19-nov-2026):** respaldo diario cifrado con prueba de restauración, chequeo de salud cada 5 minutos y endurecimiento del host versionado en `infra/vps/harden.sh` (commits `9d1f6a2` y `b44014a` de `oncargo-code`). **Desde la v2.3:** alertas del chequeo de salud por ntfy.sh, contraseña demo propia del VPS y reinicio por kernel verificado (todo volvió solo). **Pendiente:** copia de los respaldos fuera del VPS, monitor externo, registro CAA, Cloudflare/R2 y la salida del modo de pruebas. El servidor funciona hoy como **entorno de pruebas** con cuentas demo (`DEMO_DATA=true`).
 
 ---
 
@@ -263,6 +263,7 @@ MINIO_ROOT_USER=oncargo-minio
 MINIO_ROOT_PASSWORD=<aleatoria>
 # Entorno de pruebas: cuentas demo. En producción real: false.
 DEMO_DATA=true
+LOGYX_DEMO_PASSWORD=<aleatoria>   # v2.3: contraseña de las cuentas demo del VPS (no la del repositorio); la genera deploy.sh si falta
 # Cookie de sesión solo por HTTPS (el acceso por IP redirige al dominio).
 COOKIE_SECURE=true
 DOWNLOADS_DIR=/opt/oncargo/downloads
@@ -271,9 +272,9 @@ LOGYX_UNSUBSCRIBE_SECRET=<aleatoria>   # V24: clave HMAC del enlace de baja; la 
 
 | Variable | Valor actual | Valor para producción |
 |----------|--------------|-----------------------|
-| `DEMO_DATA` | `true` (cuentas `*@logyx.pe` con contraseña conocida) | `false` y base de datos nueva |
+| `DEMO_DATA` | `true` (cuentas `*@logyx.pe` con contraseña propia del VPS desde la v2.3) | `false` y base de datos nueva |
 | `COOKIE_SECURE` | `true` (desde el 19-nov-2026) | `true` |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM` | No definidas (el backend cae a `localhost:587`) | Definir (y añadirlas al `environment` del backend) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM` | Ya pasan al backend por `compose.yml`; sin proveedor elegido, `SMTP_HOST=localhost` (el envío falla y se registra) | Definir el proveedor SMTP en `state/.env` |
 | `WEB_URL`, `PASSWORD_RESET_URL` | No definidas: valen por omisión `https://oncargo.tech` y `https://oncargo.tech/restablecer` | Correctas para el dominio actual; definirlas solo si cambia el dominio |
 
 ### 1.6 PostgreSQL: roles y migraciones
@@ -294,7 +295,7 @@ LOGYX_UNSUBSCRIBE_SECRET=<aleatoria>   # V24: clave HMAC del enlace de baja; la 
 ```bash
 cd /opt/oncargo/src/infra/vps
 docker compose exec db psql -U postgres -d logyx -c "SELECT installed_rank, version, description, success FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5;"
-# Esperado: la última versión (15) con success = t
+# Esperado: la última migración del commit desplegado (V23 al 19-nov-2026) con success = t
 docker compose exec db psql -U postgres -d logyx -c "SELECT count(*) AS politicas_rls FROM pg_policies;"   # Esperado: > 0
 docker compose exec db psql -U postgres -d logyx -c "SELECT pg_size_pretty(pg_database_size('logyx'));"
 ```
@@ -492,7 +493,7 @@ Es un **SLA interno de objetivos**, no un contrato con clientes: Hostinger no of
 | Aplicación | `/q/health/ready` (incluye la comprobación de la BD) | Lo consulta Docker | Desplegado en el VPS |
 | Logs | `docker compose logs` (rotación 10 MB × 3); registro de accesos de Caddy (14 días); journald (1 GB / 30 días) | Revisión manual y fail2ban | Desplegado en el VPS (v2.2) |
 | Interna | **`oncargo-health`** (`infra/vps/healthcheck.sh`, cada 5 min) | Web, `/login`, `/app/` y APK con `200`; `/q/health/ready`; los cinco contenedores en marcha y sanos; reinicios u OOM; disco < 85 %; memoria disponible ≥ 500 MB; swap ≤ 1 GB; certificados con ≥ 14 días; último respaldo < 26 h; reinicio pendiente > 7 días. Estado en `/var/lib/oncargo/health.txt` y `journalctl -t oncargo-health`; alerta solo al cambiar el estado | Implementado (v2.2) |
-| Canal de alertas | `ALERT_WEBHOOK_URL` (p. ej. un tema aleatorio de ntfy) en `/etc/oncargo/alert.env` | Mensaje al pasar a FALLA y al volver a OK | Pendiente (decisión del usuario: elegir el canal) |
+| Canal de alertas | `ALERT_WEBHOOK_URL` (p. ej. un tema aleatorio de ntfy) en `/etc/oncargo/alert.env` | Mensaje al pasar a FALLA y al volver a OK | **Implementado (v2.3)**: tema aleatorio de ntfy.sh, fuera del repositorio; probado con `oncargo-health --test-alert` (Seguridad, E14) |
 | Externa | **UptimeRobot** o **healthchecks.io** (`HEARTBEAT_URL`, latido en cada chequeo correcto) | Caída del VPS entero, que el chequeo interno no puede reportar | Pendiente (decisión del usuario: cuenta gratuita) |
 | Uptime Kuma | — | — | Descartado: `oncargo-health` cubre lo mismo sin otro servicio residente |
 
@@ -551,7 +552,7 @@ graph LR
 # Uso (desde la raíz del monorepo)
 infra/vps/deploy.sh                 # despliega HEAD
 infra/vps/deploy.sh v0.3.0          # despliega una etiqueta o un SHA
-infra/vps/publish-apk.sh            # publica android/app/build/outputs/apk/debug/app-debug.apk en /app/
+infra/vps/publish-apk.sh            # publica android/app/build/outputs/apk/staging/app-staging.apk en /app/ (rechaza un APK de debug)
 ```
 
 **Vuelta atrás** (al commit anterior):
