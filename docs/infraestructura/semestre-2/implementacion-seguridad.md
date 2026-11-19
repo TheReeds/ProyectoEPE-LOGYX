@@ -2,28 +2,29 @@
 > Competencias C2.2 (Controles) · C2.3 (Monitoreo y mejora) · C2.4 (Ética ACM)  
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.0 (rediseño, noviembre 2026)** · Versión original 1.0 sobre AWS
+> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.1 (estado real del despliegue, noviembre 2026)** · v2.0: diseño previo al despliegue · v1.0: AWS
 
-!!! info "Versión 2.0: controles para un VPS Hostinger detrás de Cloudflare"
-    La versión 1.0 implementaba la seguridad con servicios administrados de AWS (IAM, KMS, WAF, GuardDuty, Detective, Macie, Wazuh, Bedrock). Al migrar a un **VPS Hostinger KVM 2** con Docker Compose, Caddy y Cloudflare, el documento se **reescribió por completo** sobre [Planificación de Seguridad v2.0](../semestre-1/planificacion-seguridad.md). El cambio principal es el **modelo de responsabilidad**: el equipo administra el sistema operativo, el firewall, los parches, los respaldos y los secretos. Contexto y cifras en [Rebrand OnCargo y migración a Hostinger](../../software/cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger).
+!!! info "Versión 2.1: controles realmente aplicados en el VPS Hostinger"
+    La versión 1.0 implementaba la seguridad con servicios administrados de AWS. La versión 2.0 la rediseñó para un VPS Hostinger detrás de Cloudflare, pero se escribió **antes** de aprovisionar el servidor. Esta versión 2.1 documenta los controles **realmente aplicados**, tomados de `infra/vps/` del monorepo (`compose.yml`, `Caddyfile`, `bootstrap.sh`, `deploy.sh`, `README.md`; commit `cad2b77`) y del código de la aplicación.
 
-    **Alcance honesto:** los controles de la aplicación (RLS, mínimo privilegio, *rate limiting*, cabeceras, JWT) ya existen en el monorepo. Los controles del servidor (SSH, UFW, fail2ban, respaldos, parches) están **definidos con sus comandos y configuraciones** y se ejecutan al aprovisionar el VPS. Las pruebas de ataque de la sección 3 son un **plan con resultado esperado**; ninguna cifra ni salida se presenta como medida si no se ejecutó.
+    **Diferencias principales con la v2.0:** no hay Cloudflare (ni WAF, ni filtro de origen); los documentos están en MinIO dentro del VPS y no en R2; **todavía no hay respaldos automáticos** ni monitoreo de disponibilidad; el despliegue es manual con `deploy.sh` desde el equipo del administrador (no con GitHub Actions); el servidor tiene un solo usuario administrativo (`deploy`, con `sudo`) y funciona como **entorno de pruebas** con cuentas demo.
 
 ---
 
 ## Resumen Ejecutivo
 
-Este documento registra la implementación de los controles de seguridad definidos en S1-E2 para OnCargo: cuentas y acceso SSH con mínimo privilegio, firewall (UFW y filtro de Cloudflare), fail2ban, contenedores endurecidos, secretos y tokens de alcance mínimo, cifrado en tránsito y de los respaldos, plan de continuidad con **RTO de 2–4 h y RPO de 24 h**, gestión de parches (`unattended-upgrades`, Dependabot, imágenes base) y un plan de **detección y simulación controlada de ataques** adaptado a un servidor único.
+Este documento registra los controles de seguridad de OnCargo tal como están desplegados. En el **host**: SSH solo con clave pública, usuario `deploy` con `sudo`, UFW con entrada denegada salvo 22/80/443, fail2ban para SSH, `unattended-upgrades`, rotación de logs de Docker y 2 GB de swap. En los **contenedores**: solo Caddy publica puertos, la base de datos y MinIO viven en una red interna, todos tienen límite de memoria, y `backend` y `web` corren sin `root`. En los **secretos**: contraseñas aleatorias y claves JWT generadas en el propio servidor por `bootstrap.sh`, fuera de Git y del árbol de código. En la **aplicación**: RLS por organización, tres roles de base de datos con mínimo privilegio, `AuthRateLimits`, sesiones revocables, contraseñas con bcrypt, cabeceras de seguridad y auditoría en `audit_log`.
 
-La sección 4 reemplaza la capa de IA sobre servicios de AWS por **detección automatizada y apoyo de IA a costo cero o bajo**: reglas gestionadas de Cloudflare, CrowdSec (opcional), reglas SQL propuestas sobre `audit_log` y `outbox_events`, y triage manual asistido por un LLM sobre registros anonimizados. La sección 5 conserva el análisis ético bajo el Código de la ACM y lo actualiza al nuevo entorno.
+También registra con honestidad lo que **falta**: respaldos automáticos (hoy el RPO real no está garantizado), monitoreo de disponibilidad, registro de accesos HTTP en Caddy, endurecimiento adicional de los contenedores y la salida del modo de pruebas (`DEMO_DATA`, acceso HTTP por IP, cookie sin `Secure`). Para cada pendiente se deja el procedimiento listo. Las secciones de detección (3 y 4) y de ética ACM (5) se conservan, ajustadas al entorno real.
 
 **Leyenda de estados:**
 
 | Estado | Significado |
 |--------|-------------|
-| **Implementado en el repositorio** | Existe en `infra/` o en el código del monorepo `logyx` (roles de BD, RLS, `AuthRateLimits`, cabeceras, Dependabot, Dockerfiles). |
-| **Definido para el VPS (pendiente de ejecutar)** | La configuración está escrita aquí y se aplica al aprovisionar el servidor. |
-| **Pendiente** | Depende de una integración, una verificación o una acción administrativa. |
+| **Desplegado en el VPS** | Está en `infra/vps/` y aplicado en el servidor según `infra/vps/README.md`. |
+| **Implementado en el repositorio** | Existe en el código del monorepo (roles de BD, RLS, `AuthRateLimits`, cabeceras, Dependabot, Dockerfiles) y viaja con cada despliegue. |
+| **Pendiente de ejecución** | Prueba o procedimiento definido; falta ejecutarlo y adjuntar evidencia. |
+| **No implementado (mejora)** | Formaba parte del diseño v2.0 y no se desplegó. |
 
 ---
 
@@ -33,250 +34,196 @@ La sección 4 reemplaza la capa de IA sobre servicios de AWS por **detección au
 
 | Identidad | Permisos | Autenticación | Estado |
 |-----------|----------|---------------|--------|
-| `admin` | `sudo` con registro; administración del servidor | Clave SSH individual + contraseña solo para `sudo` | Definido para el VPS (pendiente de ejecutar) |
-| `deploy` | Grupo `docker`; ejecuta el despliegue en `/opt/oncargo` | Clave SSH dedicada de GitHub Actions, **restringida a un comando** | Definido para el VPS (pendiente de ejecutar) |
-| `root` | Sin acceso remoto | `PermitRootLogin no` | Definido para el VPS (pendiente de ejecutar) |
+| `deploy` | Usuario administrativo con `sudo`; ejecuta `docker compose` en `/opt/oncargo` | Clave SSH (`ed25519`); sin contraseña por SSH | Desplegado en el VPS |
+| `root` | Acceso de emergencia | **Solo con clave** (sin contraseñas) | Desplegado en el VPS |
+| `admin` separado de `deploy` y clave de CI restringida a un comando | — | — | No implementado (mejora) |
 
-!!! warning "El grupo `docker` equivale a `root`"
-    Quien controla el *socket* de Docker puede montar el sistema de archivos del host. Por eso la clave del usuario `deploy` no abre una *shell*: en `authorized_keys` queda atada al único comando `deploy.sh` (ver [Datacenter, sección 4.1](implementacion-datacenter.md)). Un robo de la clave de GitHub Actions permite lanzar un despliegue de la versión indicada, no ejecutar comandos arbitrarios.
-
-**Aprovisionamiento de cuentas (primer acceso como `root` desde el panel de Hostinger):**
-
-```bash
-adduser --disabled-password --gecos "" admin && usermod -aG sudo admin && passwd admin
-adduser --disabled-password --gecos "" deploy
-# Claves públicas (se generan con: ssh-keygen -t ed25519 -C "nombre@equipo")
-install -d -m 700 -o admin  -g admin  /home/admin/.ssh
-install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
-echo 'ssh-ed25519 AAAA... admin-jorge'  >  /home/admin/.ssh/authorized_keys
-echo 'ssh-ed25519 AAAA... admin-alex'   >> /home/admin/.ssh/authorized_keys
-# Clave de GitHub Actions: solo puede ejecutar el script de despliegue, sin tty ni reenvíos
-echo 'command="/opt/oncargo/infra/scripts/deploy.sh",no-port-forwarding,no-agent-forwarding,no-pty,no-X11-forwarding ssh-ed25519 AAAA... github-actions' \
-  > /home/deploy/.ssh/authorized_keys
-chown admin:admin  /home/admin/.ssh/authorized_keys;  chmod 600 /home/admin/.ssh/authorized_keys
-chown deploy:deploy /home/deploy/.ssh/authorized_keys; chmod 600 /home/deploy/.ssh/authorized_keys
-```
-
-**Endurecimiento de SSH** (archivo `/etc/ssh/sshd_config.d/10-oncargo.conf`):
+Según `infra/vps/README.md`, el acceso es `ssh -i ~/.ssh/hostinger_kvm2 deploy@<IP_PUBLICA_VPS>`, con *root solo con clave; sin contraseñas*. La configuración equivalente de SSH es:
 
 ```
-PermitRootLogin no
+# /etc/ssh/sshd_config.d/10-oncargo.conf (equivalente a lo aplicado)
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes
-AuthenticationMethods publickey
-AllowUsers admin deploy
-MaxAuthTries 3
-LoginGraceTime 20
-X11Forwarding no
-ClientAliveInterval 300
-ClientAliveCountMax 2
-
-Match User deploy
-    AllowTcpForwarding no
-    PermitTTY no
+PermitRootLogin prohibit-password      # root solo con clave
 ```
 
 ```bash
-sudo sshd -t && sudo systemctl reload ssh     # validar ANTES de recargar
-# Mantener una segunda sesión abierta y probar el acceso con clave antes de cerrar la primera
-ssh -o PreferredAuthentications=password admin@<IP_PUBLICA_VPS>   # Esperado: Permission denied (publickey)
+sudo sshd -T | grep -E 'permitrootlogin|passwordauthentication|pubkeyauthentication'
+# Esperado: permitrootlogin without-password (o prohibit-password) · passwordauthentication no · pubkeyauthentication yes
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no deploy@<IP_PUBLICA_VPS>
+# Esperado: Permission denied (publickey)
 ```
 
-La base de datos y las consolas internas **no se exponen**: el administrador entra por SSH y usa `docker compose exec db psql ...`; no se abren túneles hacia puertos de contenedores.
+!!! warning "`deploy` tiene `sudo` y controla Docker"
+    El usuario `deploy` es a la vez administrador y desplegador, y quien controla el *socket* de Docker equivale a `root`. La seguridad depende de **proteger la clave privada** `~/.ssh/hostinger_kvm2` del administrador (con frase de paso y fuera de equipos compartidos). Mejoras recomendadas: `PermitRootLogin no`, un usuario `admin` para administrar y una clave de despliegue limitada a `deploy.sh` mediante `command=` en `authorized_keys`.
+
+La base de datos y las consolas internas **no se exponen**: el administrador entra por SSH y usa `docker compose exec db psql …`.
 
 ### 1.2 Firewall y fail2ban
 
-El firewall (UFW para el host y filtro de Cloudflare en `DOCKER-USER`) se implementa en [Implementación de Red, sección 1.4](implementacion-red.md). Resumen de la política: entrada denegada por omisión, 22/tcp con `limit`, 80 y 443 solo desde los rangos de Cloudflare.
+El firewall se documenta en [Implementación de Red, sección 1.4](implementacion-red.md): UFW con entrada denegada por omisión y solo 22, 80 y 443 permitidos. Solo Caddy publica puertos en el host, así que UFW no queda puenteado por Docker.
 
-**fail2ban** (`apt install -y fail2ban`; archivo `/etc/fail2ban/jail.local`):
-
-```ini
-[DEFAULT]
-backend   = systemd
-banaction = ufw
-bantime   = 1h
-findtime  = 10m
-maxretry  = 5
-# Agregar la IP fija del equipo si existe, para no bloquearse a sí mismo
-ignoreip  = 127.0.0.1/8 ::1
-
-[sshd]
-enabled  = true
-port     = ssh
-maxretry = 4
-bantime  = 2h
-bantime.increment = true
-bantime.factor    = 2
-bantime.maxtime   = 1w
-```
-
-La *jail* `caddy-auth` (intentos de login rechazados leídos de los logs de Caddy) está en [Implementación de Red, sección 5.3](implementacion-red.md). Detrás de Cloudflare no se puede bloquear en el host (los paquetes llegan desde Cloudflare), por lo que esa *jail* solo registra y la contención se hace en el borde.
+**fail2ban** está activo con la *jail* `sshd` (según `infra/vps/README.md`). La configuración por omisión de Ubuntu para esa *jail* bloquea una IP tras 5 fallos en 10 minutos durante 10 minutos; si se ajustó, se registra la salida real en el Anexo A.
 
 ```bash
-sudo systemctl enable --now fail2ban
-sudo fail2ban-client status sshd        # Esperado: Currently banned / Total banned
+sudo fail2ban-client status              # Esperado: Jail list: sshd
+sudo fail2ban-client status sshd         # Currently failed / Total banned / Banned IP list
+sudo fail2ban-client get sshd bantime maxretry findtime
 ```
 
-**Estado:** Definido para el VPS (pendiente de ejecutar).
+| Control | Estado |
+|---------|--------|
+| UFW: entrada `deny`, permitidos 22/80/443 | Desplegado en el VPS |
+| fail2ban, *jail* `sshd` | Desplegado en el VPS |
+| *Jail* sobre el login web (`caddy-auth`) | No implementado: Caddy no registra accesos (ver Red, sección 5.2); la aplicación ya limita con `AuthRateLimits` |
+| Filtro "solo Cloudflare" en `DOCKER-USER` | No implementado (no se usa Cloudflare) |
 
-### 1.3 Docker endurecido
+### 1.3 Contenedores
 
-| Control | `caddy` | `web` | `backend` | `db` | Estado |
-|---------|---------|-------|-----------|------|--------|
-| Usuario no `root` | No (imagen oficial; escucha 80/443) | `node` | `10001` | `postgres` (cede desde `root` en el *entrypoint*) | Implementado en el repositorio (`web`, `backend`); `caddy`/`db` por imagen oficial |
-| Sin puertos publicados en `0.0.0.0` | Publica 80/443 | No | No | No | Implementado en el repositorio (`db`); definido para el VPS (resto) |
-| `security_opt: no-new-privileges:true` | Sí | Sí | Sí | Sí | Definido para el VPS (pendiente de ejecutar) |
-| `cap_drop: [ALL]` | + `NET_BIND_SERVICE` | Sí | Sí | + `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID` | Definido; **verificar el arranque** |
-| `read_only: true` con `tmpfs` | `/data` y `/config` en volúmenes | `tmpfs: /tmp` | `tmpfs: /tmp` | No (escribe en `pgdata`) | Definido; **verificar el arranque** |
-| `mem_limit` | 128 MB | 512 MB | 1.5 GB | 2 GB | Implementado parcialmente (el compose actual usa 384/768/512 MB); valores finales definidos para el VPS |
-| `healthcheck` | `wget` a la API admin | `GET /login` | `GET /q/health/ready` | `pg_isready` | Implementado en el repositorio (`web`, `backend`, `db`) |
-| `restart: unless-stopped` | Sí | Sí | Sí | Sí | Implementado en el repositorio (`web`, `backend`, `db`) |
-| Imagen fijada y actualizada | `caddy:2-alpine` | `node:22-alpine` | `eclipse-temurin:21-jre-alpine` | `postgres:16-alpine` | Implementado en el repositorio (etiquetas); *digest* fijo pendiente |
-| Secretos fuera de la imagen y del repositorio | — | — | `secrets:` de Compose (claves JWT) y variables de `infra/.env` | `.env` (contraseñas) | Implementado en el repositorio (`.gitignore`, `secrets:`) |
+Valores reales de `infra/vps/compose.yml` y de los Dockerfiles:
 
-Si `read_only` o `cap_drop` impiden el arranque de un servicio, se relaja **solo ese servicio** y se documenta el motivo (el endurecimiento es defensa en profundidad; la seguridad primaria está en la red y en los roles de BD).
+| Control | `caddy` | `web` | `backend` | `db` | `minio` |
+|---------|---------|-------|-----------|------|---------|
+| Imagen | `caddy:2.10-alpine` | `oncargo-web:local` (`node:22-alpine`) | `oncargo-backend:local` (`eclipse-temurin:21-jre-alpine`) | `postgres:16-alpine` | `chainguard/minio` fijada por *digest* |
+| Usuario no `root` | Imagen oficial | `node` | `10001` | `postgres` (lo cambia el *entrypoint*) | Imagen Chainguard (no `root`) |
+| Puertos publicados en el host | 80/tcp, 443/tcp, 443/udp | Ninguno | Ninguno | Ninguno | Ninguno |
+| Red | `edge` | `edge` | `edge` + `internal` | `internal` | `internal` |
+| `mem_limit` | 128 MB | 512 MB | 1 GB (JVM al 70 %) | 768 MB | 384 MB |
+| `healthcheck` | — | `GET /login` | `GET /q/health/ready` | `pg_isready` | `/minio/health/ready` |
+| `restart: unless-stopped` | Sí | Sí | Sí | Sí | Sí |
+| Secretos | — | — | Claves JWT como `secrets:` de Compose | Contraseñas por variables del `.env` | Contraseña por variable del `.env` |
 
-**Daemon de Docker** (`/etc/docker/daemon.json`; se aplica antes del primer arranque):
+**Estado:** todo lo anterior **Desplegado en el VPS**. El *daemon* de Docker rota los logs de cada contenedor a **10 MB × 3 archivos** (según `infra/vps/README.md`), lo que evita que llenen el disco:
 
 ```json
-{
-  "log-driver": "json-file",
-  "log-opts": { "max-size": "10m", "max-file": "3" },
-  "no-new-privileges": true,
-  "live-restore": true
-}
+// /etc/docker/daemon.json (equivalente a lo aplicado)
+{ "log-driver": "json-file", "log-opts": { "max-size": "10m", "max-file": "3" } }
 ```
-
-El límite de tamaño de los logs de los contenedores evita que llenen el disco de 100 GB.
 
 **Verificación:**
 
 ```bash
-docker inspect --format '{{.Name}} user={{.Config.User}} ro={{.HostConfig.ReadonlyRootfs}} capdrop={{.HostConfig.CapDrop}} sec={{.HostConfig.SecurityOpt}} mem={{.HostConfig.Memory}}' $(docker ps -q)
-docker ps --format '{{.Names}}  {{.Ports}}'      # Esperado: solo caddy muestra 0.0.0.0:80->80 y 0.0.0.0:443->443
+docker inspect --format '{{.Name}} user={{.Config.User}} mem={{.HostConfig.Memory}} ro={{.HostConfig.ReadonlyRootfs}} capdrop={{.HostConfig.CapDrop}}' $(docker ps -q)
+docker ps --format '{{.Names}}  {{.Ports}}'      # Esperado: solo oncargo-caddy-1 con 0.0.0.0:80, :443
+docker info | grep -iA2 'logging driver'
 ```
+
+| Mejora de endurecimiento (diseño v2.0) | Estado |
+|-----------------------------------------|--------|
+| `security_opt: no-new-privileges:true` | No implementado (mejora) |
+| `cap_drop: [ALL]` con las capacidades mínimas por servicio | No implementado (mejora) |
+| `read_only: true` con `tmpfs: /tmp` en `web` y `backend` | No implementado (mejora) |
+| Imágenes de Caddy y Postgres fijadas por *digest* | Parcial: solo MinIO usa *digest* |
+
+Si se aplican, se activan **de a un servicio** y se verifica el arranque antes de seguir.
 
 ### 1.4 Gestión de secretos
 
-| Secreto | Ubicación | Permisos | Copia fuera del VPS |
-|---------|-----------|----------|---------------------|
-| Contraseñas de `postgres`, `logyx_owner`, `logyx_api` | `/opt/oncargo/infra/.env` | `600`, dueño `deploy` | Gestor de contraseñas del equipo |
-| Claves RSA del JWT | `/opt/oncargo/infra/secrets/jwt-*.pem` (directorio `700`) | Los PEM son `644` dentro de un directorio `700`: el contenedor (usuario 10001) los lee por el *bind mount*; ningún otro usuario del host puede entrar al directorio | Gestor de contraseñas (cifrado) |
-| Credenciales R2 de documentos (`LOGYX_S3_ACCESS_KEY`/`SECRET_KEY`) | `infra/.env` | `600` | Gestor de contraseñas |
-| Credenciales R2 de respaldos y `rclone.conf` | `/etc/oncargo/rclone.conf` | `640`, `root:deploy` | Gestor de contraseñas |
-| Clave privada de cifrado de respaldos (`age`) | **Nunca en el VPS** | — | Gestor de contraseñas + copia impresa en sobre sellado |
-| Clave SSH de GitHub Actions | GitHub *Secrets* (`DEPLOY_SSH_KEY`) | — | — |
+Los secretos los genera **`infra/vps/bootstrap.sh` en el propio VPS** durante el primer despliegue: crea el `.env` con contraseñas aleatorias de 32 caracteres (`openssl rand`) y ejecuta `infra/scripts/gen-jwt-keys.sh`. `deploy.sh` los mueve a `/opt/oncargo/state/`, fuera del código, y los enlaza en cada despliegue. **Nunca salen del servidor**.
 
-Todos los secretos están excluidos del repositorio (`infra/.env` e `infra/secrets/` en `.gitignore`, ver `docs/security.md`). El *secret scanning* de GitHub se activa en el repositorio. **Estado:** `.gitignore` y `secrets:` de Compose, Implementado en el repositorio; permisos, `rclone.conf` y gestor de contraseñas, Definido para el VPS (pendiente de ejecutar).
+| Secreto | Ubicación | Permisos | Estado |
+|---------|-----------|----------|--------|
+| Contraseñas de `postgres`, `logyx_owner`, `logyx_api` y MinIO | `/opt/oncargo/state/.env` | `600` (`umask 077`) | Desplegado en el VPS |
+| Claves RSA 2048 del JWT | `/opt/oncargo/state/secrets/jwt-*.pem` | PEM `644` dentro de un directorio `700` (el contenedor, usuario 10001, los lee por *bind mount*) | Desplegado en el VPS |
+| Clave SSH del administrador | Equipo del administrador (`~/.ssh/hostinger_kvm2`) | `600`, con frase de paso recomendada | Desplegado (fuera del VPS) |
+| Copia de los secretos fuera del VPS | — | — | No implementado: si se pierde el VPS se pierden también las claves (ver sección 1.8) |
 
-**Rotación** (política POL-01 de S1: tokens de R2 y Cloudflare cada 90 días; contraseñas de BD y claves JWT ante sospecha o salida de un integrante):
+Todo está excluido del repositorio (`infra/.env`, `infra/vps/.env` e `infra/secrets/` en `.gitignore`).
+
+!!! warning "Datos de acceso publicados en el monorepo"
+    `infra/vps/README.md` y `infra/vps/deploy.sh` incluyen la IP pública del VPS y el nombre del usuario SSH. No son secretos, pero facilitan el reconocimiento. En esta documentación se usa `<IP_PUBLICA_VPS>`. Si el repositorio es público, conviene pasar esos valores a variables (`VPS=deploy@…`).
+
+**Rotación:**
 
 | Secreto | Procedimiento | Efecto |
 |---------|---------------|--------|
-| Contraseña de `logyx_api` o `logyx_owner` | `docker compose exec db psql -U postgres -d logyx` y `\password logyx_api`; actualizar `infra/.env`; `docker compose up -d backend` | Reinicio breve del backend |
-| Claves JWT | Borrar `infra/secrets/jwt-*.pem`, ejecutar `infra/scripts/gen-jwt-keys.sh`, `docker compose up -d backend` | **Invalida todas las sesiones** (TTL de 8 h, sin *refresh token*): los usuarios inician sesión de nuevo |
-| Token R2 | Crear el token nuevo en Cloudflare, actualizar `.env`, reiniciar `backend`, revocar el anterior | Sin interrupción si se reinicia después de crear el nuevo |
-| Clave SSH de un integrante | Retirar su línea de `authorized_keys` | Inmediato |
+| Contraseña de `logyx_api` o `logyx_owner` | `docker compose exec db psql -U postgres -d logyx` y `\password logyx_api`; actualizar `state/.env`; `docker compose up -d backend` | Reinicio breve del backend |
+| Claves JWT | Borrar `state/secrets/jwt-*.pem`, ejecutar `gen-jwt-keys.sh` y copiar los PEM a `state/secrets/`; `docker compose up -d backend` | **Invalida todas las sesiones** (web: 8 h; móvil: también el *refresh token*) |
+| Contraseña de MinIO | Actualizar `MINIO_ROOT_PASSWORD` en `state/.env`; `docker compose up -d minio backend` | Reinicio breve |
+| Clave SSH | Reemplazar la línea en `~deploy/.ssh/authorized_keys` | Inmediato |
 
-### 1.5 Mínimo privilegio de identidades y tokens
+### 1.5 Mínimo privilegio de identidades
 
 | Identidad | Alcance | Estado |
 |-----------|---------|--------|
-| Rol `logyx_owner` | `LOGIN`, dueño del esquema; solo Flyway y `SystemTx`; sin `SUPERUSER` ni `BYPASSRLS` | Implementado en el repositorio (`infra/db/init-roles.sh`) |
-| Rol `logyx_app` | `NOLOGIN`, sin `BYPASSRLS`; las políticas RLS son `TO logyx_app` | Implementado en el repositorio |
-| Rol `logyx_api` | `LOGIN`, miembro solo de `logyx_app`, `CONNECTION LIMIT 50`; no puede `SET ROLE` a otro rol | Implementado en el repositorio |
-| Token R2 `oncargo-documents-rw` | Lectura y escritura **solo** del bucket `oncargo-documents` | Definido para el VPS (pendiente de ejecutar) |
-| Token R2 `oncargo-backups-w` | Escritura **solo** en el bucket `oncargo-backups` | Definido; ver la nota siguiente |
-| Token R2 `oncargo-backups-r` (adicional) | Lectura de `oncargo-backups`; **no se instala en el VPS**, lo usa el administrador en su equipo para las pruebas de restauración | Definido para el VPS (pendiente de ejecutar) |
-| Token de Cloudflare para DNS | Editar DNS de la zona `oncargo.tech`; solo si se automatiza la emisión de certificados por DNS-01 | Pendiente (no se necesita con HTTP-01) |
-| Usuario `deploy` | Solo `deploy.sh` por SSH | Definido para el VPS (pendiente de ejecutar) |
+| Rol `logyx_owner` | `LOGIN`, dueño del esquema; solo Flyway y `SystemTx`; sin `SUPERUSER` ni `BYPASSRLS` | Desplegado en el VPS (`infra/db/init-roles.sh`, montado en el *entrypoint* de `db`) |
+| Rol `logyx_app` | `NOLOGIN`, sin `BYPASSRLS`; las políticas RLS son `TO logyx_app` | Desplegado en el VPS |
+| Rol `logyx_api` | `LOGIN`, miembro solo de `logyx_app`, `CONNECTION LIMIT 50`; no puede `SET ROLE` a otro rol | Desplegado en el VPS |
+| Superusuario `postgres` | Solo para el *entrypoint* y administración por `docker compose exec`; contraseña aleatoria | Desplegado en el VPS |
+| MinIO | El backend usa las credenciales raíz de MinIO (`LOGYX_S3_ACCESS_KEY = MINIO_ROOT_USER`) | Desplegado; **mejora:** crear un usuario de MinIO limitado al bucket `oncargo-documents` |
+| Usuario `deploy` | `sudo` completo (ver sección 1.1) | Desplegado en el VPS |
+| Roles de organización en la aplicación (`ADMIN`, `OPS`, `VIEWER`) y versión de sesión `sv` | Ver [Seguridad del software](../../software/entregable-2/seguridad.md) | Implementado en el repositorio |
 
-!!! note "Token de solo escritura para los respaldos"
-    El diseño de S1 pide que el token de respaldos no pueda borrar. Los permisos de objeto que ofrece el panel de R2 son, según la documentación consultada, de lectura y escritura o de solo lectura; **si no existe una opción de solo escritura**, el token de respaldos del VPS tendrá lectura/escritura acotada al bucket `oncargo-backups` y el riesgo de borrado por un atacante que comprometa el VPS se compensa con (a) la regla de ciclo de vida, (b) una copia mensual de un respaldo a un destino distinto (equipo del administrador) y (c) el aislamiento del bucket de documentos. Se verifica al crear los tokens.
-
-**Verificación del mínimo privilegio en la base de datos** (desde el VPS, con el contenedor `db` en ejecución; las conexiones por *socket* local dentro del contenedor usan autenticación `trust` de la imagen oficial):
+**Verificación del mínimo privilegio en la base de datos:**
 
 ```bash
-cd /opt/oncargo/infra
-docker compose -f docker-compose.prod.yml exec db psql -U postgres -d logyx -c \
+cd /opt/oncargo/src/infra/vps
+docker compose exec db psql -U postgres -d logyx -c \
   "SELECT rolname, rolsuper, rolbypassrls, rolcanlogin, rolconnlimit FROM pg_roles WHERE rolname LIKE 'logyx_%' ORDER BY 1;"
 # Esperado: logyx_api (f, f, t, 50) · logyx_app (f, f, f, -1) · logyx_owner (f, f, t, -1)
 
-docker compose -f docker-compose.prod.yml exec db psql -U logyx_api -d logyx -c "SET ROLE logyx_owner;"
+docker compose exec db psql -U logyx_api -d logyx -c "SET ROLE logyx_owner;"
 # Esperado: ERROR: permission denied to set role "logyx_owner"
-docker compose -f docker-compose.prod.yml exec db psql -U logyx_api -d logyx -c "CREATE TABLE prueba(x int);"
+docker compose exec db psql -U logyx_api -d logyx -c "CREATE TABLE prueba(x int);"
 # Esperado: ERROR: permission denied for schema public
 ```
 
-Las pruebas automatizadas equivalentes (`DatabasePrivilegesTest`, `RowLevelSecurityTest`) ya forman parte del *build* del backend y corren en CI.
+Las pruebas automatizadas equivalentes (`DatabasePrivilegesTest`, `RowLevelSecurityTest`) forman parte del *build* del backend y corren en CI.
 
 ### 1.6 Cifrado
 
 | Ámbito | Mecanismo | Estado |
 |--------|-----------|--------|
-| Tránsito: visitante → Cloudflare | TLS 1.2/1.3 de Cloudflare (mínimo 1.2) | Definido para el VPS (pendiente de ejecutar) |
-| Tránsito: Cloudflare → origen | Modo **Full (strict)** con certificado de Caddy (Let's Encrypt) u Origin CA | Definido para el VPS (pendiente de ejecutar) |
-| HSTS (1 año) | API en perfil `prod` y web cuando llega por HTTPS | Implementado en el repositorio |
-| Tránsito: backend ↔ PostgreSQL | Red Docker `internal` aislada; `sslmode=require` solo si la BD se separa a otro host | Implementado en el repositorio (red); TLS Pendiente (no aplica en un solo host) |
-| Reposo: documentos | Cifrado en reposo gestionado por Cloudflare R2; `LOGYX_S3_SSE=false` (verificar al integrar si R2 acepta la cabecera SSE-S3 del SDK) | Definido; verificación pendiente |
-| Reposo: disco del VPS (`pgdata`) | El cifrado de disco del proveedor no está garantizado en la información consultada; el control es el acceso al host (SSH con clave, sin `root`). Evaluar cifrar el volumen o los respaldos como compensación | Pendiente (decisión) |
-| Contraseñas de usuario | Hash adaptativo bcrypt (`BcryptPasswordHasher`); no reversible | Implementado en el repositorio |
-| Sesión | JWT RSA de 8 h en cookie `httpOnly`, `Secure`, `SameSite=Lax` | Implementado en el repositorio |
-| Respaldos | `pg_dump -Fc` cifrado con `age` **antes** de salir del VPS; el servidor solo conoce la clave pública | Definido para el VPS (pendiente de ejecutar) |
-
-**Cifrado de respaldos con `age`** (`sudo apt install -y age`):
-
-```bash
-# En el equipo del administrador, NO en el VPS:
-age-keygen -o oncargo-backup.agekey
-# Imprime: Public key: age1xxxxxxxx...   -> esa clave pública va en /etc/oncargo/backup.env (AGE_RECIPIENT)
-# El archivo oncargo-backup.agekey (clave privada) se guarda en el gestor de contraseñas y en una copia impresa.
-
-# Cifrar (en el VPS, con la clave pública) y descifrar (en el equipo del administrador):
-age -r "$AGE_RECIPIENT" -o respaldo.dump.age respaldo.dump
-age -d -i oncargo-backup.agekey -o respaldo.dump respaldo.dump.age
-```
-
-Alternativa con OpenSSL (clave simétrica): `openssl enc -aes-256-cbc -pbkdf2 -salt -in respaldo.dump -out respaldo.dump.enc -pass file:/etc/oncargo/backup.key`. Se prefiere `age` porque el VPS no guarda ninguna clave capaz de descifrar.
+| Tránsito: cliente → VPS | TLS de Let's Encrypt emitido y renovado por Caddy; HTTP/3 en 443/udp | Desplegado en el VPS (activo al apuntar el DNS) |
+| Tránsito por IP (`http://<IP>`) | **Sin cifrar** (bloque temporal de pruebas) | Abierto: retirar al pasar a producción (Red, H-01) |
+| HSTS (1 año) | Caddy en `oncargo.tech` y `api.oncargo.tech`; además la API (perfil `prod`) y la web | Desplegado en el VPS |
+| Tránsito: backend ↔ PostgreSQL / MinIO | Red Docker `internal`, sin puertos publicados; sin TLS (un solo host) | Desplegado en el VPS |
+| Reposo: documentos (MinIO) | Volumen `miniodata` en el disco del VPS; sin cifrado de objetos (`LOGYX_S3_SSE` no se activa) | Desplegado; cifrado en reposo pendiente |
+| Reposo: base de datos (`pgdata`) | Volumen en el disco del VPS; el cifrado de disco del proveedor no está garantizado | Pendiente (decisión) |
+| Contraseñas de usuario | Hash adaptativo bcrypt (`BcryptPasswordHasher`) | Implementado en el repositorio |
+| Sesión web | JWT RSA de 8 h en cookie `httpOnly`, `SameSite=Lax`; `Secure` **desactivado** mientras se prueba por IP (`COOKIE_SECURE=false`) | Desplegado; activar `Secure` con H-01 |
+| Sesión móvil | JWT de 1 h + *refresh token* rotativo de 30 días (solo su hash SHA-256 en la BD) | Implementado en el repositorio |
+| Respaldos cifrados | — | No implementado (no hay respaldos; ver sección 1.7) |
 
 ### 1.7 Respaldos como control técnico
 
-La política (POL-03 de S1) se implementa en [Implementación de Datacenter, sección 2](implementacion-datacenter.md): `pg_dump -Fc` diario a las 02:00 (hora de Lima), cifrado y subido a R2, retención de 30 días por regla de ciclo de vida, respaldo manual antes de cada despliegue con migraciones y prueba de restauración mensual. **Estado:** Definido para el VPS (pendiente de ejecutar).
+!!! danger "Hoy no hay respaldos automáticos"
+    `infra/vps/README.md` deja los respaldos como **pendientes** (*backups `pg_dump` diarios a R2 (pendiente)*). Los datos de PostgreSQL (`pgdata`) y los documentos (`miniodata`) existen **solo en el disco del VPS**. Una falla del disco o la pérdida del servidor implicaría perder todos los datos. Mientras el entorno sea de pruebas con datos demo, el impacto es bajo; **antes de cargar datos reales, este control es obligatorio**.
+
+Lo único que existe hoy es la copia del código anterior (`/opt/oncargo/src.old`), que permite volver a la versión previa de la aplicación, pero no protege los datos. El procedimiento mínimo propuesto (manual, hasta automatizarlo) está en [Implementación de Datacenter, sección 2](implementacion-datacenter.md).
 
 ### 1.8 Plan de continuidad operativa
 
-| Escenario | Estrategia | RTO | RPO | Estado |
-|-----------|-----------|-----|-----|--------|
-| Caída de un contenedor | `restart: unless-stopped` + `healthcheck` | < 1–2 min | 0 | Implementado en el repositorio |
-| Reinicio del VPS | Docker arranca al *boot*; `depends_on` con `service_healthy` | 2–5 min | 0 | Implementado en el repositorio |
-| Corrupción de la base de datos | Restauración del último `pg_dump` desde R2 | 1–2 h | Hasta 24 h | Definido para el VPS (pendiente de ejecutar) |
-| Pérdida total del VPS | Nuevo VPS, runbook de reconstrucción y último respaldo | 2–4 h | Hasta 24 h | Definido para el VPS (pendiente de ejecutar) |
-| Compromiso de secretos o de un token | Rotación (sección 1.4), revocación y revisión de logs | < 4 h | 0 | Definido para el VPS (pendiente de ejecutar) |
-| Caída de Cloudflare | DNS directo al VPS (la IP se conserva en el runbook), con el filtro de firewall desactivado temporalmente | Variable | 0 | Aceptado |
-| Caída de R2 | Documentos no disponibles; el resto opera; el adaptador `DocumentStorage` permite volver al disco local de forma temporal | Variable | 0 | Aceptado |
-| Pérdida de la cuenta de Hostinger o de Cloudflare | Recuperación por el soporte del proveedor; 2FA y correo de recuperación del equipo | Variable | 0 | Pendiente (acción administrativa) |
+| Escenario | Estrategia actual | RTO | RPO | Estado |
+|-----------|-------------------|-----|-----|--------|
+| Caída de un contenedor | `restart: unless-stopped` + `healthcheck` | < 1–2 min | 0 | Desplegado en el VPS |
+| Reinicio del VPS | Docker arranca al *boot*; `depends_on` con `service_healthy` | 2–5 min | 0 | Desplegado en el VPS |
+| Despliegue defectuoso | Volver a `src.old`: `cd /opt/oncargo && mv src src.bad && mv src.old src && cd src/infra/vps && docker compose up -d --build` | 10–20 min | 0 | Desplegado en el VPS |
+| Corrupción de la base de datos | Sin respaldo: no hay recuperación | — | **Sin garantía** | No implementado (prioridad 1) |
+| Pérdida total del VPS | Nuevo VPS + `deploy.sh` (genera secretos nuevos); los datos se pierden | 1–2 h (servicio vacío) | **Sin garantía** | Código: desplegado; datos: no implementado |
+| Compromiso de secretos | Rotación (sección 1.4) y revisión de logs | < 4 h | 0 | Procedimiento definido |
+| Pérdida de la cuenta de Hostinger | Recuperación por soporte; 2FA y correo de recuperación del equipo | Variable | — | Pendiente (acción administrativa) |
 
-El RPO baja de 24 h a minutos agregando archivado de WAL hacia R2 (pgBackRest o WAL-G) sin cambiar la topología; no se implementa en esta fase.
+**Simulacros:**
 
-**Simulacros planificados** (la rúbrica valora la continuidad con simulaciones):
-
-| Simulacro | Descripción | Frecuencia | Resultado esperado | Estado |
-|-----------|-------------|-----------|--------------------|--------|
-| SIM-1 | Restaurar el último respaldo en un entorno local y validar conteos | Mensual | Restauración correcta; tiempo medido | Pendiente de ejecución en el VPS |
-| SIM-2 | Reconstruir el servicio completo en una máquina limpia siguiendo el runbook | Semestral | Servicio operativo en < 4 h; defectos del runbook corregidos | Pendiente |
-| SIM-3 | Rotación de claves JWT y contraseñas de BD | Semestral | Sesiones invalidadas; servicio restablecido en < 30 min | Pendiente |
+| Simulacro | Descripción | Resultado esperado | Estado |
+|-----------|-------------|--------------------|--------|
+| SIM-1 | Restaurar un `pg_dump` manual en un entorno local y validar conteos | Restauración correcta; tiempo medido | Pendiente de ejecución (requiere el respaldo manual de Datacenter 2.2) |
+| SIM-2 | Volver a la versión anterior con `src.old` | Servicio operativo con el commit anterior | Pendiente de ejecución |
+| SIM-3 | Rotación de claves JWT y contraseñas de BD | Sesiones invalidadas; servicio restablecido en < 30 min | Pendiente de ejecución |
 
 ### 1.9 Respuesta a incidentes
 
-Se conserva el procedimiento de S1 (detección, clasificación en 15 min, contención en 30 min, erradicación en 4 h, recuperación en 2–4 h, informe posterior en 48 h). Acciones de contención específicas del nuevo entorno:
+Se conserva el procedimiento de S1 (detección, clasificación en 15 min, contención en 30 min, erradicación en 4 h, recuperación, informe posterior en 48 h). Acciones de contención en el entorno real:
 
 | Situación | Contención |
 |-----------|-----------|
-| Tráfico abusivo o ataque a la aplicación | Regla de bloqueo en Cloudflare o modo *Under Attack*; `fail2ban-client set sshd banip <IP>` si es SSH |
-| Credencial o token filtrado | Revocar en Cloudflare, rotar según la sección 1.4 |
-| Sospecha de compromiso del VPS | Aislar (cerrar 80/443 en `DOCKER-USER`), tomar copia de logs, reconstruir el VPS desde cero con secretos nuevos |
-| Datos personales expuestos | Notificar a los afectados en menos de 72 h (ver sección 5) |
+| Tráfico abusivo contra la aplicación | `AuthRateLimits` responde 429; bloqueo manual de la IP con `sudo ufw insert 1 deny from <IP>` (no afecta a puertos publicados por Docker: para 80/443 se usa `iptables -I DOCKER-USER -s <IP> -j DROP`) |
+| Fuerza bruta SSH | fail2ban la bloquea; `sudo fail2ban-client set sshd banip <IP>` manual |
+| Credencial filtrada | Rotar según la sección 1.4 |
+| Sospecha de compromiso del VPS | Detener los servicios (`docker compose down`), copiar logs (`docker compose logs > incidente.log`), reconstruir un VPS limpio con secretos nuevos |
+| Datos personales expuestos | Notificar a los afectados en menos de 72 h (sección 5) |
 
 ---
 
@@ -284,53 +231,28 @@ Se conserva el procedimiento de S1 (detección, clasificación en 15 min, conten
 
 ### 2.1 Parches del sistema operativo (`unattended-upgrades`)
 
-```bash
-sudo apt install -y unattended-upgrades
-sudo dpkg-reconfigure -plow unattended-upgrades    # habilita 20auto-upgrades
-```
-
-```
-# /etc/apt/apt.conf.d/20auto-upgrades
-APT::Periodic::Update-Package-Lists "1";
-APT::Periodic::Unattended-Upgrade "1";
-
-# /etc/apt/apt.conf.d/52oncargo-unattended
-Unattended-Upgrade::Allowed-Origins {
-    "${distro_id}:${distro_codename}-security";
-    "${distro_id}ESMApps:${distro_codename}-apps-security";
-    "${distro_id}ESM:${distro_codename}-infra-security";
-};
-Unattended-Upgrade::Automatic-Reboot "false";      // el reinicio ocurre en la ventana mensual
-Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
-Unattended-Upgrade::Mail "admin@<dominio-del-equipo>";   // opcional
-```
-
-Los parches de seguridad se instalan a diario; el **reinicio** (necesario para parches de kernel) se concentra en una ventana mensual con un temporizador de `systemd`:
-
-```ini
-# /etc/systemd/system/mantenimiento-mensual.service
-[Unit]
-Description=Reinicio de mantenimiento si hay parches pendientes
-[Service]
-Type=oneshot
-ExecStart=/bin/sh -c 'if [ -f /var/run/reboot-required ]; then /usr/sbin/shutdown -r +1 "Reinicio mensual de mantenimiento"; fi'
-
-# /etc/systemd/system/mantenimiento-mensual.timer
-[Unit]
-Description=Ventana mensual de mantenimiento (primer domingo, 03:00 Lima)
-[Timer]
-OnCalendar=Sun *-*-01..07 03:00:00 America/Lima
-Persistent=true
-[Install]
-WantedBy=timers.target
-```
+`unattended-upgrades` está activo en el VPS (según `infra/vps/README.md`) e instala a diario las actualizaciones de seguridad de Ubuntu 24.04. La configuración por omisión de Ubuntu **no reinicia** el servidor de forma automática, así que los parches de kernel quedan a la espera de un reinicio manual.
 
 ```bash
-sudo systemctl enable --now mantenimiento-mensual.timer
-systemctl list-timers mantenimiento-mensual.timer       # verificar la próxima ejecución
+systemctl status unattended-upgrades --no-pager
+cat /etc/apt/apt.conf.d/20auto-upgrades           # Esperado: Update-Package-Lists "1"; Unattended-Upgrade "1";
+sudo unattended-upgrade --dry-run --debug | tail -20
+ls /var/run/reboot-required 2>/dev/null && echo "Reinicio pendiente"
 ```
 
-Los contenedores vuelven a levantarse solos (`restart: unless-stopped`); `docker compose ps` confirma el estado `healthy` tras cada reinicio. **Estado:** Definido para el VPS (pendiente de ejecutar).
+| Control | Estado |
+|---------|--------|
+| Parches de seguridad diarios automáticos | Desplegado en el VPS |
+| Reinicio cuando hay parches de kernel | Manual (procedimiento abajo) |
+| Temporizador de reinicio mensual (`mantenimiento-mensual.timer`) | No implementado (mejora) |
+
+**Reinicio manual de mantenimiento** (cuando exista `/var/run/reboot-required`, fuera del horario de uso):
+
+```bash
+sudo reboot
+# Tras el arranque, los contenedores se levantan solos (restart: unless-stopped):
+cd /opt/oncargo/src/infra/vps && docker compose ps
+```
 
 ### 2.2 Dependencias del código (Dependabot)
 
@@ -350,9 +272,10 @@ Las pruebas de CI (`backend.yml`, `web.yml`, `android.yml`, `contract.yml`, `e2e
 
 | Imagen | Origen | Actualización |
 |--------|--------|---------------|
-| `postgres:16-alpine`, `caddy:2-alpine` | Docker Hub (oficiales) | Mensual en la ventana de mantenimiento: `docker compose pull db caddy && docker compose up -d` |
-| `eclipse-temurin:21-jre-alpine`, `node:22-alpine` | Base de `backend/Dockerfile` y `web/Dockerfile` | Mensual: `docker compose build --pull backend` y luego `web` (una imagen a la vez por la memoria) |
-| Limpieza | — | `docker image prune -f` tras cada actualización |
+| `eclipse-temurin:21-jdk/jre-alpine`, `node:22-alpine` | Base de `backend/Dockerfile` y `web/Dockerfile` | **En cada despliegue:** `deploy.sh` ejecuta `docker compose build --pull`, que descarga la versión vigente de las bases |
+| `postgres:16-alpine`, `caddy:2.10-alpine` | Docker Hub (oficiales) | Manual: `docker compose pull db caddy && docker compose up -d` |
+| `chainguard/minio` | Fijada por *digest* en el compose | Se cambia editando el *digest* en `infra/vps/compose.yml` |
+| Limpieza | — | `deploy.sh` ejecuta `docker image prune -f` al final |
 
 Una actualización de `postgres` de versión mayor (16 a 17) **no** se hace con `pull`: requiere `pg_dump`/`pg_restore` o `pg_upgrade` y se planifica aparte.
 
@@ -361,11 +284,11 @@ Una actualización de `postgres` de versión mayor (16 a 17) **no** se hace con 
 | Actividad | Frecuencia | Responsable | Rollback |
 |-----------|-----------|-------------|----------|
 | Parches de seguridad del SO | Diaria (automática) | Alex C. | `apt` permite instalar la versión anterior del paquete |
-| Reinicio del SO | Mensual, domingo 03:00 | Alex C. | Snapshot del panel de Hostinger previo a cambios mayores (si el plan lo permite) |
+| Reinicio del SO con parches de kernel | Cuando exista `/var/run/reboot-required` | Alex C. | Instantánea del panel de Hostinger antes de cambios mayores |
 | Revisión de PR de Dependabot | Semanal | Fabrizio S. | Revertir el PR |
-| Actualización de imágenes base | Mensual | Alex C. | Reconstruir con la etiqueta de imagen anterior |
+| Despliegue (incluye actualizar las imágenes base) | Por versión, con `infra/vps/deploy.sh` | Quien despliega | `src.old` (sección 1.8) |
 | Revisión de CVE críticos (NVD, avisos de GitHub) | Semanal | Alex C. | — |
-| Respaldo manual antes de actualizar | Antes de cada cambio con migraciones | Quien despliega | Restauración desde `predeploy/` |
+| Respaldo manual antes de desplegar migraciones | Antes de cada cambio con migraciones | Quien despliega | Restauración del volcado (Datacenter 2.2) |
 
 ---
 
@@ -373,35 +296,31 @@ Una actualización de `postgres` de versión mayor (16 a 17) **no** se hace con 
 
 ### 3.1 Arquitectura de detección ligera
 
-La versión 1.0 usaba Wazuh sobre una instancia dedicada y una instancia Kali aislada. En un VPS de 8 GB un SIEM completo (Wazuh o Elastic) no es viable: compite con la base de datos y el backend por memoria y su costo operativo no se justifica en el MVP. La detección se apoya en lo que el sistema ya produce:
+En un VPS de 8 GB un SIEM completo (Wazuh o Elastic) no es viable: compite con la base de datos y el backend por memoria. La detección se apoya en lo que ya existe:
 
 ```mermaid
 graph LR
-    CF["Cloudflare<br/>Security Events · WAF · bots"]
-    CADDY["Logs JSON de Caddy"]
-    JRN["journald<br/>SSH · sistema"]
+    JRN["journald<br/>SSH · sistema · UFW"]
+    F2B["fail2ban<br/>jail sshd"]
+    APP["AuthRateLimits<br/>429 LOGYX-AUTH-429"]
+    LOGS["docker compose logs<br/>backend · web · caddy"]
     DBLOGS[("audit_log · outbox_events<br/>PostgreSQL")]
-    F2B["fail2ban<br/>jails sshd y caddy-auth"]
-    SQL["Reglas SQL programadas<br/>propuesta"]
-    KUMA["Uptime Kuma<br/>disponibilidad y latidos"]
+    SQL["Consultas SQL<br/>(sección 4.3)"]
     REV["Revisión semanal del equipo<br/>y respuesta a incidentes"]
 
-    CF --> REV
-    CADDY --> F2B
-    JRN --> F2B
-    F2B --> REV
+    JRN --> F2B --> REV
+    APP --> LOGS --> REV
     DBLOGS --> SQL --> REV
-    KUMA --> REV
 ```
 
 | Fuente | Qué detecta | Respuesta | Estado |
 |--------|-------------|-----------|--------|
-| Cloudflare *Security Events* | Bloqueos del WAF, desafíos de bots, *rate limiting* | Revisión semanal; reglas de bloqueo manuales | Definido para el VPS (pendiente de ejecutar) |
-| fail2ban `sshd` | Fuerza bruta SSH | Bloqueo automático por UFW | Definido para el VPS (pendiente de ejecutar) |
-| fail2ban `caddy-auth` | Intentos de login rechazados por IP | Registro y revisión; bloqueo manual en Cloudflare | Definido para el VPS (pendiente de ejecutar) |
+| fail2ban `sshd` | Fuerza bruta SSH | Bloqueo automático | Desplegado en el VPS |
 | `AuthRateLimits` | Fuerza bruta de login y registros masivos (`429 LOGYX-AUTH-429`) | Bloqueo automático en la aplicación | Implementado en el repositorio |
-| `audit_log`, `outbox_events` | Acciones críticas; eventos en `FAILED` | Consultas de la sección 4.3 | Tablas implementadas en el repositorio; reglas Pendientes |
-| Uptime Kuma | Caídas y respaldos que no se ejecutaron | Alerta por correo o mensajería | Definido para el VPS (pendiente de ejecutar) |
+| Logs de los contenedores | Errores del backend y la web; mensajes de Caddy | Revisión manual | Desplegado en el VPS |
+| `audit_log`, `outbox_events` | Acciones críticas; eventos en `FAILED` | Consultas de la sección 4.3 | Tablas desplegadas; consultas manuales |
+| Registro de accesos HTTP (Caddy) | Peticiones por IP, estado y ruta | — | No implementado (Red, H-09) |
+| Cloudflare *Security Events*, Uptime Kuma | Bloqueos en el borde, caídas, respaldos no ejecutados | — | No implementado (mejora) |
 
 ### 3.2 Reglas de la prueba (ética y alcance)
 
@@ -417,24 +336,25 @@ graph LR
 
 ### 3.3 Escenarios de ataque simulado
 
-Cada escenario indica el entorno, el comando, el resultado esperado y la detección esperada. **Todos están en estado Pendiente de ejecución**; no se registran salidas de herramientas que no se hayan ejecutado.
+Cada escenario indica el entorno, el comando, el resultado esperado según la configuración real y la detección esperada. **Todos están Pendientes de ejecución**; no se registran salidas de herramientas que no se hayan ejecutado.
 
 | ID | Escenario | Entorno | Resultado esperado | Detección esperada | Resultado |
 |----|-----------|---------|--------------------|--------------------|-----------|
-| A1 | Escaneo de puertos con Nmap | Producción (externo) | Solo 22/tcp visible; 80/443/5432/8080/4321 filtrados | Entradas de `ufw` en el *journal* | Pendiente de ejecución en el VPS |
-| A2 | Fuerza bruta al login | *Staging* local | `429 LOGYX-AUTH-429` tras 10 fallos por correo y tras 50 intentos por IP | Logs de Caddy y de la aplicación | Pendiente de ejecución en el VPS |
-| A3 | Inyección SQL con sqlmap | *Staging* local | Sin inyección explotable; sin datos de otra organización | Logs; WAF en producción | Pendiente de ejecución en el VPS |
-| A4 | Escaneo dinámico con OWASP ZAP | *Staging* local | Sin hallazgos altos sin tratar | Informe HTML | Pendiente de ejecución en el VPS |
-| A5 | Acceso a la BD desde fuera | Producción (externo) | Sin conexión al puerto 5432 | Escaneo de A1 | Pendiente de ejecución en el VPS |
-| A6 | Prueba de SSRF | *Staging* local | Ninguna petición saliente originada por datos del usuario | Captura de tráfico; revisión de código | Pendiente de ejecución en el VPS |
-| A7 | Fuerza bruta SSH | Producción (acceso controlado) | Bloqueo de la IP por fail2ban tras 4 intentos | `fail2ban-client status sshd` | Pendiente de ejecución en el VPS |
-| A8 | Acceso directo al origen sin Cloudflare | Producción (externo) | Sin respuesta | Contadores de `CLOUDFLARE_ONLY` | Pendiente de ejecución en el VPS |
+| A1 | Escaneo de puertos con Nmap | VPS (externo) | Abiertos solo 22, 80 y 443; 5432/8080/4321/9000 cerrados o filtrados | Entradas `UFW BLOCK` en el *journal* | Pendiente de ejecución |
+| A2 | Fuerza bruta al login | *Staging* local y, de forma acotada, el VPS | `429 LOGYX-AUTH-429` tras 10 fallos por correo y tras 50 intentos por IP | Logs del backend | Pendiente de ejecución |
+| A3 | Inyección SQL con sqlmap | *Staging* local | Sin inyección explotable; sin datos de otra organización | Logs | Pendiente de ejecución |
+| A4 | Escaneo dinámico con OWASP ZAP | *Staging* local | Sin hallazgos altos sin tratar | Informe HTML | Pendiente de ejecución |
+| A5 | Acceso a la BD y a MinIO desde fuera | VPS (externo) | Sin conexión a 5432 ni 9000 | Escaneo de A1 | Pendiente de ejecución |
+| A6 | Prueba de SSRF | *Staging* local | Ninguna petición saliente originada por datos del usuario | Captura de tráfico; revisión de código | Pendiente de ejecución |
+| A7 | Fuerza bruta SSH | VPS (acceso controlado) | Bloqueo de la IP por fail2ban | `fail2ban-client status sshd` | Pendiente de ejecución |
+| A8 | Credenciales en texto claro por el acceso HTTP por IP | VPS (externo) | El login por `http://<IP>` viaja sin cifrar mientras exista el bloque de pruebas | Captura con `tcpdump` en el equipo del tester | Pendiente de ejecución (confirma el hallazgo H-01 de Red) |
+| A9 | Límite por IP compartido en la web | VPS (externo, cuenta inexistente) | Con H-10 abierto: tras 50 intentos de login desde **un** equipo, el login web responde 429 también desde **otro** equipo y otra red. Tras corregirlo, el segundo equipo no se ve afectado | Logs del backend (IP registrada = la de `caddy`) | Pendiente de ejecución (confirma el hallazgo H-10 de Red) |
 
-#### A1 — Escaneo de puertos (producción, externo)
+#### A1 — Escaneo de puertos (VPS, externo)
 
 ```bash
 sudo nmap -Pn -sS -p- --min-rate 1000 -oN a1-nmap.txt <IP_PUBLICA_VPS>
-# Esperado: 22/tcp open ssh; todos los demás puertos filtered o closed
+# Esperado: 22/tcp open ssh · 80/tcp open http · 443/tcp open https; el resto filtered o closed
 sudo journalctl -k --since "10 min ago" | grep -c 'UFW BLOCK'     # Esperado: > 0 (bloqueos registrados)
 ```
 
@@ -461,7 +381,7 @@ done; echo
 # Esperado: 401 hasta el intento 50 y 429 desde el 51
 ```
 
-En producción el mismo patrón debe quedar contenido además por la regla de *rate limiting* de Cloudflare y registrado por la *jail* `caddy-auth`.
+Contra el VPS solo se ejecuta la variante 2a con una cuenta inexistente (12 intentos) para confirmar el código `429` en el entorno real. No hay otra barrera delante: sin Cloudflare, `AuthRateLimits` es el único control del login.
 
 #### A3 y A4 — sqlmap y OWASP ZAP (staging local)
 
@@ -482,13 +402,16 @@ docker run --rm --network host -v "$PWD/docs/api:/zap/wrk:rw" ghcr.io/zaproxy/za
 
 **Análisis:** incluso con un WAF mediocre, la defensa no depende de él. La capa de aplicación usa consultas parametrizadas y la conexión `logyx_api` no puede escalar (`RESET ROLE`, `SET ROLE`, `ALTER`, `DROP POLICY` fallan, `DatabasePrivilegesTest`). El riesgo residual documentado en `docs/security.md` es que una inyección podría cambiar el contexto de organización con `set_config` dentro de lo que permite `logyx_app` (ADR-0006); por eso el análisis de A3 revisa también el aislamiento entre organizaciones.
 
-#### A5 y A8 — Acceso a la base de datos y al origen desde fuera
+#### A5 y A8 — Datos desde fuera y acceso HTTP por IP
 
 ```bash
-psql -h <IP_PUBLICA_VPS> -p 5432 -U logyx_api -d logyx      # Esperado: tiempo de espera agotado, sin conexión
-nmap -Pn -p 5432 <IP_PUBLICA_VPS>                          # Esperado: filtered / closed
-curl -sv --max-time 8 --resolve oncargo.tech:443:<IP_PUBLICA_VPS> https://oncargo.tech/ -o /dev/null   # Esperado: sin respuesta
-sudo iptables -L CLOUDFLARE_ONLY -n -v                     # Esperado: contador del DROP incrementado
+psql -h <IP_PUBLICA_VPS> -p 5432 -U logyx_api -d logyx      # Esperado: sin conexión
+nmap -Pn -p 5432,9000 <IP_PUBLICA_VPS>                      # Esperado: filtered / closed
+
+# A8: en el equipo del tester, capturar el tráfico hacia la IP mientras se inicia sesión por http://<IP>/login
+sudo tcpdump -i any -A -s0 "host <IP_PUBLICA_VPS> and port 80" | grep -i --line-buffered 'password'
+# Esperado hoy: aparece el cuerpo del login en claro (por eso H-01 exige retirar el bloque http://{$PUBLIC_IP})
+# Repetir contra https://oncargo.tech/login con port 443: no debe verse nada legible
 ```
 
 #### A6 — Prueba de SSRF
@@ -515,73 +438,68 @@ La IP de metadatos `169.254.169.254` no aplica a un VPS de Hostinger como en AWS
 
 ```bash
 # Desde un equipo del equipo (IP que NO está en ignoreip), con una clave inexistente
-for i in 1 2 3 4 5; do ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no admin@<IP_PUBLICA_VPS> true; done
+for i in 1 2 3 4 5; do ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no deploy@<IP_PUBLICA_VPS> true; done
 # En el VPS:
 sudo fail2ban-client status sshd      # Esperado: la IP aparece en "Banned IP list"
 sudo ufw status | grep <IP_DEL_TESTER>
 sudo fail2ban-client set sshd unbanip <IP_DEL_TESTER>
 ```
 
-### 3.4 Alertas y dashboard ligeros
+### 3.4 Alertas y revisión
 
-El panel operativo es el de **Uptime Kuma** (estado de monitores y latidos) más la lista semanal de revisión; no se mantiene un dashboard de métricas pesado.
+No hay alertas automáticas configuradas: la detección depende de la revisión manual del equipo.
 
 | Alerta | Origen | Umbral | Canal | Estado |
 |--------|--------|--------|-------|--------|
-| Web o API caída | Uptime Kuma y UptimeRobot | 3 fallos de 60 s | Correo y mensajería | Definido para el VPS (pendiente de ejecutar) |
-| Respaldo diario no ejecutado | Monitor *push* | Sin latido en 26 h | Correo y mensajería | Definido para el VPS (pendiente de ejecutar) |
-| Certificado por vencer | Uptime Kuma | < 14 días | Correo | Definido para el VPS (pendiente de ejecutar) |
-| IP bloqueada por fail2ban | fail2ban | Cada bloqueo `sshd` (informativo) | Revisión semanal | Definido para el VPS (pendiente de ejecutar) |
-| Eventos de seguridad altos en Cloudflare | Panel de Cloudflare | Pico anómalo de bloqueos | Revisión semanal | Definido para el VPS (pendiente de ejecutar) |
-| `outbox_events` en `FAILED` | Consulta SQL (sección 4.3) | > 0 | Revisión semanal | Pendiente (sin alerta automática hoy, según `docs/security.md`) |
+| IP bloqueada por fail2ban | fail2ban | Cada bloqueo `sshd` (informativo) | Revisión semanal | Desplegado (revisión manual) |
+| Contenedor reiniciado o `unhealthy` | `docker compose ps` / `docker events` | Cualquier reinicio | Revisión semanal | Desplegado (revisión manual) |
+| `outbox_events` en `FAILED` | Consulta SQL (sección 4.3) | > 0 | Revisión semanal | Implementado en el repositorio (sin alerta automática) |
+| Web o API caída | UptimeRobot (externo) | 3 fallos de 5 min | Correo | No implementado (mejora prioritaria, sin costo) |
+| Certificado por vencer | UptimeRobot o Uptime Kuma | < 14 días | Correo | No implementado (mejora) |
+| Respaldo no ejecutado | Monitor *push* | Sin latido en 26 h | Correo | No implementado (no hay respaldos) |
 
-**Revisión semanal (30 min, Jorge G.):** bloqueos de fail2ban, *Security Events* de Cloudflare, consultas de la sección 4.3, actualizaciones pendientes (`apt list --upgradable`), uso de disco y memoria, estado del último respaldo.
+**Revisión semanal (30 min, Jorge G.):** bloqueos de fail2ban, consultas de la sección 4.3, `docker compose ps`, actualizaciones pendientes (`apt list --upgradable`), `/var/run/reboot-required`, uso de disco y memoria.
 
 ### 3.5 KPIs de seguridad (C2.3)
 
 | KPI | Objetivo | Frecuencia | Fuente | Valor medido |
 |-----|----------|-----------|--------|--------------|
-| CVE críticos sin parchear (dependencias e imágenes) | 0 | Semanal | Dependabot, Trivy, `npm audit` | Pendiente (se mide al operar) |
-| Respaldos diarios exitosos | 100 % | Diaria | Monitor *push* de Uptime Kuma | Pendiente |
+| CVE críticos sin parchear (dependencias e imágenes) | 0 | Semanal | Dependabot, Trivy, `npm audit` | Pendiente |
+| Respaldos exitosos | 100 % de los programados | Diaria (al implementarse) | Script de respaldo | No aplica aún (sin respaldos) |
 | Pruebas de restauración exitosas | 1 por mes | Mensual | Registro de SIM-1 | Pendiente |
-| Tiempo de reconocimiento de una alerta crítica | < 30 min | Por evento | Uptime Kuma + registro de incidentes | Pendiente |
-| Eventos de seguridad bloqueados por Cloudflare sobre el total de solicitudes | < 0.5 % (tendencia; un pico se investiga) | Semanal | Panel de Cloudflare | Pendiente |
 | IP bloqueadas por fail2ban `sshd` | Informativo (tendencia) | Semanal | `fail2ban-client status sshd` | Pendiente |
 | Cuentas bloqueadas por `LOGYX-AUTH-429` y cuentas comprometidas | 0 cuentas comprometidas | Semanal | Logs de la aplicación | Pendiente |
 | `outbox_events` en `FAILED` sin revisar más de 7 días | 0 | Semanal | Consulta SQL | Pendiente |
 | Actualizaciones de seguridad del SO pendientes más de 7 días | 0 | Semanal | `apt list --upgradable` | Pendiente |
-| Meses sin reinicio de mantenimiento con parches pendientes | 0 (máximo 1 mes) | Mensual | `/var/run/reboot-required` | Pendiente |
-| Desviación entre el repositorio y el servidor | 0 archivos modificados en `/opt/oncargo` | Semanal | `git -C /opt/oncargo status --porcelain` | Pendiente |
-| Credenciales con rotación vencida (90 días) | 0 | Trimestral | Registro de rotación | Pendiente |
+| Reinicios pendientes por parches de kernel más de 30 días | 0 | Mensual | `/var/run/reboot-required` | Pendiente |
+| Desviación entre el commit desplegado y la rama principal | Conocida y registrada | Por despliegue | `cat /opt/oncargo/state/DEPLOYED` | Pendiente |
+| Hallazgos abiertos del modo de pruebas (H-01 a H-03 de Red) | 0 antes de producción | Por versión | Este documento | 3 abiertos |
 
 ---
 
 ## Sección 4 — Detección Automatizada y Apoyo de IA a Costo Cero o Bajo (C2.3)
 
-La versión 1.0 apoyaba la seguridad en servicios de IA/ML de AWS (GuardDuty, Detective, Macie, Wazuh, Bedrock) que cuestan decenas de dólares al mes y que el nuevo diseño no usa. Esta sección conserva la idea (automatizar la detección y reducir el ruido para el equipo) con herramientas gratuitas o de costo marginal, y distingue lo que ya existe de lo que es una **propuesta**.
+La versión 1.0 apoyaba la seguridad en servicios de IA/ML de AWS (GuardDuty, Detective, Macie, Wazuh, Bedrock) que cuestan decenas de dólares al mes y que el nuevo diseño no usa. Esta sección conserva la idea (automatizar la detección y reducir el ruido para el equipo) con herramientas gratuitas o de costo marginal, y distingue lo que ya existe de lo que es una **propuesta**. En el despliegue real no hay ninguna herramienta adicional instalada: las consultas de la sección 4.3 se ejecutan a mano.
 
-### 4.1 Cloudflare: reglas gestionadas y puntuación de bots
+### 4.1 Protección en el borde (Cloudflare): no implementada
 
-| Capacidad | Disponibilidad | Uso en OnCargo | Estado |
-|-----------|----------------|----------------|--------|
-| Reglas gestionadas del WAF (conjunto gratuito) | Plan gratuito | Mitigación de vulnerabilidades de alto impacto y de ataques comunes; revisión de eventos | Definido para el VPS (pendiente de ejecutar) |
-| *Bot Fight Mode* | Plan gratuito | Reduce el tráfico automatizado de bajo costo; verificar con la app Android | Pendiente de verificar |
-| Mitigación DDoS (capas 3, 4 y 7) | Plan gratuito | Absorbe ataques volumétricos antes del origen | Definido para el VPS (pendiente de ejecutar) |
-| *Rate limiting* (una regla) | Plan gratuito | Contiene el abuso del login antes de `AuthRateLimits` | Definido para el VPS (pendiente de ejecutar) |
-| Puntuación de bots detallada, OWASP Core Ruleset, WAF avanzado | Planes de pago | **No se usa** | — |
+El diseño v2.0 ponía Cloudflare delante del VPS (WAF gestionado, *Bot Fight Mode*, mitigación DDoS y una regla de *rate limiting*, todo en el plan gratuito). **No se desplegó**: el DNS apunta directo al VPS. Hoy la contención del abuso depende de la aplicación (`AuthRateLimits` en login, registro, restablecer contraseña, *refresh* y la cotización pública sin sesión `/public/pricing/quote`; límite de 5 streams SSE por usuario; límite de cuerpo de 12 MB) y de fail2ban para SSH. Ojo: desde la web esos límites por IP hoy se comparten entre todos los usuarios (hallazgo H-10 de Red).
 
-La puntuación de bots detallada y el conjunto de reglas OWASP completo son de pago: la protección del plan gratuito es una **primera barrera**, no sustituye la validación y el aislamiento de la aplicación.
+| Capacidad | Estado | Observación |
+|-----------|--------|-------------|
+| WAF gestionado, *Bot Fight Mode*, DDoS, *rate limiting* en el borde | No implementado (mejora) | Plan gratuito; requiere mover el DNS a Cloudflare y adaptar Caddy (IP real con `CF-Connecting-IP`) |
+| *Rate limiting* del login en la aplicación | Implementado en el repositorio | 50 por IP / 15 min; 10 fallos por correo |
 
 ### 4.2 CrowdSec (opcional, propuesta)
 
-CrowdSec es un motor de detección de comportamiento basado en escenarios y en una lista de reputación comunitaria. Se evalúa como mejora **opcional** porque consume memoria y requiere un *bouncer* que actúe en Cloudflare (para que el bloqueo sea efectivo detrás del proxy).
+CrowdSec es un motor de detección por comportamiento con una lista de reputación comunitaria. Se evalúa como mejora **opcional**: consume memoria y necesita una fuente de logs de acceso, que hoy no existe (Caddy no registra accesos).
 
 | Aspecto | Planteamiento |
 |---------|---------------|
-| Fuente de datos | Logs JSON de Caddy y *journal* de SSH |
-| Acción | *Bouncer* de Cloudflare (bloqueo en el borde) y de firewall para SSH |
-| Costo | Software libre; consumo de memoria **estimado** en el orden de 100–200 MB (sin medir) |
-| Condición para adoptarlo | Medir la memoria libre del host tras 30 días de operación; adoptarlo solo si quedan > 3 GB libres con carga normal |
+| Fuente de datos | Logs de acceso de Caddy (tras activar `log`) y *journal* de SSH |
+| Acción | *Bouncer* de firewall (`iptables`/`nftables`) en el host |
+| Costo | Software libre; consumo de memoria estimado de 100–200 MB (sin medir) |
+| Condición para adoptarlo | Activar antes el registro de accesos y comprobar que quedan > 3 GB libres con carga normal |
 | Estado | **Pendiente (opcional)** |
 
 ### 4.3 Reglas de detección en SQL sobre `audit_log` y `outbox_events` (propuesta)
@@ -590,7 +508,7 @@ La base de datos ya registra la actividad crítica. Las consultas siguientes se 
 
 ```bash
 # Ejemplo de ejecución (solo lectura):
-docker compose -f /opt/oncargo/infra/docker-compose.prod.yml exec -T db \
+cd /opt/oncargo/src/infra/vps && docker compose exec -T db \
   psql -U logyx_owner -d logyx -v ON_ERROR_STOP=1 -c "SET default_transaction_read_only = on;" -f - < regla.sql
 ```
 
@@ -659,7 +577,8 @@ Script de anonimización (propuesta) para los logs de Caddy:
 ```bash
 #!/usr/bin/env bash
 # anonimizar-logs.sh — salida lista para revisión: sin IP real, sin query string, sin cabeceras
-# Uso: sudo ./anonimizar-logs.sh /var/log/caddy/access.log > resumen-semanal.jsonl
+# Requiere activar antes el registro de accesos de Caddy (Red, sección 5.2)
+# Uso: docker compose logs --no-log-prefix caddy | ./anonimizar-logs.sh /dev/stdin > resumen-semanal.jsonl
 SAL=$(cat /etc/oncargo/log-salt)     # valor aleatorio local, no se comparte
 jq -c --arg sal "$SAL" '{
   ts: .ts,
@@ -673,32 +592,31 @@ jq -c --arg sal "$SAL" '{
 
 El hash anterior es una **seudonimización de apoyo**, no un cifrado: sirve para agrupar eventos sin mostrar la IP, y se acompaña de la regla de no enviar el archivo completo.
 
-### 4.5 Mapa de capas de detección automatizada
+### 4.5 Mapa de capas de detección y protección
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │               CAPA 7 — APLICACIÓN (implementada)                │
-│  Moderación de mensajes (fn_contains_contact_info) — regex      │
-│  Trust Score bayesiano — estadística en PostgreSQL              │
-│  AuthRateLimits — 429 LOGYX-AUTH-429                            │
+│  RN07: bloqueo de datos de contacto en textos libres (regex)    │
+│  Trust Score bayesiano · AuthRateLimits (429) · sesiones `sv`   │
 ├─────────────────────────────────────────────────────────────────┤
-│        CAPA 6 — SEÑALES DE NEGOCIO (propuesta, sección 4.3)     │
-│  Consultas SQL programadas sobre audit_log y outbox_events      │
+│        CAPA 6 — SEÑALES DE NEGOCIO (consultas manuales, 4.3)    │
+│  Consultas SQL sobre audit_log, outbox_events, bids, shipments  │
 ├─────────────────────────────────────────────────────────────────┤
 │        CAPA 5 — APOYO HUMANO ASISTIDO (propuesta, sección 4.4)  │
 │  Triage semanal con un LLM sobre logs anonimizados              │
 ├─────────────────────────────────────────────────────────────────┤
-│        CAPA 4 — DETECCIÓN EN EL HOST (definida)                 │
-│  fail2ban (sshd, caddy-auth) · CrowdSec (opcional)              │
+│        CAPA 4 — DETECCIÓN EN EL HOST (desplegada)               │
+│  fail2ban (sshd) · CrowdSec (opcional, no instalado)            │
 ├─────────────────────────────────────────────────────────────────┤
-│        CAPA 3 — BORDE (definida)                                │
-│  Cloudflare: WAF gestionado, Bot Fight Mode, DDoS, rate limiting│
+│        CAPA 3 — BORDE (no implementada)                         │
+│  Cloudflare: WAF, bots, DDoS, rate limiting (mejora)            │
 ├─────────────────────────────────────────────────────────────────┤
-│        CAPA 2 — FILTRADO DE RED (definida)                      │
-│  DOCKER-USER + ipset (solo Cloudflare en 80/443) · UFW          │
+│        CAPA 2 — FILTRADO DE RED (desplegada)                    │
+│  UFW: solo 22/80/443 · solo Caddy publica puertos               │
 ├─────────────────────────────────────────────────────────────────┤
-│        CAPA 1 — SEGMENTACIÓN (implementada en el compose)       │
-│  Redes edge e internal · db sin puertos · RLS y mínimo privilegio│
+│        CAPA 1 — SEGMENTACIÓN (desplegada)                       │
+│  Redes edge e internal · db y minio sin puertos · RLS y roles   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -712,12 +630,12 @@ El Código de Ética de la ACM (Association for Computing Machinery) establece p
 
 ### 5.2 Principio 1 — Contribuir al bienestar social y humano
 
-**Decisión:** OnCargo recopila ubicaciones GPS de conductores durante la entrega.
+**Decisión:** OnCargo registra el avance del conductor parada por parada (llegada y entrega), sin GPS continuo.
 
 **Análisis:**
 - Los datos de ubicación son necesarios para el tracking de envíos, que beneficia a las PYMEs.
 - **Límite ético:** La ubicación solo se recopila durante un envío activo, no de forma continua. El conductor puede ver exactamente qué datos se envían (transparencia).
-- **Control implementado:** Los datos de ubicación se almacenan solo en `shipment_stops` vinculados a un envío específico. No existe tabla de histórico de GPS permanente.
+- **Control implementado:** el sistema guarda solo la hora de llegada y de cierre de cada parada en `shipment_stops`, vinculadas a un envío específico. La app no envía coordenadas GPS (el GPS en vivo figura como pendiente en el roadmap); si se incorpora, aplicará el mismo límite de solo durante un envío activo.
 
 ### 5.3 Principio 2 — Evitar daño
 
@@ -725,8 +643,8 @@ El Código de Ética de la ACM (Association for Computing Machinery) establece p
 
 **Análisis:**
 - Una brecha de datos podría exponer información comercialmente sensible.
-- **Controles implementados o definidos:** TLS de extremo a extremo (Cloudflare y Caddy), cifrado en reposo de los documentos en R2, respaldos cifrados con `age`, RLS que impide que una organización acceda a datos de otra, `audit_log` para trazabilidad, mínimo privilegio en la base de datos y en los tokens.
-- **Limitación reconocida:** el disco del VPS no cuenta con cifrado garantizado por el proveedor (sección 1.6), y un único servidor es un único dominio de falla; ambas decisiones se aceptaron por costo y se documentan con sus mitigaciones (control de acceso al host, respaldos cifrados fuera del proveedor).
+- **Controles implementados o definidos:** TLS de Let's Encrypt en Caddy, RLS que impide que una organización acceda a datos de otra, `audit_log` para trazabilidad, mínimo privilegio en la base de datos. Los documentos (MinIO) y la base de datos no tienen cifrado en reposo ni respaldos todavía (secciones 1.6 y 1.7).
+- **Limitación reconocida:** el disco del VPS no cuenta con cifrado garantizado por el proveedor (sección 1.6), y un único servidor es un único dominio de falla; ambas decisiones se aceptaron por costo. La mitigación hoy es el control de acceso al host (SSH solo con clave); los respaldos cifrados fuera del VPS son el pendiente de mayor prioridad antes de manejar datos reales.
 - **Incidente hipotético:** Si OnCargo detecta una brecha, el plan de respuesta (secciones 1.8 y 1.9) exige notificar a los afectados en < 72 horas, alineado con las mejores prácticas internacionales (plazo a validar con asesoría legal).
 
 ### 5.4 Principio 3 — Ser honesto y confiable
@@ -735,7 +653,7 @@ El Código de Ética de la ACM (Association for Computing Machinery) establece p
 
 **Análisis:**
 - El sistema bloquea mensajes que contienen números de teléfono, emails o handles sociales para proteger el modelo de negocio.
-- **Obligación ética:** Los usuarios DEBEN ser informados de esta política al registrarse y cuando un mensaje es bloqueado. El mensaje bloqueado muestra claramente: `"[Mensaje bloqueado: el sistema detectó información de contacto directa]"`.
+- **Obligación ética:** Los usuarios DEBEN ser informados de esta política al registrarse y cuando un mensaje es bloqueado. El sistema no guarda el mensaje y responde con el error `LOGYX-NEG-001`, que se muestra bajo el campo: *"El texto contiene datos de contacto (teléfono, email, enlace o usuario de red social)…"* (`ContactInfoPolicy`).
 - No se bloquean mensajes silenciosamente sin notificar al remitente.
 
 **Decisión 2:** Honestidad sobre la disponibilidad y las pruebas.
@@ -765,7 +683,7 @@ El Código de Ética de la ACM (Association for Computing Machinery) establece p
 
 **Análisis:**
 - Las pruebas intrusivas se realizan **exclusivamente sobre sistemas propios** de OnCargo: el *staging* local con datos sintéticos y, de forma no intrusiva, el propio VPS y dominio (sección 3.2).
-- No se ataca infraestructura de terceros, incluidos Hostinger y Cloudflare: el escaneo y las pruebas se limitan a la IP y los dominios del proyecto, y se respetan sus políticas de uso aceptable. Las pruebas de carga contra Cloudflare se mantienen en volúmenes moderados y con la IP del evaluador identificada.
+- No se ataca infraestructura de terceros, incluido Hostinger: el escaneo y las pruebas se limitan a la IP y los dominios del proyecto, y se respetan sus políticas de uso aceptable. Las pruebas de carga se mantienen en volúmenes moderados y con la IP del evaluador identificada.
 - No se utiliza ninguna herramienta contra sistemas ajenos, lo que cumple las condiciones de la Ley de Delitos Informáticos del Perú (Ley 30096).
 - Las dependencias de código abierto se usan conforme a su licencia (Dependabot, revisión de CVE); los datos de OpenStreetMap usados en las rutas se atribuyen conforme a la ODbL (ADR-0008).
 
@@ -776,15 +694,15 @@ El Código de Ética de la ACM (Association for Computing Machinery) establece p
 | **Ley 29733** — Protección de Datos Personales | RUC, DNI, emails, ubicaciones: tratados con consentimiento explícito (aceptación de la política de privacidad en el registro). Derechos de acceso, rectificación y cancelación a implementar o verificar según el alcance del MVP. |
 | **Ley 30096** — Delitos Informáticos | Los ataques simulados son sobre infraestructura propia. Documentados con autorización explícita del equipo. |
 | **Reglamento de la Ley 29733** (DS 003-2013-JUS; su sustitución por un nuevo reglamento debe verificarse con asesoría legal) | Medidas de seguridad técnicas: cifrado, acceso restringido, auditoría (`audit_log`), respaldos y control de accesos. |
-| **Flujo transfronterizo de datos personales** | Los datos residen en un VPS en Brasil y en Cloudflare R2; el tratamiento y la política de privacidad deben informarlo y evaluarse con asesoría legal (el nivel de protección del país receptor debe ser adecuado). |
+| **Flujo transfronterizo de datos personales** | Los datos (base de datos y documentos) residen en el VPS de Hostinger, fuera del Perú (región del centro de datos a confirmar en el panel); el tratamiento y la política de privacidad deben informarlo y evaluarse con asesoría legal (el nivel de protección del país receptor debe ser adecuado). |
 
 ### 5.8 Impacto social de las decisiones del rediseño
 
 | Decisión | Beneficio | Riesgo para las personas | Mitigación |
 |----------|-----------|--------------------------|------------|
-| Alojar en un VPS de bajo costo | Mantiene viable el servicio para PYMEs con márgenes estrechos | Menor disponibilidad que una nube multi-zona | Respaldos externos, RTO/RPO declarados, comunicación transparente de los límites |
+| Alojar en un VPS de bajo costo | Mantiene viable el servicio para PYMEs con márgenes estrechos | Menor disponibilidad que una nube multi-zona | RTO declarado, comunicación transparente de los límites; respaldos externos pendientes |
 | Aceptar un único dominio de falla | Reduce el costo en ~96 % frente a AWS | Una caída detiene subastas y seguimiento | La app del conductor encola evidencias y reintenta; las subastas son de minutos u horas |
-| Monitoreo ligero en vez de un SIEM | No sobrecarga el servidor | Menor visibilidad forense | Logs JSON de Caddy, `audit_log`, revisión semanal; CrowdSec opcional |
+| Monitoreo ligero en vez de un SIEM | No sobrecarga el servidor | Menor visibilidad forense | `audit_log`, logs de los contenedores, revisión semanal; registro de accesos de Caddy y CrowdSec como mejoras |
 
 ---
 
@@ -794,19 +712,19 @@ El Código de Ética de la ACM (Association for Computing Machinery) establece p
 
 | Evidencia | Origen | Estado |
 |-----------|--------|--------|
-| `infra/db/init-roles.sh` y salida de `SELECT ... FROM pg_roles` (sección 1.5) | Repositorio / VPS | Script: Implementado en el repositorio; salida: Pendiente de ejecución en el VPS |
+| `infra/vps/compose.yml`, `Caddyfile`, `bootstrap.sh`, `deploy.sh`, `README.md` | Repositorio (commit `cad2b77`) | Disponible |
+| `infra/db/init-roles.sh` y salida de `SELECT … FROM pg_roles` (sección 1.5) | Repositorio / VPS | Script disponible; salida pendiente de captura |
 | `DatabasePrivilegesTest`, `RowLevelSecurityTest`, `RealtimeStreamFlowTest` en verde en CI | Repositorio | Implementado en el repositorio |
-| `.github/dependabot.yml` y PR de Dependabot abiertos | Repositorio | Implementado en el repositorio |
-| `sshd -T \| grep -E 'permitrootlogin\|passwordauthentication'` | VPS | Pendiente de ejecución en el VPS |
-| `ufw status verbose`, `iptables -S DOCKER-USER`, `ipset list cloudflare4` | VPS | Pendiente de ejecución en el VPS |
-| `fail2ban-client status` (jails `sshd` y `caddy-auth`) | VPS | Pendiente de ejecución en el VPS |
-| `docker inspect` de usuario, capacidades y sistema de archivos de solo lectura (sección 1.3) | VPS | Pendiente de ejecución en el VPS |
-| Panel de Cloudflare: modo SSL, WAF, *rate limiting*, tokens de API con alcance mínimo | Cloudflare | Pendiente de ejecución en el VPS |
-| Panel de R2: buckets privados, tokens por bucket, reglas de ciclo de vida | Cloudflare | Pendiente de ejecución en el VPS |
-| Salida de `unattended-upgrades --dry-run` y de `systemctl list-timers` | VPS | Pendiente de ejecución en el VPS |
-| Resultados de los escenarios A1–A8 | Equipo / VPS | Pendiente de ejecución en el VPS |
-| Informe de OWASP ZAP (`zap-report.html`) y de Trivy | Equipo | Pendiente de ejecución en el VPS |
-| Registro de SIM-1 (restauración mensual de un respaldo) | Equipo | Pendiente de ejecución en el VPS |
+| `.github/dependabot.yml` y PR de Dependabot | Repositorio | Implementado en el repositorio |
+| `sshd -T \| grep -E 'permitrootlogin\|passwordauthentication'` | VPS | Pendiente de captura |
+| `ufw status verbose` | VPS | Pendiente de captura |
+| `fail2ban-client status sshd` | VPS | Pendiente de captura |
+| `docker inspect` de usuario y memoria; `docker ps` con puertos (sección 1.3) | VPS | Pendiente de captura |
+| `ls -l /opt/oncargo/state /opt/oncargo/state/secrets` (permisos de secretos) | VPS | Pendiente de captura |
+| `systemctl status unattended-upgrades` y `/etc/apt/apt.conf.d/20auto-upgrades` | VPS | Pendiente de captura |
+| Resultados de los escenarios A1–A8 | Equipo / VPS | Pendiente de ejecución |
+| Informe de OWASP ZAP (`zap-report.html`) y de Trivy | Equipo | Pendiente de ejecución |
+| Registro de SIM-1 a SIM-3 | Equipo | Pendiente de ejecución |
 
 ### Anexo B — Escaneos de vulnerabilidades
 
@@ -817,11 +735,11 @@ docker run --rm --network host -v "$PWD/docs/api:/zap/wrk:rw" ghcr.io/zaproxy/za
 
 # 2) Trivy — vulnerabilidades de las imágenes Docker (reemplaza a AWS Inspector)
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image \
-  --severity HIGH,CRITICAL --ignore-unfixed oncargo-backend:prod
+  --severity HIGH,CRITICAL --ignore-unfixed oncargo-backend:local
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image \
-  --severity HIGH,CRITICAL --ignore-unfixed oncargo-web:prod
+  --severity HIGH,CRITICAL --ignore-unfixed oncargo-web:local
 docker run --rm aquasec/trivy:latest image --severity HIGH,CRITICAL --ignore-unfixed postgres:16-alpine
-docker run --rm aquasec/trivy:latest image --severity HIGH,CRITICAL --ignore-unfixed caddy:2-alpine
+docker run --rm aquasec/trivy:latest image --severity HIGH,CRITICAL --ignore-unfixed caddy:2.10-alpine
 
 # 3) Dependencias de la web (npm)
 cd web && npm audit --omit=dev --audit-level=high
@@ -839,12 +757,12 @@ git clone https://github.com/docker/docker-bench-security.git && cd docker-bench
 
 | Escaneo | Frecuencia | Criterio de aceptación | Resultado |
 |---------|-----------|------------------------|-----------|
-| OWASP ZAP (API) | Trimestral y antes de un lanzamiento | Sin alertas altas sin tratar | Pendiente de ejecución en el VPS |
-| Trivy (imágenes) | Mensual y tras cada actualización de imagen base | 0 CVE críticos con corrección disponible | Pendiente de ejecución en el VPS |
-| `npm audit` | Semanal (con Dependabot) | 0 vulnerabilidades altas en producción | Pendiente de ejecución en el VPS |
-| OWASP Dependency-Check (Maven) | Mensual | Sin CVSS ≥ 7 sin tratamiento | Pendiente de ejecución en el VPS |
-| Lynis y Docker Bench | Semestral | Índice de endurecimiento registrado y mejoras priorizadas | Pendiente de ejecución en el VPS |
+| OWASP ZAP (API) | Trimestral y antes de un lanzamiento | Sin alertas altas sin tratar | Pendiente de ejecución |
+| Trivy (imágenes) | Mensual y tras cada actualización de imagen base | 0 CVE críticos con corrección disponible | Pendiente de ejecución |
+| `npm audit` | Semanal (con Dependabot) | 0 vulnerabilidades altas en producción | Pendiente de ejecución |
+| OWASP Dependency-Check (Maven) | Mensual | Sin CVSS ≥ 7 sin tratamiento | Pendiente de ejecución |
+| Lynis y Docker Bench | Semestral | Índice de endurecimiento registrado y mejoras priorizadas | Pendiente de ejecución |
 
 ---
 
-*OnCargo · S2 Entregable 2 · Seguridad · Competencias C2.2–C2.3–C2.4 · Versión 2.0 · Noviembre 2026 (original: Agosto–Noviembre 2026)*
+*OnCargo · S2 Entregable 2 · Seguridad · Competencias C2.2–C2.3–C2.4 · Versión 2.1 · Noviembre 2026*

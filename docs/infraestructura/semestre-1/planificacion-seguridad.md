@@ -10,6 +10,15 @@
 
     La diferencia de fondo es el **modelo de responsabilidad**: en AWS el proveedor gestionaba servicios (RDS, KMS, WAF); en un VPS el equipo es responsable del sistema operativo, del firewall del host, de los parches, de los respaldos y del cifrado de secretos. Eso aumenta la responsabilidad operativa del equipo y reduce el costo.
 
+!!! warning "Diseño frente a implementación real (actualización 2.1, noviembre 2026)"
+    Este documento es la **planificación**. Los controles realmente aplicados están en [Implementación de Seguridad](../semestre-2/implementacion-seguridad.md). Diferencias que afectan a esta planificación:
+
+    - **No hay Cloudflare ni R2:** los riesgos que se mitigaban con WAF, CDN, origen oculto y respaldos fuera del proveedor quedan **sin esa mitigación** hasta implementarla.
+    - **No hay respaldos automáticos** (POL-03 no está implementada): el riesgo de pérdida de datos es mayor que el valorado aquí mientras no se automaticen.
+    - **Acceso:** un único usuario administrativo `deploy` con `sudo` y `root` con clave (sin contraseñas); la política de cuentas separadas (`admin`/`deploy`) queda como mejora.
+    - **Secretos:** generados en el propio VPS por `bootstrap.sh` (`/opt/oncargo/state/`), sin copia fuera del servidor.
+    - **Modo de pruebas:** cuentas demo activas, cookie sin `Secure` y acceso HTTP por IP; deben retirarse antes de tratar datos reales.
+
 ---
 
 ## Resumen Ejecutivo

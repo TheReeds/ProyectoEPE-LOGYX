@@ -10,6 +10,15 @@
 
     Se mantienen las decisiones de software ya alineadas con el sistema real: web Astro 7 SSR (contenedor Node), app Android nativa, **sin Redis**, tiempo real por SSE sobre un outbox en PostgreSQL (`LISTEN/NOTIFY`), PostgreSQL 16 con tres roles y RLS. Referencia operativa: `infra/docker-compose.yml`, `infra/README.md` y `docs/security.md` del monorepo `logyx`.
 
+!!! warning "Diseño frente a implementación real (actualización 2.1, noviembre 2026)"
+    Este documento es el **diseño**. El centro de datos en operación está en [Implementación de Datacenter](../semestre-2/implementacion-datacenter.md). Diferencias principales:
+
+    - **Cinco contenedores** (Caddy, web, backend, PostgreSQL, MinIO) con límites reales de 128 MB, 512 MB, 1 GB, 768 MB y 384 MB (≈ 2.8 GB en total), en `infra/vps/compose.yml`.
+    - **Documentos en MinIO** (volumen del VPS), no en R2; **sin respaldos automáticos** ni Uptime Kuma.
+    - **Despliegue** con `infra/vps/deploy.sh` desde el equipo del administrador (`git archive` → `/opt/oncargo/src`, vuelta atrás con `src.old`); las imágenes se compilan en el VPS.
+    - **Disco:** 96 GB utilizables; la región del centro de datos se confirma en el panel de Hostinger.
+    - **Costo actual:** ≈ USD 13/mes (VPS en promoción + dominio), sin Cloudflare ni R2.
+
 ---
 
 ## Resumen Ejecutivo

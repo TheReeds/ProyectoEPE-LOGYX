@@ -116,19 +116,19 @@ En noviembre de 2026 se hicieron dos cambios transversales, sin cambiar los requ
 
 ### 7.2 Infraestructura: AWS → VPS Hostinger
 
-| Componente | Antes (diseño v1.0, AWS) | Después (v2.0) |
-|---|---|---|
-| Cómputo | EC2 `t3.medium` × 2–12 con Auto Scaling, ECS Fargate para jobs | **VPS Hostinger KVM 2**: 2 vCPU, 8 GB RAM, 100 GB NVMe, datacenter en Brasil; jobs dentro del backend |
-| Orquestación | ECS/EC2, Terraform | **Docker Compose** (`infra/docker-compose.yml`) |
-| Proxy / TLS | ALB + ACM + CloudFront | **Caddy** con HTTPS automático (Let's Encrypt) |
-| Base de datos | RDS PostgreSQL Multi-AZ | **PostgreSQL 16** en contenedor (RLS), sin puertos publicados |
-| Caché / tiempo real | ElastiCache Redis | Sin Redis: SSE sobre outbox (ADR-0007) |
-| Documentos | S3 (o MinIO) | **Cloudflare R2** (API compatible con S3; el adaptador `S3DocumentStorage` no cambia) |
-| Backups | Snapshots de RDS, S3 versionado | **`pg_dump` diario cifrado hacia R2**, retención de 30 días |
-| DNS / CDN / WAF | Route 53, CloudFront, AWS WAF | **Cloudflare** (plan gratuito), dominio `oncargo.tech` |
-| Seguridad y monitoreo | IAM, KMS, GuardDuty, Wazuh, CloudWatch | UFW + fail2ban, tokens de mínimo privilegio, Cloudflare WAF, monitoreo externo de disponibilidad |
-| Disponibilidad de diseño | Tier III equivalente (Multi-AZ, ~99.99%) | Tier I equivalente en el origen (~99.5% estimado; RTO 2–4 h, RPO 24 h) |
-| Costo mensual de referencia | ~USD 333 (≈ S/ 1,149) | **≈ USD 14 (≈ S/ 47)**: USD 8.99 del VPS en promoción con prepago de 24 meses (renueva a USD 14.99), dominio, R2 estimado |
+| Componente | Antes (diseño v1.0, AWS) | Diseño v2.0 | Desplegado (v2.1, `infra/vps/`) |
+|---|---|---|---|
+| Cómputo | EC2 `t3.medium` × 2–12 con Auto Scaling, ECS Fargate para jobs | **VPS Hostinger KVM 2**: 2 vCPU, 8 GB RAM, 100 GB NVMe, datacenter en Brasil; jobs dentro del backend | Igual: KVM 2 con Ubuntu 24.04, 96 GB utilizables (región a confirmar en el panel) |
+| Orquestación | ECS/EC2, Terraform | **Docker Compose** (`infra/docker-compose.yml`) | Docker Compose con `infra/vps/compose.yml` (5 servicios); despliegue con `infra/vps/deploy.sh` |
+| Proxy / TLS | ALB + ACM + CloudFront | **Caddy** con HTTPS automático (Let's Encrypt) | Igual (Caddy 2.10, HTTP/3) |
+| Base de datos | RDS PostgreSQL Multi-AZ | **PostgreSQL 16** en contenedor (RLS), sin puertos publicados | Igual |
+| Caché / tiempo real | ElastiCache Redis | Sin Redis: SSE sobre outbox (ADR-0007) | Igual |
+| Documentos | S3 (o MinIO) | **Cloudflare R2** (API compatible con S3; el adaptador `S3DocumentStorage` no cambia) | **MinIO** en el VPS (R2 queda para producción) |
+| Backups | Snapshots de RDS, S3 versionado | **`pg_dump` diario cifrado hacia R2**, retención de 30 días | **Sin respaldos automáticos** (pendiente; procedimiento manual documentado) |
+| DNS / CDN / WAF | Route 53, CloudFront, AWS WAF | **Cloudflare** (plan gratuito), dominio `oncargo.tech` | DNS en el panel de Hostinger, directo a la IP del VPS; sin CDN ni WAF |
+| Seguridad y monitoreo | IAM, KMS, GuardDuty, Wazuh, CloudWatch | UFW + fail2ban, tokens de mínimo privilegio, Cloudflare WAF, monitoreo externo de disponibilidad | UFW + fail2ban, SSH solo con clave, `unattended-upgrades`, healthchecks de Docker; sin monitoreo externo |
+| Disponibilidad de diseño | Tier III equivalente (Multi-AZ, ~99.99%) | Tier I equivalente en el origen (~99.5% estimado; RTO 2–4 h, RPO 24 h) | Tier I; RPO no garantizado mientras no haya respaldos |
+| Costo mensual de referencia | ~USD 333 (≈ S/ 1,149) | **≈ USD 14 (≈ S/ 47)**: USD 8.99 del VPS en promoción con prepago de 24 meses (renueva a USD 14.99), dominio, R2 estimado | ≈ USD 13 (VPS + dominio; R2 no se usa) |
 
 **Razones.**
 
@@ -137,9 +137,9 @@ En noviembre de 2026 se hicieron dos cambios transversales, sin cambiar los requ
 3. **Ajuste al sistema real.** El sistema no usa Redis, ni WebSocket, ni funciones serverless; los jobs son internos del backend; y la carga estimada (50–100 req/s en el pico) cabe en 2 vCPU y 8 GB con más de la mitad de la memoria libre.
 4. **Portabilidad.** La imagen y el compose no dependen del proveedor: mudar a otro VPS (o volver a una nube) es un cambio de máquina, no de arquitectura.
 
-**Qué se pierde.** La **redundancia**: un único nodo es un único dominio de falla (equivalente Tier I), sin *failover* automático ni escalado horizontal automático. Se mitiga con respaldos diarios fuera del proveedor (R2), un runbook de reconstrucción y escalado vertical; si el negocio exigiera 99.9% o RPO de minutos, el camino es un segundo nodo y réplica de PostgreSQL (ver [Diseño de Centro de Datos](../infraestructura/semestre-1/diseno-datacenter.md), sección 4.4). Además, el equipo asume la operación del sistema operativo y los parches.
+**Qué se pierde.** La **redundancia**: un único nodo es un único dominio de falla (equivalente Tier I), sin *failover* automático ni escalado horizontal automático. Se mitiga, según el diseño, con respaldos diarios fuera del proveedor (R2; **aún no implementados**), un runbook de reconstrucción y escalado vertical; si el negocio exigiera 99.9% o RPO de minutos, el camino es un segundo nodo y réplica de PostgreSQL (ver [Diseño de Centro de Datos](../infraestructura/semestre-1/diseno-datacenter.md), sección 4.4). Además, el equipo asume la operación del sistema operativo y los parches.
 
-**Estado de la implementación.** En el monorepo `logyx` ya existen el `docker-compose.yml` (`db`, `backend`, `web`, y MinIO para staging local), los *Dockerfile*, los roles de BD y las variables de almacenamiento S3 (`LOGYX_S3_ENDPOINT`, etc.), que permiten apuntar a R2 sin cambiar código. El servicio **Caddy**, el firewall del host, la integración con R2 en producción y los respaldos hacia R2 son el **diseño de despliegue** descrito en el área de Infraestructura; su ejecución en el VPS está **pendiente** y cada documento marca su estado.
+**Estado de la implementación (actualizado, noviembre 2026).** El VPS está **aprovisionado y en operación como entorno de pruebas** (commit `cad2b77` del monorepo, carpeta `infra/vps/`): `compose.yml` con Caddy, web, backend, PostgreSQL y MinIO; `Caddyfile` con HTTPS automático y la página de descarga del APK; `bootstrap.sh` (secretos generados en el servidor) y `deploy.sh` (despliegue por `git archive` con vuelta atrás). El host tiene UFW, fail2ban, SSH solo con clave y `unattended-upgrades`. **No se desplegaron** Cloudflare, R2, los respaldos automáticos ni el monitoreo externo; el área de Infraestructura (versión 2.1) los marca como mejoras y documenta la configuración real.
 
 ### 7.3 Efecto en Gestión de TI (cifras financieras)
 
