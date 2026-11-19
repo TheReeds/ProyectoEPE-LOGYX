@@ -14,7 +14,7 @@
     Este documento es el **diseño**. El centro de datos en operación está en [Implementación de Datacenter](../semestre-2/implementacion-datacenter.md). Diferencias principales:
 
     - **Cinco contenedores** (Caddy, web, backend, PostgreSQL, MinIO) con límites reales de 128 MB, 512 MB, 1 GB, 768 MB y 384 MB (≈ 2.8 GB en total), en `infra/vps/compose.yml`.
-    - **Documentos en MinIO** (volumen del VPS), no en R2; **sin respaldos automáticos** ni Uptime Kuma.
+    - **Documentos en MinIO** (volumen del VPS), no en R2. **Respaldos diarios cifrados** (age) desde la v2.2, pero en el mismo disco (copia externa pendiente); en lugar de Uptime Kuma, un chequeo de salud propio cada 5 minutos.
     - **Despliegue** con `infra/vps/deploy.sh` desde el equipo del administrador (`git archive` → `/opt/oncargo/src`, vuelta atrás con `src.old`); las imágenes se compilan en el VPS.
     - **Disco:** 96 GB utilizables; la región del centro de datos se confirma en el panel de Hostinger.
     - **Costo actual:** ≈ USD 13/mes (VPS en promoción + dominio), sin Cloudflare ni R2.

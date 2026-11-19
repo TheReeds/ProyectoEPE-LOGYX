@@ -102,8 +102,8 @@ El texto completo de todas las políticas está en [Scripts SQL](scripts.md#v2__
 
 ## 3. Estrategia de Backup (plan de producción en el VPS)
 
-!!! warning "No automatizado en el repositorio"
-    El `docker-compose` incluye el volumen persistente `pgdata` (y MinIO en staging local) pero **no** scripts de backup. Esta sección es el plan operativo para el **VPS Hostinger** de producción (checklist de `docs/security.md`); su ejecución está pendiente. Los respaldos se guardan **fuera del servidor**, en **Cloudflare R2** (bucket `oncargo-backups`), de modo que la pérdida del VPS no destruye las copias. Diseño completo en [Planificación de Seguridad](../../infraestructura/semestre-1/planificacion-seguridad.md) (POL-03).
+!!! warning "Plan de producción; en el VPS de pruebas ya hay respaldo diario cifrado (v2.2)"
+    Desde el 19-nov-2026 el VPS ejecuta `infra/vps/backup.sh` cada día: `pg_dump -Fc`, documentos de MinIO y secretos, cifrados con age, con 14 días de retención local y una prueba de restauración con conteos (ver [Implementación de Datacenter, 2.2–2.3](../../infraestructura/semestre-2/implementacion-datacenter.md)). Lo que sigue pendiente de este plan es la **copia en R2** y la retención de 30 días. En producción, los respaldos se guardarán **fuera del servidor**, en **Cloudflare R2** (bucket `oncargo-backups`), de modo que la pérdida del VPS no destruye las copias. Diseño completo en [Planificación de Seguridad](../../infraestructura/semestre-1/planificacion-seguridad.md) (POL-03).
 
 
 ### 3.1 Tipos de Backup

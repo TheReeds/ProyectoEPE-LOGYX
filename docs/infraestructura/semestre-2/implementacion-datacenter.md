@@ -2,12 +2,12 @@
 > Competencias C3.2 (Implementación) · C3.3 (Control y operación)  
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.1 (estado real del despliegue, noviembre 2026)** · v2.0: diseño previo al despliegue · v1.0: AWS
+> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.2 (respaldos, monitoreo y endurecimiento aplicados, 19-nov-2026)** · v2.1: estado real del despliegue · v2.0: diseño previo al despliegue · v1.0: AWS
 
 !!! info "Versión 2.1: el centro de datos tal como está en operación"
     La versión 1.0 implementaba el centro de datos con Terraform sobre AWS. La versión 2.0 lo rediseñó para un VPS Hostinger con Cloudflare, R2, respaldos cifrados y Uptime Kuma, pero se escribió **antes** de aprovisionar el servidor. Esta versión 2.1 documenta **lo que se desplegó**, tomado de `infra/vps/` del monorepo (`compose.yml`, `Caddyfile`, `bootstrap.sh`, `deploy.sh`, `publish-apk.sh`, `downloads/` y `README.md`; commit `cad2b77` del 16-nov-2026).
 
-    **En operación:** VPS Hostinger KVM 2 con Ubuntu 24.04, cinco contenedores (Caddy, web, backend, PostgreSQL, MinIO), HTTPS automático, despliegue por script con vuelta atrás y página de descarga del APK. **Pendiente:** respaldos, monitoreo de disponibilidad, Cloudflare/R2 y la salida del modo de pruebas. El servidor funciona hoy como **entorno de pruebas** con cuentas demo (`DEMO_DATA=true`).
+    **En operación:** VPS Hostinger KVM 2 con Ubuntu 24.04, cinco contenedores (Caddy, web, backend, PostgreSQL, MinIO), HTTPS automático, despliegue por script con vuelta atrás y página de descarga del APK. **Desde la v2.2 (19-nov-2026):** respaldo diario cifrado con prueba de restauración, chequeo de salud cada 5 minutos y endurecimiento del host versionado en `infra/vps/harden.sh` (commits `9d1f6a2` y `b44014a` de `oncargo-code`). **Pendiente:** copia de los respaldos fuera del VPS, monitor externo y canal de alertas, Cloudflare/R2 y la salida del modo de pruebas. El servidor funciona hoy como **entorno de pruebas** con cuentas demo (`DEMO_DATA=true`).
 
 ---
 
@@ -17,7 +17,7 @@ El centro de datos de OnCargo es un único **VPS Hostinger KVM 2** (2 vCPU, 8 GB
 
 El despliegue lo hace `infra/vps/deploy.sh` desde el equipo del administrador: empaqueta un commit con `git archive`, lo copia a `/opt/oncargo/src`, conserva la versión anterior en `src.old`, genera los secretos en el primer despliegue (`bootstrap.sh`) y reconstruye las imágenes en el propio servidor.
 
-El diseño acepta **un único dominio de falla** (equivalente a Tier I). **Hoy no hay respaldos automáticos**, por lo que el RPO real no está garantizado: los datos existen solo en el disco del VPS. Este documento lo declara como el pendiente de mayor prioridad y deja un procedimiento manual (sección 2.2) para usarlo mientras se automatiza.
+El diseño acepta **un único dominio de falla** (equivalente a Tier I). Desde la v2.2 hay **respaldos diarios cifrados** con prueba de restauración (RPO 24 h ante errores lógicos o corrupción), pero se guardan **en el mismo disco**: ante la pérdida del VPS el RPO sigue sin garantía hasta configurar una copia externa. Es el pendiente de mayor prioridad, y mientras tanto se mantiene el procedimiento manual de la sección 2.2 para bajar una copia.
 
 **Leyenda de estados:**
 
@@ -40,7 +40,8 @@ El diseño acepta **un único dominio de falla** (equivalente a Tier I). **Hoy n
 | DNS | Registros A en el panel de Hostinger (público); DNS embebido de Docker (interno) | Desplegado (ver [Red, sección 1.5](implementacion-red.md)) |
 | Directorio (AD/LDAP) | **No aplica:** la identidad vive en la aplicación (JWT RSA, bcrypt, roles por organización); no hay un dominio de Windows ni usuarios de red | Decisión de diseño |
 | Correo saliente (restablecer contraseña, invitaciones y avisos por persona de V16) | Quarkus Mailer: el compose del VPS **no define** `SMTP_*`, así que esos correos no se entregan; los enlaces de los avisos usan `WEB_URL` (por omisión `https://oncargo.tech`) | No implementado (configurar SMTP) |
-| Monitoreo | `healthcheck` de Docker + `restart: unless-stopped`; revisión manual | Desplegado (básico); UptimeRobot/Uptime Kuma: no implementado |
+| Monitoreo | `healthcheck` de Docker + `restart: unless-stopped`; `oncargo-health` cada 5 min (servicio, disco, memoria, certificado, respaldo) | Implementado (v2.2); monitor externo y canal de alertas: pendientes |
+| Respaldo | `oncargo-backup` diario (03:30, Lima): Postgres, MinIO y `state/` cifrados con age, 14 días | Implementado (v2.2) en el VPS; copia externa pendiente |
 
 ---
 
@@ -75,6 +76,15 @@ El detalle de cada control está en [Implementación de Seguridad, sección 1](i
 | 6 | 2 GB de swap | `swapon --show && free -m` | Desplegado |
 | 7 | Rotación de logs de Docker (10 MB × 3) | `docker info \| grep -iA2 'logging driver'` | Desplegado |
 | 8 | Zona horaria America/Lima | `timedatectl` | Desplegado |
+| 9 | SSH adicional: `AllowUsers deploy root`, sin X11/agente/túneles, algoritmos modernos | `sudo sshd -T \| grep -E 'allowusers\|x11forwarding\|kexalgorithms'` | Implementado (v2.2) |
+| 10 | `DOCKER-USER`: solo 80/443 hacia contenedores | `sudo iptables -S DOCKER-USER` | Implementado (v2.2) |
+| 11 | fail2ban `recidive` y *jails* de Caddy | `sudo fail2ban-client status` | Implementado (v2.2) |
+| 12 | `sysctl` de red, journald (1 GB / 30 días), auditd | `sysctl net.ipv4.conf.all.send_redirects`, `journalctl --disk-usage`, `sudo auditctl -l` | Implementado (v2.2) |
+| 13 | Docker `live-restore` | `docker info --format '{{.LiveRestoreEnabled}}'` | Implementado (v2.2) |
+| 14 | Permisos de `state/` (`700`, `.env` `600`, clave JWT privada `640`) | `stat -c '%a %n' /opt/oncargo/state/.env` | Implementado (v2.2) |
+| 15 | Temporizadores `oncargo-backup` y `oncargo-health` | `systemctl list-timers 'oncargo-*'` | Implementado (v2.2) |
+
+Los pasos 9 a 15 se aplican con `sudo /opt/oncargo/src/infra/vps/harden.sh` (idempotente; también por pasos: `harden.sh ssh firewall …`). La evidencia de cada uno está en [Implementación de Seguridad, Sección 0](implementacion-seguridad.md).
 
 ### 1.3 Instalación de Docker Engine y Compose
 
@@ -253,15 +263,16 @@ MINIO_ROOT_USER=oncargo-minio
 MINIO_ROOT_PASSWORD=<aleatoria>
 # Entorno de pruebas: cuentas demo. En producción real: false.
 DEMO_DATA=true
-# false mientras se prueba por http://IP; true cuando el dominio tenga HTTPS.
-COOKIE_SECURE=false
+# Cookie de sesión solo por HTTPS (el acceso por IP redirige al dominio).
+COOKIE_SECURE=true
 DOWNLOADS_DIR=/opt/oncargo/downloads
+LOGYX_UNSUBSCRIBE_SECRET=<aleatoria>   # V24: clave HMAC del enlace de baja; la agrega deploy.sh si falta
 ```
 
 | Variable | Valor actual | Valor para producción |
 |----------|--------------|-----------------------|
 | `DEMO_DATA` | `true` (cuentas `*@logyx.pe` con contraseña conocida) | `false` y base de datos nueva |
-| `COOKIE_SECURE` | `false` | `true` |
+| `COOKIE_SECURE` | `true` (desde el 19-nov-2026) | `true` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM` | No definidas (el backend cae a `localhost:587`) | Definir (y añadirlas al `environment` del backend) |
 | `WEB_URL`, `PASSWORD_RESET_URL` | No definidas: valen por omisión `https://oncargo.tech` y `https://oncargo.tech/restablecer` | Correctas para el dominio actual; definirlas solo si cambia el dominio |
 
@@ -297,9 +308,11 @@ Los documentos (guías, fotos de entrega, firmas) se guardan en **MinIO**, un se
 | Endpoint | `http://minio:9000` (red `internal`, sin puerto publicado) | Desplegado en el VPS |
 | Bucket | `oncargo-documents`, creado por el backend al arrancar (`LOGYX_S3_CREATE_BUCKET=true`) | Desplegado en el VPS |
 | Datos | Volumen `miniodata` en el disco del VPS | Desplegado en el VPS |
-| Credenciales | Las de administrador de MinIO (`MINIO_ROOT_USER`/`PASSWORD`) | Desplegado; mejora: usuario limitado al bucket |
+| Credenciales | Las de administrador de MinIO (`MINIO_ROOT_USER`/`PASSWORD`) | Desplegado; mejora pendiente: usuario limitado al bucket |
+| Consola web de MinIO | Desactivada (`MINIO_BROWSER=off`); antes escuchaba en un puerto aleatorio de la red interna | Implementado (v2.2) |
+| Salida a Internet | Ninguna: red `internal: true` | Implementado (v2.2) |
 | Validación de archivos | jpg/png/pdf por firma binaria, máximo 10 MB, claves generadas por el servidor | Implementado en el repositorio |
-| Descarga | Solo a través de la API (con RLS); el bucket no es público | Implementado en el repositorio |
+| Descarga | Solo a través de la API (con RLS); el bucket no es público (petición anónima → `403 Forbidden`, verificado el 19-nov-2026) | Implementado en el repositorio |
 | Cloudflare R2 (diseño v2.0) | — | No implementado (mejora para producción) |
 
 ```bash
@@ -321,7 +334,14 @@ Los trabajos corren **dentro del backend** (`@Scheduled` de Quarkus, con `System
 | `RealtimeMaintenance` (`realtime-cleanup`) | Cada 1 h | Retiene `realtime_events` 24 h | Desplegado en el VPS |
 | `AuthTokenCleanup` (`auth-token-cleanup`) | Cada 1 h | Borra tokens de contraseña y de *refresh* vencidos | Desplegado en el VPS |
 
-En el **host** no hay temporizadores propios de OnCargo. Los del diseño v2.0 (`oncargo-backup.timer`, `host-metrics.timer`, `firewall-cloudflare.timer`, `mantenimiento-mensual.timer`) **no se implementaron**.
+En el **host**, desde la v2.2, hay tres unidades de systemd propias (en `infra/vps/host/systemd/`, instaladas por `harden.sh`):
+
+| Unidad | Frecuencia | Qué hace | Estado |
+|--------|-----------|----------|--------|
+| `oncargo-backup.timer` | Diaria, 03:30 (Lima) ± 15 min, `Persistent=true` | Respaldo cifrado (sección 2.2) | Implementado (v2.2) |
+| `oncargo-health.timer` | Cada 5 min | Chequeo de salud (sección 3.2) | Implementado (v2.2) |
+| `oncargo-docker-user.service` | Al arrancar Docker | Lista blanca `DOCKER-USER` ([Red, 1.4](implementacion-red.md)) | Implementado (v2.2) |
+| `firewall-cloudflare.timer`, `mantenimiento-mensual.timer` (diseño v2.0) | — | — | Pendientes: dependen de Cloudflare y de aprobar reinicios automáticos |
 
 !!! note "Escalado horizontal"
     El outbox usa `SKIP LOCKED` y el SSE se reparte por `LISTEN/NOTIFY`, así que varias réplicas del backend son viables. La exclusión `ConcurrentExecution.SKIP` de los `@Scheduled` y el *rate limiting* son **por instancia**; con más de una réplica hay que revisar esos dos puntos.
@@ -332,14 +352,15 @@ En el **host** no hay temporizadores propios de OnCargo. Los del diseño v2.0 (`
 
 ### 2.1 Almacenamiento
 
-La rúbrica menciona RAID, SAN y NAS. Aquí **no se administra ninguno**: el disco es un volumen virtualizado de 96 GB cuya redundancia física depende del proveedor y no está especificada. La protección de los datos tendría que venir de **copias externas**, que todavía no existen.
+La rúbrica menciona RAID, SAN y NAS. Aquí **no se administra ninguno**: el disco es un volumen virtualizado de 96 GB cuya redundancia física depende del proveedor y no está especificada. La protección de los datos viene de los **respaldos cifrados** (sección 2.2), que hoy quedan en el mismo disco; la copia externa sigue pendiente.
 
 | Volumen o ubicación | Contenido | Protección actual |
 |---------------------|-----------|-------------------|
-| Volumen `pgdata` | Base de datos PostgreSQL | **Ninguna fuera del VPS** |
-| Volumen `miniodata` | Documentos, fotos de entrega y firmas | **Ninguna fuera del VPS** |
+| Volumen `pgdata` | Base de datos PostgreSQL | Respaldo diario cifrado en `/var/backups/oncargo` (14 días); **ninguna fuera del VPS** |
+| Volumen `miniodata` | Documentos, fotos de entrega y firmas | Respaldo diario cifrado (tar); **ninguna fuera del VPS** |
 | Volúmenes `caddy_data` y `caddy_config` | Certificados y cuenta ACME | Se regeneran (ver los límites de Let's Encrypt en la sección 4.3) |
-| `/opt/oncargo/state` | `.env`, claves JWT, `DEPLOYED` | Ninguna fuera del VPS (si se pierden, `bootstrap.sh` genera otras y las sesiones se invalidan) |
+| `/opt/oncargo/state` | `.env` (incluye `LOGYX_UNSUBSCRIBE_SECRET` y `LOGYX_PAYOUT_KEY`, sin la cual los datos de cobro cifrados no se pueden leer), claves JWT, `DEPLOYED` | Respaldo diario cifrado; ninguna fuera del VPS (si se pierden, `bootstrap.sh` genera otras y las sesiones se invalidan) |
+| `/var/backups/oncargo` | Respaldos cifrados y manifiestos | root `700`; rotación de 14 días |
 | `/opt/oncargo/src` y `src.old` | Código desplegado y el anterior | El código está en GitHub |
 | `/opt/oncargo/downloads` | `index.html`, QR, `oncargo.apk`, `version.json` | Se vuelven a publicar con `deploy.sh` y `publish-apk.sh` |
 | Imágenes de Docker | `oncargo-backend:local`, `oncargo-web:local`, `postgres`, `caddy`, `minio` | Se reconstruyen desde el repositorio |
@@ -353,10 +374,29 @@ docker volume ls --filter name=oncargo
 
 ### 2.2 Política de backup
 
-!!! danger "Estado: sin respaldos automáticos"
-    `infra/vps/README.md` registra los respaldos como **pendientes** (*backups `pg_dump` diarios a R2*). Hoy una falla del disco, un borrado accidental o la pérdida del VPS significan **perder los datos**. Con datos demo el impacto es bajo; **antes de cargar datos reales este control es obligatorio**.
+**Respaldo automático (implementado en la v2.2).** `oncargo-backup.timer` ejecuta cada día `infra/vps/backup.sh` (instalado como `/usr/local/sbin/oncargo-backup`):
 
-**Procedimiento manual (propuesto, hasta automatizar).** Se ejecuta antes de cada despliegue con migraciones y, mientras haya datos que importen, al menos una vez por semana. Las copias quedan en el equipo del administrador, fuera del VPS:
+| Paso | Detalle |
+|------|---------|
+| 1. Base de datos | `pg_dump -U postgres -d logyx -Fc` dentro del contenedor `db` (socket local, sin contraseñas en la línea de comandos), validado con `pg_restore -l` **antes** de cifrar; si el índice no es legible, el respaldo falla |
+| 2. Conteos de referencia | Última migración, tablas, políticas RLS, organizaciones, perfiles y envíos, guardados en el manifiesto |
+| 3. Documentos y secretos | `tar` del volumen `oncargo_miniodata` y de `/opt/oncargo/state` |
+| 4. Cifrado | **age** (X25519) para las claves públicas de `infra/vps/backup-recipients.txt`. La identidad privada **no está en el VPS**: la guarda el administrador (gestor de contraseñas). Quien comprometa el servidor no puede leer los respaldos antiguos de otra copia, y quien obtenga una copia no puede leerla sin la clave |
+| 5. Manifiesto | Fecha, commit desplegado, número de objetos del volcado, conteos y sha256 de cada archivo (sin secretos) |
+| 6. Rotación | Se borran los archivos con más de 14 días (`BACKUP_KEEP_DAYS`) |
+| 7. Copia externa | Opcional con `rclone` si existe `BACKUP_RCLONE_REMOTE` en `/etc/oncargo/backup.env` (p. ej. `r2:oncargo-backups/vps` con un *token* de solo escritura). **Pendiente:** requiere las credenciales del responsable del proyecto |
+| 8. Latido | `/var/lib/oncargo/backup-last-ok`; `oncargo-health` alerta si tiene más de 26 h |
+
+```text
+$ sudo oncargo-backup list            (19-nov-2026)
+-rw------- root  db-20261119-1048.dump.age        ~305 KB
+-rw------- root  minio-20261119-1048.tar.gz.age    ~17 KB
+-rw------- root  state-20261119-1048.tar.gz.age    ~2.5 KB
+-rw------- root  manifest-20261119-1048.txt
+manifiesto: objetos_toc=666 migracion=23 tablas=47 politicas_rls=126 organizaciones=4 perfiles=7 envios=3
+```
+
+**Copia fuera del VPS (manual, hasta configurar R2).** Se ejecuta antes de cada despliegue con migraciones y, mientras haya datos que importen, al menos una vez por semana. Las copias quedan en el equipo del administrador. Con la v2.2 basta con bajar los archivos ya cifrados (`sudo tar -C /var/backups/oncargo -cf - . | …`); el procedimiento original, sin depender del respaldo automático, sigue siendo válido:
 
 ```bash
 # En el equipo del administrador
@@ -376,14 +416,14 @@ $SSH "sudo tar -czf - -C /opt/oncargo state" | gpg -c -o "$F-state.tgz.gpg"
 ls -lh "$F"*
 ```
 
-| Parámetro | Objetivo (diseño v2.0) | Situación actual |
+| Parámetro | Objetivo (diseño v2.0) | Situación actual (v2.2) |
 |-----------|------------------------|------------------|
-| Frecuencia | Diaria, 02:00 | Manual (procedimiento anterior) |
-| Destino | Fuera del proveedor (R2) | Equipo del administrador |
-| Cifrado | `age` con clave pública en el VPS | `gpg -c` en el equipo del administrador (solo secretos) |
-| Retención | 30 días | Según lo que guarde el administrador |
-| RPO | 24 h | **No garantizado** (depende de la última copia manual) |
-| Automatización | Script + temporizador de `systemd` + latido a Uptime Kuma | No implementado (mejora prioridad 1) |
+| Frecuencia | Diaria, 02:00 | **Diaria, 03:30 (Lima)**: implementado |
+| Destino | Fuera del proveedor (R2) | `/var/backups/oncargo` en el VPS; **externo pendiente** (decisión del usuario) |
+| Cifrado | `age` con clave pública en el VPS | **age**: implementado; la identidad privada está fuera del VPS |
+| Retención | 30 días | 14 días locales (ajustable); la retención externa se fijará con R2 |
+| RPO | 24 h | 24 h ante errores lógicos o corrupción; **sin garantía** ante la pérdida del VPS hasta la copia externa |
+| Automatización | Script + temporizador de `systemd` + latido a Uptime Kuma | Script + temporizador + latido local vigilado por `oncargo-health`: implementado |
 
 ### 2.3 Prueba de restauración
 
@@ -406,7 +446,19 @@ docker exec $CT psql -U postgres -d logyx -At -c "
 docker rm -f $CT
 ```
 
-**Criterio de aceptación:** `migraciones_ok=true`, `ultima=15`, conteos coherentes con el VPS y `politicas_rls` mayor que cero. **Estado:** Pendiente de ejecución (SIM-1).
+**Criterio de aceptación:** `migraciones_ok=true`, la última migración del commit desplegado, conteos coherentes con el VPS y `politicas_rls` mayor que cero.
+
+**Prueba automatizada en el VPS (v2.2).** `oncargo-backup verify` hace lo mismo **dentro del VPS** sin dejar la clave en él: la identidad age llega por la entrada estándar desde el equipo del administrador, se comprueban los sha256 del manifiesto, se descifran los tres archivos (los tar se listan y se exige `state/.env`), y el volcado se restaura en un `postgres:16-alpine` temporal **sin red** (`--network none`, 512 MB) con los roles de `init-roles.sh`. Luego se comparan los conteos con los del manifiesto y se elimina el contenedor.
+
+```text
+$ ssh deploy@<IP> 'sudo oncargo-backup verify -' < backup-age-identity.txt     (19-nov-2026)
+[oncargo-backup] verificando db-20261119-1048.dump.age
+[oncargo-backup] restauración en 3 s
+[oncargo-backup] OK: conteos idénticos al momento del respaldo:
+    migracion=23  tablas=47  politicas_rls=126  organizaciones=4  perfiles=7  envios=3
+```
+
+**Estado:** SIM-1 **ejecutado** el 19-nov-2026 (dos veces, con los respaldos de las 10:40 y 10:48). Frecuencia: mensual (sección 4.5).
 
 ---
 
@@ -425,7 +477,7 @@ Es un **SLA interno de objetivos**, no un contrato con clientes: Hostinger no of
 | Despacho de eventos | Ciclo de 5 s; eventos en `FAILED` = 0 | Tabla `outbox_events` | Revisión manual |
 | Latido del stream SSE | 20 s | Prueba T7 de [Red](implementacion-red.md) | Pendiente de medición |
 | RTO | 1–2 h para volver a tener servicio | Runbook 4.3 | Pendiente de simulacro |
-| RPO | 24 h (objetivo) | Fecha de la última copia manual | **No garantizado** (sin respaldos automáticos) |
+| RPO | 24 h (objetivo) | `backup-last-ok` y manifiestos | 24 h ante errores lógicos (implementado, v2.2); sin garantía ante la pérdida del VPS hasta la copia externa |
 
 | Objetivo de disponibilidad | Caída máxima mensual (30 días) | Observación |
 |---------------------------|-------------------------------|-------------|
@@ -438,13 +490,15 @@ Es un **SLA interno de objetivos**, no un contrato con clientes: Hostinger no of
 |------|-------------|---------|--------|
 | Contenedores | `healthcheck` de Docker | `db`, `minio`, `backend`, `web`; reinicio automático con `restart: unless-stopped` | Desplegado en el VPS |
 | Aplicación | `/q/health/ready` (incluye la comprobación de la BD) | Lo consulta Docker | Desplegado en el VPS |
-| Logs | `docker compose logs` (rotación 10 MB × 3) | Revisión manual | Desplegado en el VPS |
-| Externa | **UptimeRobot** (plan gratuito) | `https://oncargo.tech/login` y `https://api.oncargo.tech/q/health/ready` cada 5 min | No implementado (mejora prioritaria, sin costo y sin tocar el VPS) |
-| Interna | **Uptime Kuma** | Certificado, TCP de `db`, latido de respaldos | No implementado (mejora) |
+| Logs | `docker compose logs` (rotación 10 MB × 3); registro de accesos de Caddy (14 días); journald (1 GB / 30 días) | Revisión manual y fail2ban | Desplegado en el VPS (v2.2) |
+| Interna | **`oncargo-health`** (`infra/vps/healthcheck.sh`, cada 5 min) | Web, `/login`, `/app/` y APK con `200`; `/q/health/ready`; los cinco contenedores en marcha y sanos; reinicios u OOM; disco < 85 %; memoria disponible ≥ 500 MB; swap ≤ 1 GB; certificados con ≥ 14 días; último respaldo < 26 h; reinicio pendiente > 7 días. Estado en `/var/lib/oncargo/health.txt` y `journalctl -t oncargo-health`; alerta solo al cambiar el estado | Implementado (v2.2) |
+| Canal de alertas | `ALERT_WEBHOOK_URL` (p. ej. un tema aleatorio de ntfy) en `/etc/oncargo/alert.env` | Mensaje al pasar a FALLA y al volver a OK | Pendiente (decisión del usuario: elegir el canal) |
+| Externa | **UptimeRobot** o **healthchecks.io** (`HEARTBEAT_URL`, latido en cada chequeo correcto) | Caída del VPS entero, que el chequeo interno no puede reportar | Pendiente (decisión del usuario: cuenta gratuita) |
+| Uptime Kuma | — | — | Descartado: `oncargo-health` cubre lo mismo sin otro servicio residente |
 
 ### 3.3 Métricas del host y umbrales
 
-No hay recolección automática de métricas. Se consultan a mano en la revisión semanal y en cada incidente:
+`oncargo-health` evalúa automáticamente disco, memoria, swap, reinicios y OOM cada 5 minutos (umbrales de abajo). No guarda series históricas. Para el detalle, los comandos se consultan a mano en la revisión semanal y en cada incidente:
 
 ```bash
 cd /opt/oncargo/src/infra/vps
@@ -458,9 +512,9 @@ docker inspect -f '{{.Name}} reinicios={{.RestartCount}} OOM={{.State.OOMKilled}
 
 | Métrica | Umbral | Acción |
 |---------|--------|--------|
-| Memoria disponible | < 1.5 GB | Revisar `docker stats`; evaluar subir de plan |
+| Memoria disponible | < 1.5 GB (revisión) · < 500 MB (`oncargo-health`: FALLA) | Revisar `docker stats`; evaluar subir de plan |
 | Uso de swap sostenido | > 500 MB | Revisar qué contenedor presiona la memoria |
-| Disco | > 70 % | `docker image prune -a`, `docker builder prune`, revisar volúmenes |
+| Disco | > 70 % (revisión) · > 85 % (`oncargo-health`: FALLA) | `docker image prune -a`, `docker builder prune`, revisar volúmenes y `/var/backups/oncargo` |
 | Carga promedio | > 2 durante 15 min | Revisar CPU por contenedor |
 | Reinicios de un contenedor | > 0 inesperados | `docker compose logs` del servicio; ¿OOM? |
 
@@ -514,6 +568,8 @@ cd src/infra/vps && docker compose build && docker compose up -d
 ### 4.2 Runbook — Respuesta a incidente de disponibilidad
 
 ```
+NIVEL 0 — Detección: oncargo-health (cada 5 min) → sudo cat /var/lib/oncargo/health.txt ; journalctl -t oncargo-health
+
 NIVEL 1 — Alerta menor (lentitud o errores puntuales):
   1. cd /opt/oncargo/src/infra/vps && docker compose ps
   2. docker stats --no-stream ; free -m ; df -h /
@@ -531,24 +587,26 @@ NIVEL 2 — Alerta mayor (5xx sostenidos, /q/health/ready falla):
 NIVEL 3 — Incidente crítico (servicio totalmente caído):
   1. Notificar al equipo; abrir el registro de incidente
   2. ¿El VPS responde por SSH? Revisar el panel de Hostinger (estado, consola de recuperación, reinicio)
-  3. Sospecha de ataque: fail2ban, journalctl, docker compose logs; bloquear IPs (Seguridad, sección 1.9)
+  3. Sospecha de ataque: fail2ban-client status, registro de Caddy (/var/log/oncargo/caddy), ausearch -k oncargo_secrets,
+     journalctl; bloquear IPs (Seguridad, sección 1.9)
   4. Si el VPS está perdido o comprometido: reconstrucción (runbook 4.3)
   5. Comunicar a los usuarios por los canales del proyecto
 ```
 
 ### 4.3 Runbook — Reconstrucción del VPS desde cero
 
-**Cuándo:** pérdida del VPS, compromiso del servidor o migración a otro plan. **Limitación actual:** sin respaldos automáticos, la reconstrucción recupera el **servicio**, no los datos, salvo que exista una copia manual reciente (sección 2.2).
+**Cuándo:** pérdida del VPS, compromiso del servidor o migración a otro plan. **Limitación actual:** los respaldos automáticos están en el mismo disco; si se pierde el VPS, la reconstrucción recupera el **servicio** y la configuración (todo está en el repositorio), pero los datos solo si existe una copia fuera del VPS (sección 2.2).
 
 | # | Paso | Acción | Tiempo estimado |
 |---|------|--------|-----------------|
 | 1 | VPS nuevo | En el panel de Hostinger: reinstalar o crear un VPS KVM 2 con Ubuntu 24.04 y la clave SSH del administrador | 10–20 min |
-| 2 | Endurecimiento | Sección 1.2: `deploy` con `sudo`, SSH solo con clave, UFW, fail2ban, `unattended-upgrades`, swap, `daemon.json`, zona horaria | 20–30 min |
+| 2 | Endurecimiento base | Sección 1.2, pasos 1–8: `deploy` con `sudo`, SSH solo con clave, UFW, fail2ban, `unattended-upgrades`, swap, `daemon.json`, zona horaria | 20–30 min |
 | 3 | Docker | Sección 1.3 | 10 min |
 | 4 | Secretos | Si hay copia de `state/`: restaurarla en `/opt/oncargo/state` (permisos `600`/`700`); si no, `deploy.sh` genera secretos nuevos | 5 min |
 | 5 | Despliegue | Desde el equipo del administrador: `VPS=deploy@<IP_NUEVA> infra/vps/deploy.sh` | 15–25 min (compilación) |
+| 5b | Endurecimiento versionado | `ssh deploy@<IP_NUEVA> sudo /opt/oncargo/src/infra/vps/harden.sh` (pasos 9–15 de la sección 1.2, respaldos y salud), con una segunda sesión SSH abierta y probando un login nuevo al terminar | 5 min |
 | 6 | DNS | Si la IP cambió: actualizar los registros A en el panel de Hostinger y `PUBLIC_IP` en `state/.env` | 5 min + propagación |
-| 7 | Datos | Si hay copia manual: restaurar la BD (runbook 4.4) y el volumen de MinIO | 10–30 min |
+| 7 | Datos | Si hay copia fuera del VPS: descifrarla con la identidad age y restaurar la BD (runbook 4.4), el volumen de MinIO y, si se quiere conservar las sesiones y los datos de cobro, `state/` | 10–30 min |
 | 8 | APK | `infra/vps/publish-apk.sh` | 5 min |
 | 9 | Verificación | Pruebas T2, T3, T8, T9 y T15 de [Red](implementacion-red.md); inicio de sesión y subida de una foto de prueba | 15 min |
 | 10 | Cierre | Informe posterior al incidente; rotar las credenciales si hubo compromiso | 48 h |
@@ -558,10 +616,13 @@ NIVEL 3 — Incidente crítico (servicio totalmente caído):
 
 ### 4.4 Runbook — Restauración de la base de datos
 
-**Requisito:** una copia manual hecha con la sección 2.2.
+**Requisito:** un volcado de la sección 2.2: el respaldo automático cifrado (`db-<fecha>.dump.age`) o una copia manual.
 
 ```bash
-# 1) Copiar el volcado al VPS
+# 1) Obtener el volcado en claro en el VPS
+#    a) Desde el respaldo automático: se descifra con la identidad que llega por stdin (no queda en disco)
+ssh deploy@<IP_PUBLICA_VPS> "sudo sh -c 'umask 077; age -d -i - -o /tmp/restore.dump /var/backups/oncargo/db-AAAAMMDD-HHMM.dump.age' && sudo chown deploy /tmp/restore.dump" < backup-age-identity.txt
+#    b) Desde una copia manual del equipo del administrador
 scp -i ~/.ssh/hostinger_kvm2 oncargo-AAAA-MM-DD-HHMM.dump deploy@<IP_PUBLICA_VPS>:/tmp/restore.dump
 
 # 2) En el VPS
@@ -584,10 +645,11 @@ rm -f /tmp/restore.dump
 
 | Frecuencia | Actividad | Responsable |
 |-----------|-----------|-------------|
-| Diaria (automática) | Parches de seguridad del SO; trabajos del backend; reinicio automático de contenedores | Sistema |
-| Semanal | Revisión: `docker compose ps`, `docker stats`, `df -h`, fail2ban, `outbox_events` en `FAILED`, PR de Dependabot; **copia manual** (sección 2.2) si hay datos que importen | Jorge G., Fabrizio S. |
+| Cada 5 min (automática) | Chequeo de salud `oncargo-health` | Sistema |
+| Diaria (automática) | Parches de seguridad del SO; trabajos del backend; reinicio automático de contenedores; **respaldo cifrado** (03:30) | Sistema |
+| Semanal | Revisión: `health.txt`, `oncargo-backup list`, `docker stats`, fail2ban, registro de Caddy, `outbox_events` en `FAILED`, PR de Dependabot; **copia fuera del VPS** (sección 2.2) mientras no exista la externa | Jorge G., Fabrizio S. |
 | Por despliegue | Copia manual si hay migraciones; `deploy.sh`; verificación T2/T3 | Quien despliega |
-| Mensual | Prueba de restauración (SIM-1); reinicio si hay parches de kernel; escaneo con Trivy | Alex C. |
+| Mensual | Prueba de restauración (`oncargo-backup verify`, SIM-1); reinicio si hay parches de kernel; escaneo con Trivy; `harden.sh` para comprobar que no hubo desvíos (debe reportar sin cambios) | Alex C. |
 | Trimestral | Revisión de accesos y claves SSH; escaneo con ZAP y Nmap | Equipo |
 | Semestral | Simulacros SIM-2 y SIM-3; revisión del dimensionamiento y de los costos | Equipo |
 
@@ -639,7 +701,7 @@ Las mejoras pendientes no cambian el orden de magnitud: UptimeRobot y el plan gr
 
 ### 4.8 Métricas de disponibilidad (a medir)
 
-Sin monitor externo no hay mediciones de disponibilidad; las filas permanecen pendientes y no se completan con estimaciones.
+`oncargo-health` registra cada 5 minutos el estado visto **desde el propio VPS** (`journalctl -t oncargo-health`), lo que permite reconstruir los periodos de falla del servicio, pero no detecta la caída del VPS entero. La disponibilidad oficial exige el monitor externo, que está pendiente; las filas no se completan con estimaciones.
 
 | Mes de operación | Disponibilidad medida (objetivo ≥ 99 %) | Incidentes | MTTR | Causa principal |
 |------------------|----------------------------------------|-----------|------|-----------------|
@@ -660,13 +722,17 @@ Sin monitor externo no hay mediciones de disponibilidad; las filas permanecen pe
 | `infra/db/init-roles.sh`, `infra/scripts/gen-jwt-keys.sh`, `backend/Dockerfile`, `web/Dockerfile` | Repositorio | Disponible |
 | Trabajos programados (`AuctionScheduler`, `OutboxDispatcher`, `TripScheduler`, `RealtimeMaintenance`, `AuthTokenCleanup`) | Repositorio | Implementado en el repositorio |
 | Migraciones Flyway V1–V18 y pruebas de aislamiento (`RowLevelSecurityTest`, `DatabasePrivilegesTest`) | Repositorio / CI | Implementado en el repositorio |
-| Panel de Hostinger: VPS KVM 2, Ubuntu 24.04, región del centro de datos | Hostinger | Pendiente de captura |
-| `docker compose ps` con los cinco servicios y `cat /opt/oncargo/state/DEPLOYED` | VPS | Pendiente de captura |
-| `docker stats --no-stream`, `free -m`, `df -h /` en operación normal | VPS | Pendiente de captura |
-| Salida de `flyway_schema_history` (versión 15 con `success = t`) | VPS | Pendiente de captura |
-| Salida de un despliegue con `deploy.sh` y de una vuelta atrás con `src.old` (SIM-2) | VPS | Pendiente de ejecución |
-| Primera copia manual (sección 2.2) y prueba de restauración (SIM-1) | Equipo | Pendiente de ejecución |
-| `https://oncargo.tech/app/` con el QR y `version.json` | VPS | Pendiente de captura |
+| `infra/vps/harden.sh`, `host/`, `backup.sh`, `healthcheck.sh`, `backup-recipients.txt` | Repositorio (commits `9d1f6a2`, `b44014a`) | Disponible (v2.2) |
+| Panel de Hostinger: VPS KVM 2, Ubuntu 24.04, región del centro de datos (Brasil) | Hostinger | Pendiente de captura del panel |
+| `docker compose ps` con los cinco servicios y `cat /opt/oncargo/state/DEPLOYED` | VPS | Capturado (19-nov-2026): cinco servicios `Up`, cuatro `healthy`; `DEPLOYED=b44014a` |
+| `docker stats --no-stream`, `free -m`, `df -h /` en operación normal | VPS | Capturado (19-nov-2026): web 53 MiB, backend 296 MiB, caddy 16 MiB, db 48 MiB, minio 73 MiB; 6.5 GB disponibles de 7.9; swap 0; disco 10 % (9.2 de 96 GB) |
+| Última migración aplicada | VPS | Capturado: V23 (`migracion=23` en el manifiesto del respaldo) |
+| Salida de un despliegue con `deploy.sh` | VPS | Capturado: despliegues de `9d1f6a2` y `b44014a` (19-nov-2026). Vuelta atrás con `src.old` (SIM-2): ejecutada de hecho al restaurar el backend con el compose anterior durante el despliegue de `9d1f6a2` (ver nota) |
+| Respaldo automático y prueba de restauración (SIM-1) | VPS | Capturado (secciones 2.2 y 2.3) |
+| `https://oncargo.tech/app/` y `oncargo.apk` (`200`, tipo APK) | VPS | Capturado (Red, T15) |
+
+!!! note "Incidente durante el despliegue del 19-nov-2026"
+    El despliegue de `9d1f6a2` incluía variables de correo nuevas (`SMTP_*`) y dejaba `SMTP_HOST` **vacío**. Quarkus interpreta la cadena vacía como valor ausente, así que la propiedad obligatoria `quarkus.mailer.host` quedó sin valor y el backend no arrancó (`SRCFG00040`). El servicio se restableció en unos 60 s levantando el backend con el `compose.yml` de `src.old`, el procedimiento de vuelta atrás, y se corrigió en `b44014a` (`SMTP_HOST` por omisión `localhost`). Lección: una variable opcional del compose nunca debe pasar la cadena vacía a una propiedad obligatoria. La prueba posterior al despliegue (T2, T3 y login) detectó el problema de inmediato.
 
 ### Anexo B — URLs operativas
 
@@ -676,7 +742,8 @@ Sin monitor externo no hay mediciones de disponibilidad; las filas permanecen pe
 | Descarga de la app Android | `https://oncargo.tech/app/` | QR, `oncargo.apk` y `version.json` |
 | API: disponibilidad | `https://api.oncargo.tech/q/health/ready` | `200` con `"status":"UP"`; incluye la comprobación de la BD |
 | API: salud general | `https://api.oncargo.tech/q/health` | `/q/health/live` para el estado del proceso |
-| Acceso por IP (temporal) | `http://<IP_PUBLICA_VPS>` | Solo mientras el DNS propaga; sin TLS |
+| Acceso por IP | `http://<IP_PUBLICA_VPS>` | Desde la v2.2 redirige (`308`) a `https://oncargo.tech` |
+| Estado de salud | `sudo cat /var/lib/oncargo/health.txt` (en el VPS) | Actualizado cada 5 min |
 | Panel de Hostinger | `https://hpanel.hostinger.com` | Estado del VPS, consola de recuperación, DNS, facturación |
 | Acceso al servidor | `ssh -i ~/.ssh/hostinger_kvm2 deploy@<IP_PUBLICA_VPS>` | Solo con clave |
 | Contrato de la API | `docs/api/openapi.yaml` del monorepo | Swagger UI desactivado en producción |
@@ -684,4 +751,4 @@ Sin monitor externo no hay mediciones de disponibilidad; las filas permanecen pe
 
 ---
 
-*OnCargo · S2 Entregable 3 · Implementación del Centro de Datos · Competencias C3.2–C3.3 · Versión 2.1 · Noviembre 2026*
+*OnCargo · S2 Entregable 3 · Implementación del Centro de Datos · Competencias C3.2–C3.3 · Versión 2.2 · Noviembre 2026*

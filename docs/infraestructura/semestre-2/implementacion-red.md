@@ -2,13 +2,16 @@
 > Competencias C1.2 (Implementación) · C1.3 (Testing y control)  
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.1 (estado real del despliegue, noviembre 2026)** · v2.0: diseño previo al despliegue · v1.0: AWS
+> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.2 (endurecimiento aplicado y pruebas ejecutadas, 19-nov-2026)** · v2.1: estado real del despliegue · v2.0: diseño previo al despliegue · v1.0: AWS
 
 
 !!! info "Versión 2.1: lo que realmente está desplegado en el VPS Hostinger"
     La versión 1.0 describía una implementación con Terraform sobre AWS. La versión 2.0 rediseñó la red para un VPS Hostinger con Cloudflare delante, pero se escribió **antes** de aprovisionar el servidor. Esta versión 2.1 documenta **lo que se desplegó de verdad**, tomado de la carpeta `infra/vps/` del monorepo (`compose.yml`, `Caddyfile`, `bootstrap.sh`, `deploy.sh`, `publish-apk.sh` y `README.md`, commit `cad2b77` del 16-nov-2026).
 
     **Diferencias principales con la v2.0:** no se usa Cloudflare (el DNS está en el panel de Hostinger y apunta directo a la IP del VPS); Caddy obtiene el certificado de Let's Encrypt por sí mismo; no existe el filtro de rangos de Cloudflare en `DOCKER-USER`; las redes Docker usan subredes automáticas; los documentos se guardan en MinIO dentro del VPS y no en Cloudflare R2. El servidor funciona hoy como **entorno de pruebas** (cuentas demo activas).
+
+!!! success "Versión 2.2 (19-nov-2026): endurecimiento de red aplicado y pruebas ejecutadas"
+    Se aplicaron y verificaron en el VPS (commits `9d1f6a2` y `b44014a` de `oncargo-code`): lista blanca `DOCKER-USER` para los puertos que publica Docker, red `internal` sin salida a Internet, registro de accesos de Caddy con tokens redactados, *jails* de fail2ban sobre ese registro, `/q/*` cerrado salvo la salud, cabeceras adicionales y redirección del acceso por IP al dominio con HTTPS. Se cerraron los hallazgos **H-01, H-02, H-04, H-05, H-06 y H-09** (sección 6) y se ejecutaron T1–T9, T11, T13 y T15 (sección 4). La evaluación completa control por control está en [Implementación de Seguridad, Sección 0](implementacion-seguridad.md).
 
 ---
 
@@ -62,7 +65,7 @@ El código no se clona en el servidor: `infra/vps/deploy.sh` empaqueta el commit
 Solo Caddy publica puertos en el host. El resto de servicios no tiene `ports:` y se comunica por nombre dentro de las redes de Docker:
 
 ```yaml
-# infra/vps/compose.yml (fragmento de red)
+# infra/vps/compose.yml (fragmento de red, v2.2)
 name: oncargo
 
 services:
@@ -92,13 +95,18 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"   # HTTP/3
+    volumes:
+      - /var/log/oncargo/caddy:/var/log/caddy   # registro de accesos (v2.2), lo lee fail2ban
     networks: [edge]
     mem_limit: 128m
 
 networks:
   internal:
+    internal: true   # v2.2: db y minio sin salida a Internet
   edge:
 ```
+
+Cada servicio hereda además el ancla `x-hardening` (`no-new-privileges`, `cap_drop: [ALL]`) y tiene `pids_limit`; detalle en [Seguridad, 1.3](implementacion-seguridad.md).
 
 | Aspecto | Estado |
 |---------|--------|
@@ -106,21 +114,49 @@ networks:
 | Solo `caddy` publica puertos (80/tcp, 443/tcp, 443/udp) | Desplegado en el VPS |
 | `healthcheck` de `db` (`pg_isready`), `minio` (`/minio/health/ready`), `backend` (`/q/health/ready`) y `web` (`/login`) | Desplegado en el VPS (compose y Dockerfiles) |
 | Arranque ordenado con `depends_on: condition: service_healthy` (db y minio → backend → web → caddy) | Desplegado en el VPS |
-| Subredes fijas (172.20.0.0/24 y 172.21.0.0/24) e `internal: true` en la red de datos | No implementado (mejora): Docker asigna las subredes y la red `internal` conserva salida a Internet |
+| `internal: true` en la red de datos | **Implementado (v2.2)**: `db` y `minio` no tienen salida a Internet (`wget http://1.1.1.1` desde `db` falla); el backend sale por `edge` |
+| Subredes fijas (172.20.0.0/24 y 172.21.0.0/24) | Descartado: Docker asigna `172.18.0.0/16` (`edge`) y `172.19.0.0/16` (`internal`); nada depende de la dirección, todo se resuelve por nombre |
 
 ### 1.3 Caddyfile (proxy inverso, TLS y SSE)
 
-Este es el `infra/vps/Caddyfile` desplegado. El dominio y la IP llegan por las variables `DOMAIN` y `PUBLIC_IP` del `.env`:
+Este es el `infra/vps/Caddyfile` desplegado desde la v2.2 (commit `9d1f6a2`). El dominio y la IP llegan por las variables `DOMAIN` y `PUBLIC_IP` del `.env`:
 
 ```caddyfile
 # OnCargo — Caddy: HTTPS automático (Let's Encrypt) en cuanto el DNS apunte al VPS.
+# Endurecimiento (ver infra/vps/README.md § Seguridad del host): registro de accesos para fail2ban,
+# cabeceras, /q/* cerrado salvo la salud y el acceso por IP redirigido al dominio.
+
+(access_log) {
+	# JSON por petición en /var/log/oncargo/caddy/access.log del host (lo lee fail2ban). Caddy ya oculta
+	# Cookie y Authorization; aquí además se tapan los tokens de URL: ?t= (baja), ?token= (restablecer,
+	# invitación) y /s/<token> · /public/tracking/<token> (seguimiento público). Retención: 14 días.
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20MiB
+			roll_keep 10
+			roll_keep_for 336h
+			mode 0640
+		}
+		format filter {
+			wrap json {
+				time_format iso8601
+			}
+			request>uri regexp "([?&](?:t|token)=|/s/|/public/tracking/)[^&/?]+" "${1}REDACTED"
+		}
+	}
+}
+
 (security) {
+	import access_log
 	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
+		# Solo si la aplicación no la fijó (la web ya manda la suya).
+		?Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 		-Server
+		-Via
 	}
 }
 
@@ -129,6 +165,11 @@ Este es el `infra/vps/Caddyfile` desplegado. El dominio y la IP llegan por las v
 	redir /app /app/ 308
 	handle_path /app/* {
 		root * /srv/downloads
+		# Página estática servida por Caddy (no pasa por la web): CSP propia. Estilo y script en línea.
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+			X-Frame-Options "DENY"
+		}
 		@apk path *.apk
 		header @apk Content-Type "application/vnd.android.package-archive"
 		header @apk Content-Disposition "attachment"
@@ -143,50 +184,55 @@ Este es el `infra/vps/Caddyfile` desplegado. El dominio y la IP llegan por las v
 }
 
 www.{$DOMAIN} {
+	import access_log
 	redir https://{$DOMAIN}{uri} 308
 }
 
 # API pública para la app Android (la web llama a la API por la red interna).
 api.{$DOMAIN} {
 	import security
+	# Rutas internas de Quarkus (/q/openapi, /q/metrics…): solo la salud queda pública (monitoreo externo).
+	@quarkus_internal {
+		path /q/*
+		not path /q/health /q/health/*
+	}
+	respond @quarkus_internal 404
 	reverse_proxy backend:8080 {
 		# SSE (/api/v1/events/stream): sin buffer
 		flush_interval -1
 	}
 }
 
-# Acceso por IP mientras el DNS no apunta al VPS (solo pruebas, sin TLS).
+# Acceso por IP sin TLS: ya no sirve contenido (login en claro, hallazgo H-01). Redirige al dominio con HTTPS.
 http://{$PUBLIC_IP} {
-	encode zstd gzip
-	import downloads
-	handle /api/* {
-		reverse_proxy backend:8080 {
-			flush_interval -1
-		}
-	}
-	handle {
-		reverse_proxy web:4321
-	}
+	import access_log
+	redir https://{$DOMAIN}{uri} 308
 }
 ```
 
 | Decisión | Razón | Verificación (sección 4) |
 |----------|-------|--------------------------|
 | HTTPS automático con Let's Encrypt (sin Cloudflare) | Caddy emite y renueva el certificado al resolver el dominio hacia el VPS; sin costo ni configuración manual | T1, T9 |
-| HSTS de 1 año, `nosniff`, `Referrer-Policy`, se quita la cabecera `Server` | Endurecimiento en el borde; la web y la API añaden además su propia CSP y `X-Frame-Options` | T8 |
+| HSTS de 1 año, `nosniff`, `Referrer-Policy`, `Permissions-Policy` (si la aplicación no la fijó); se quitan `Server` y `Via` | Endurecimiento en el borde; la web y la API añaden además su propia CSP y `X-Frame-Options`. HSTS `preload` queda pendiente de aprobación (es prácticamente irreversible) | T8 |
+| Registro de accesos (`access_log`): JSON en `/var/log/oncargo/caddy/access.log`, 20 MiB × 10, 14 días; filtro que reemplaza por `REDACTED` los tokens de `?t=`, `?token=`, `/s/<token>` y `/public/tracking/<token>` | Rastro para investigar incidentes y fuente de fail2ban, sin guardar tokens; la IP es dato personal: retención corta | Sección 5.2 |
+| `/q/*` responde `404` en `api.` salvo `/q/health*` | `/q/openapi` y otras rutas internas de Quarkus no son públicas (H-04); la salud queda para el monitoreo externo | T13 |
+| CSP y `X-Frame-Options` propios en `/app/` | La página del APK la sirve Caddy y no pasa por la web | T15 |
 | `flush_interval -1` en la API | Requisito del ADR-0007: cada evento SSE llega al cliente sin esperar a llenar un *buffer* | T7 |
 | `www` redirige con 308 al dominio principal | Un solo nombre canónico | T8 |
 | `/app/` sirve `index.html`, el QR y `oncargo.apk` desde `/opt/oncargo/downloads` (solo lectura) | Distribución de la app Android de pruebas sin tienda de aplicaciones | T15 |
-| Bloque `http://{$PUBLIC_IP}` sin TLS | Permite probar por IP mientras el DNS propaga; **debe retirarse** al pasar a producción | T4 |
+| Bloque `http://{$PUBLIC_IP}`: `308` a `https://oncargo.tech` | Con el DNS ya propagado, el acceso por IP dejó de servir contenido en claro (H-01); la app usa `https://api.oncargo.tech` | T4 |
 
-**Estado:** Caddyfile **Desplegado en el VPS**. Cabeceras de seguridad, HSTS y CSP de la aplicación: **Implementado en el repositorio** (`backend/src/main/resources/application.properties` y `web/src/middleware.ts`).
+**Estado:** Caddyfile **Desplegado en el VPS** (v2.2). Cabeceras de seguridad, HSTS y CSP de la aplicación: **Implementado en el repositorio** (`backend/src/main/resources/application.properties` y `web/src/middleware.ts`). El contenedor de Caddy corre con sistema de archivos de solo lectura, sin capacidades salvo `NET_BIND_SERVICE` y con `no-new-privileges`.
 
-!!! warning "Compresión y SSE"
-    El fragmento `(security)` aplica `encode zstd gzip` a todo el sitio de la API, incluido el stream SSE. Caddy mantiene el *flush* inmediato con `flush_interval -1`, pero conviene **verificarlo** con la prueba T11. Si los eventos se retrasan, la corrección es excluir `/api/v1/events/stream` del `encode`.
+!!! note "Compresión y SSE (verificado)"
+    El fragmento `(security)` aplica `encode zstd gzip` a todo el sitio de la API. La prueba T11 (19-nov-2026) pidió el stream con `Accept-Encoding: gzip, zstd`: Caddy **no** comprimió `text/event-stream`, `stream.ready` llegó al instante y el `:ping` a los 20 s exactos. H-05 queda cerrado sin cambios.
+
+!!! note "Límite de tasa en el proxy: descartado en Caddy"
+    La imagen oficial `caddy:2.10-alpine` no incluye el módulo `rate_limit`: es de terceros y exige compilar una imagen propia con `xcaddy`, que luego habría que mantener. El límite se aplica en la aplicación (`AuthRateLimits`) y en el host (fail2ban `oncargo-caddy-auth` bloquea en 80/443 las IP que acumulan respuestas `429`). En el borde, lo cubriría Cloudflare ([Seguridad, 4.1](implementacion-seguridad.md)).
 
 ### 1.4 Firewall del host (UFW) y puertos publicados por Docker
 
-Según `infra/vps/README.md`, el host tiene **UFW** con entrada denegada por omisión y solo **22, 80 y 443** permitidos. Docker publica sus puertos con reglas propias de `iptables` que UFW no filtra. Aquí no es un problema, porque el único servicio con puertos publicados es Caddy y usa justamente 80 y 443, que UFW ya permite. La base de datos, MinIO, el backend y la web **no publican ningún puerto**.
+Según `infra/vps/README.md`, el host tiene **UFW** con entrada denegada por omisión y solo **22, 80 y 443** permitidos. Docker publica sus puertos con reglas propias de `iptables` (DNAT en `PREROUTING` y filtrado en `FORWARD`) que **UFW no ve**, porque UFW filtra la cadena `INPUT`. Hoy el único servicio con puertos publicados es Caddy, en 80 y 443, que UFW ya permite. La base de datos, MinIO, el backend y la web **no publican ningún puerto**. Pero un `ports:` agregado por error a otro servicio quedaría expuesto a Internet sin que UFW lo note. Por eso la v2.2 añade la cadena `DOCKER-USER` como lista blanca.
 
 ```bash
 # Configuración equivalente a la aplicada (como usuario deploy con sudo)
@@ -199,12 +245,26 @@ sudo ufw enable
 sudo ufw status verbose
 ```
 
+**`DOCKER-USER` (v2.2):** `infra/vps/host/docker-user.sh`, aplicado por `oncargo-docker-user.service` después de Docker y en cada arranque:
+
+```text
+-A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+-A DOCKER-USER -i eth0 -p tcp -m conntrack --ctorigdstport 80  --ctdir ORIGINAL -j RETURN
+-A DOCKER-USER -i eth0 -p tcp -m conntrack --ctorigdstport 443 --ctdir ORIGINAL -j RETURN
+-A DOCKER-USER -i eth0 -p udp -m conntrack --ctorigdstport 443 --ctdir ORIGINAL -j RETURN
+-A DOCKER-USER -i eth0 -m conntrack --ctstate INVALID,NEW -j DROP
+-A DOCKER-USER -j RETURN
+```
+
+La regla compara el puerto **original**, anterior al DNAT. La primera versión usaba `--dports 80,443` y falló la prueba: en `FORWARD` el puerto ya está traducido, y un contenedor de prueba publicado como `18080:80` siguió accesible porque escuchaba internamente en el 80. Con `--ctorigdstport`, el 18080 quedó bloqueado (evidencia E3 de [Seguridad](implementacion-seguridad.md)). La salida de los contenedores y las respuestas no se ven afectadas. IPv6: los puertos publicados en `[::]` los atiende `docker-proxy` en el host, así que ahí sí filtra UFW (cadena `INPUT` de IPv6).
+
 | Mecanismo | Protege | Estado |
 |-----------|---------|--------|
 | UFW: entrada `deny`, permitidos 22/80/443 | Servicios del host | Desplegado en el VPS |
 | Solo Caddy publica puertos (el resto, sin `ports:`) | Contenedores | Desplegado en el VPS |
-| fail2ban con la *jail* `sshd` | SSH | Desplegado en el VPS |
-| Filtro "solo Cloudflare" en `DOCKER-USER` con `ipset` | 80/443 | No implementado (no se usa Cloudflare) |
+| `DOCKER-USER`: desde `eth0` solo nuevas conexiones a 80/tcp, 443/tcp y 443/udp | Puertos publicados por Docker | **Implementado (v2.2)** |
+| fail2ban: `sshd`, `recidive` y *jails* de Caddy en los *hooks* `input` y `forward` | SSH y 80/443 | **Implementado (v2.2)** ([Seguridad, 1.2](implementacion-seguridad.md)) |
+| Filtro "solo Cloudflare" en `DOCKER-USER` con `ipset` | 80/443 | Pendiente (requiere Cloudflare) |
 
 !!! note "Firewall del panel de Hostinger"
     Hostinger ofrece un firewall de red en su panel que puede añadirse como capa adicional (22, 80 y 443 entrantes). No se documenta como configurado; queda como mejora.
@@ -226,6 +286,7 @@ Antes hay que borrar los registros A/CNAME de *parking* del registrador. Caddy s
 | Registros A en el panel de Hostinger | Definidos en `infra/vps/README.md`; la propagación se comprueba con T1 |
 | Certificados de Let's Encrypt emitidos por Caddy | Automático al propagar el DNS; se comprueba con T9 |
 | DNSSEC | No implementado (mejora) |
+| Registro CAA (`0 issue "letsencrypt.org"`) | Pendiente (decisión del usuario, en el panel DNS); hoy no hay CAA |
 | Cloudflare (CDN, WAF, mitigación DDoS) | No implementado (mejora) |
 
 ---
@@ -315,27 +376,27 @@ En un VPS con Docker el *routing* lo hace el kernel del host; no hay *routers* c
 ## Sección 4 — Pruebas de Conectividad y Rendimiento (C1.3)
 
 !!! warning "Estado de las pruebas"
-    El VPS ya está en operación, pero a la fecha de esta versión **no hay resultados registrados** en el repositorio. Cada prueba indica el comando, el resultado esperado según la configuración real y el criterio de aceptación. La columna *Resultado* queda en **Pendiente de medición** hasta adjuntar la evidencia en el Anexo A.
+    Cada prueba indica el comando, el resultado esperado según la configuración real y el criterio de aceptación. El 19-nov-2026 (v2.2) se ejecutaron desde Lima T1–T9, T11, T13 y T15; T10, T12 y T14 y las pruebas de carga (4.2) siguen **Pendientes de medición**. T10 consume el límite de login de la IP del evaluador durante 15 min, y desde la v2.2 puede activar la *jail* `oncargo-caddy-auth` (20 respuestas `429` → 1 h fuera de 80/443): conviene ejecutarla desde una IP en `ignoreip`.
 
 ### 4.1 Pruebas de conectividad y seguridad de red
 
 | ID | Prueba | Resultado esperado | Resultado |
 |----|--------|--------------------|-----------|
-| T1 | DNS de los tres nombres | `oncargo.tech`, `www` y `api` resuelven a la IP del VPS | Pendiente de medición |
-| T2 | Acceso HTTPS a la web con tiempos | `200` (o `302` a `/login`); TLS válido | Pendiente de medición |
-| T3 | Salud de la API | `200` con `"status":"UP"` | Pendiente de medición |
-| T4 | Acceso por IP sin TLS (`http://<IP>`) | Responde mientras exista el bloque de pruebas; debe dejar de responder al retirarlo | Pendiente de medición |
-| T5 | Escaneo de puertos externo (Nmap) | Abiertos solo 22/tcp, 80/tcp y 443/tcp (y 443/udp); 5432, 8080, 4321 y 9000 cerrados o filtrados | Pendiente de medición |
-| T6 | Aislamiento de datos | 5432 y 9000 inalcanzables desde fuera; `web` no resuelve `db` ni `minio`; `backend` sí | Pendiente de medición |
-| T7 | SSE a través de Caddy | `stream.ready` inmediato y `: ping` cada ~20 s sin cortes | Pendiente de medición |
-| T8 | Redirección HTTP→HTTPS y cabeceras | `308` a HTTPS; HSTS, `nosniff`, `Referrer-Policy`, CSP presentes; sin cabecera `Server` | Pendiente de medición |
-| T9 | Certificado y protocolos | Emitido por Let's Encrypt, vigente; TLS 1.2/1.3; HTTP/3 anunciado (`alt-svc`) | Pendiente de medición |
+| T1 | DNS de los tres nombres | `oncargo.tech`, `www` y `api` resuelven a la IP del VPS | **Correcto (19-nov):** los tres → `<IP_PUBLICA_VPS>`; sin AAAA ni CAA |
+| T2 | Acceso HTTPS a la web con tiempos | `200` (o `302` a `/login`); TLS válido | **Correcto:** `200`; desde Lima tcp 0.117 s, tls 0.241 s, ttfb 0.38 s, total 0.73 s (3 muestras) |
+| T3 | Salud de la API | `200` con `"status":"UP"` | **Correcto:** `200`, `UP` con la comprobación de la base de datos |
+| T4 | Acceso por IP sin TLS (`http://<IP>`) | Desde la v2.2: `308` al dominio con HTTPS | **Correcto:** `http://<IP>/login?x=1` → `308 https://oncargo.tech/login?x=1` |
+| T5 | Escaneo de puertos externo (Nmap) | Abiertos solo 22/tcp, 80/tcp y 443/tcp (y 443/udp); 5432, 8080, 4321 y 9000 cerrados o filtrados | **Parcial:** escaneo TCP de 9 puertos con `bash /dev/tcp`: abiertos solo 22, 80 y 443. Falta el barrido completo con Nmap |
+| T6 | Aislamiento de datos | 5432 y 9000 inalcanzables desde fuera; `web` no resuelve `db` ni `minio`; `backend` sí | **Correcto:** `backend` → `db` 172.19.0.2; `web` → `db` y `caddy` → `minio` sin respuesta (código 2); `db` sin salida a Internet |
+| T7 | SSE a través de Caddy | `stream.ready` inmediato y `: ping` cada ~20 s sin cortes | **Correcto** (26 s): `stream.ready` a las 10:53:10 y `:ping` a las 10:53:30. Falta la ventana completa de 130 s |
+| T8 | Redirección HTTP→HTTPS y cabeceras | `308` a HTTPS; HSTS, `nosniff`, `Referrer-Policy`, CSP presentes; sin cabecera `Server` | **Correcto:** `308`; HSTS, `nosniff`, `Referrer-Policy`, CSP, `Permissions-Policy` y `X-Frame-Options`; sin `Server` ni `Via` |
+| T9 | Certificado y protocolos | Emitido por Let's Encrypt, vigente; TLS 1.2/1.3; HTTP/3 anunciado (`alt-svc`) | **Correcto:** Let's Encrypt `YE1`, vence el 15-feb-2027; TLS 1.2 y 1.3 (1.0/1.1 rechazados); `alt-svc: h3` y `curl --http3-only` responde en HTTP/3 |
 | T10 | IP real del cliente | Un `X-Forwarded-For` falso no evade el límite por IP: `429` tras 50 intentos | Pendiente de medición |
-| T11 | Compresión y SSE | HTML comprimido; los eventos SSE llegan sin retraso aunque el sitio tenga `encode` | Pendiente de medición |
+| T11 | Compresión y SSE | HTML comprimido; los eventos SSE llegan sin retraso aunque el sitio tenga `encode` | **Correcto:** con `Accept-Encoding: gzip, zstd`, `text/event-stream` sin comprimir y `:ping` a los 20 s |
 | T12 | Recuperación de contenedor | Tras `docker kill` del backend, vuelve a `healthy` sin intervención | Pendiente de medición |
-| T13 | Rutas internas de `/q/` | `200` en `/q/health/ready`; Swagger UI no incluido en producción | Pendiente de medición |
+| T13 | Rutas internas de `/q/` | `200` en `/q/health*`; `404` en el resto (`/q/openapi`, `/q/dev-ui`, `/q/metrics`) | **Correcto (v2.2):** `/q/health/ready` y `/q/health/live` `200`; `/q/openapi` `404` (antes `200`) |
 | T14 | Inicio de sesión en el navegador (`checkOrigin`) | Login correcto sin `403 Cross-site POST form submissions are forbidden` | Pendiente de medición |
-| T15 | Descarga del APK | `https://oncargo.tech/app/` muestra el QR; `oncargo.apk` se descarga con `Content-Type: application/vnd.android.package-archive` | Pendiente de medición |
+| T15 | Descarga del APK | `https://oncargo.tech/app/` muestra el QR; `oncargo.apk` se descarga con `Content-Type: application/vnd.android.package-archive` | **Correcto:** `200`, `application/vnd.android.package-archive` y `Content-Disposition: attachment` |
 
 #### T1 — DNS
 
@@ -361,9 +422,8 @@ curl -s -w "\n" https://api.oncargo.tech/q/health/ready
 #### T4 — Acceso por IP (bloque de pruebas)
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://<IP_PUBLICA_VPS>/            # Esperado hoy: 200/302 (web)
-curl -s -w "\n" http://<IP_PUBLICA_VPS>/api/q/health/ready                     # Ruta /api/* hacia el backend
-# Tras retirar el bloque http://{$PUBLIC_IP} del Caddyfile: sin respuesta útil por IP
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" "http://<IP_PUBLICA_VPS>/login?x=1"
+# Resultado (v2.2): 308 https://oncargo.tech/login?x=1
 ```
 
 #### T5 y T6 — Escaneo externo y aislamiento de datos
@@ -441,7 +501,7 @@ docker kill oncargo-backend-1
 for p in /q/health/ready /q/health /q/swagger-ui /q/openapi; do
   printf '%-18s' "$p"; curl -s -o /dev/null -w "%{http_code}\n" "https://api.oncargo.tech$p"
 done
-# Esperado: 200 200 404 y /q/openapi según se registre (el Caddyfile no bloquea /q/; ver hallazgo H-04)
+# Resultado (v2.2): 200 200 404 404  (el Caddyfile responde 404 en /q/* salvo /q/health*)
 
 curl -sI https://oncargo.tech/app/oncargo.apk | grep -iE 'content-type|content-disposition|content-length'
 curl -s https://oncargo.tech/app/version.json
@@ -571,44 +631,38 @@ Un VPS de 8 GB comparte la memoria entre la base de datos y el backend, por lo q
 |------|-------------|-------------|--------|
 | Salud de contenedores | `healthcheck` de Docker + `restart: unless-stopped` | `healthy` de `db`, `minio`, `backend`, `web`; reinicio automático | Desplegado en el VPS |
 | Logs de contenedores | `docker compose logs` con rotación de 10 MB × 3 archivos por contenedor | Errores y eventos de Caddy (certificados, arranque), backend y web | Desplegado en el VPS |
-| Registro de accesos HTTP de Caddy | — | Estado, ruta, IP y latencia de cada petición | No implementado: el Caddyfile no tiene la directiva `log` (sección 5.2) |
-| Intrusión SSH | fail2ban (*jail* `sshd`) | Fuerza bruta contra SSH | Desplegado en el VPS |
-| Recursos del host | `docker stats`, `vmstat`, `df -h`, `journalctl` | CPU, memoria, disco | Manual (bajo demanda) |
+| Registro de accesos HTTP de Caddy | `log` (snippet `access_log`) → `/var/log/oncargo/caddy/access.log` | Estado, ruta, IP y latencia de cada petición | **Implementado (v2.2)** (sección 5.2) |
+| Intrusión SSH | fail2ban (`sshd`, `recidive`) | Fuerza bruta contra SSH y reincidentes | Desplegado en el VPS (`recidive`: v2.2) |
+| Escaneo y abuso web | fail2ban (`oncargo-caddy-probe`, `oncargo-caddy-auth`) | Rutas de escaneo; IP que siguen insistiendo tras el `429` | **Implementado (v2.2)** |
+| Recursos del host y servicio | `oncargo-health` (temporizador de systemd, cada 5 min) | Web, API, APK, contenedores, disco, memoria, swap, certificado, antigüedad del respaldo | **Implementado (v2.2)**; canal de alerta pendiente |
 | Aplicación | Logs y tabla `outbox_events` | Errores `ERROR`; eventos en `FAILED` | Implementado en el repositorio (revisión manual) |
-| Disponibilidad externa (UptimeRobot) | — | Caída del propio VPS | No implementado (mejora prioritaria) |
-| Monitoreo interno (Uptime Kuma) | — | Certificado, TCP de `db`, latido de respaldos | No implementado (mejora) |
-| Logs de Caddy a archivo y fail2ban sobre el login | — | Fuerza bruta en `/api/v1/auth/login` | No implementado (la aplicación ya limita con `AuthRateLimits`) |
+| Disponibilidad externa (UptimeRobot o latido a healthchecks.io) | — | Caída del propio VPS | Pendiente (decisión del usuario: requiere una cuenta; `HEARTBEAT_URL` ya soportado) |
+| Monitoreo interno (Uptime Kuma) | — | — | Descartado: `oncargo-health` cubre certificado, salud y latido de respaldos sin otro servicio residente |
 
 **Sobre SNMP.** La rúbrica menciona SNMP porque asume equipos de red propios. En un VPS no hay conmutadores ni *routers* gestionables y el proveedor no expone SNMP; el equivalente funcional son las métricas del host y los registros anteriores.
 
 ### 5.2 Registro de accesos de Caddy
 
-Caddy **no registra accesos** si el sitio no tiene la directiva `log`, y el Caddyfile desplegado no la incluye. Hoy solo quedan sus mensajes de funcionamiento (emisión de certificados, errores de *proxy*). Para activar el registro basta con añadir `log` al fragmento `(security)`; con eso Caddy escribe un JSON por petición en la salida estándar, que Docker rota (10 MB × 3):
+Desde la v2.2 el snippet `access_log` del Caddyfile (sección 1.3) escribe un JSON por petición en `/var/log/caddy/access.log` del contenedor, montado en `/var/log/oncargo/caddy/` del host (directorio `root:adm 750`, archivo `640`). Caddy rota el archivo (20 MiB × 10, máximo 14 días). Caddy ya oculta `Cookie` y `Authorization`; además un filtro `regexp` sobre `request>uri` reemplaza los tokens de URL. La verificación del 19-nov-2026 dio `"uri":"/baja?t=REDACTED&x=1"`, `"uri":"/s/REDACTED"` y `"uri":"/restablecer?token=REDACTED"`, y el token de prueba aparece 0 veces en el archivo.
 
-```caddyfile
-(security) {
-	log                      # registro de accesos en JSON (Caddy oculta las cabeceras Authorization y Cookie)
-	encode zstd gzip
-	# ... (resto sin cambios)
-}
-```
-
-Una vez activado, se analiza así:
+Análisis (en el VPS; `jq` lo instala `harden.sh`):
 
 ```bash
-cd /opt/oncargo/src/infra/vps
-# Distribución de códigos de estado (últimas 5,000 líneas)
-docker compose logs --no-log-prefix --tail=5000 caddy | jq -r 'select(.status) | .status' | sort | uniq -c | sort -rn
+L=/var/log/oncargo/caddy/access.log
+# Distribución de códigos de estado
+sudo jq -r 'select(.status) | .status' $L | sort | uniq -c | sort -rn
 # Errores 5xx
-docker compose logs --no-log-prefix --tail=5000 caddy | jq -r 'select(.status>=500) | [.ts, .request.remote_ip, .request.method, .request.uri, .status] | @tsv'
+sudo jq -r 'select(.status>=500) | [.ts, .request.client_ip, .request.method, .request.uri, .status] | @tsv' $L
 # IPs más activas
-docker compose logs --no-log-prefix --tail=5000 caddy | jq -r 'select(.request) | .request.remote_ip' | sort | uniq -c | sort -rn | head
+sudo jq -r '.request.client_ip' $L | sort | uniq -c | sort -rn | head
 # Intentos de login rechazados por IP
-docker compose logs --no-log-prefix --tail=5000 caddy | jq -r 'select(.request.uri=="/api/v1/auth/login" and (.status==401 or .status==429)) | .request.remote_ip' | sort | uniq -c | sort -rn
+sudo jq -r 'select(.request.uri=="/api/v1/auth/login" and (.status==401 or .status==429)) | .request.client_ip' $L | sort | uniq -c | sort -rn
+# Lo que fail2ban detectaría
+sudo fail2ban-regex $L /etc/fail2ban/filter.d/oncargo-caddy-probe.conf
 ```
 
-!!! note "Retención"
-    Con la rotación de Docker (10 MB × 3) la historia de accesos sería corta. Para conservarla más tiempo se usa `log { output file … }` con rotación propia y un volumen montado.
+!!! note "Retención y privacidad"
+    La IP es un dato personal (Ley 29733). Por eso el registro se conserva 14 días y nunca sale del VPS sin anonimizar ([Seguridad, 4.4](implementacion-seguridad.md)).
 
 ### 5.3 Umbrales de alerta (revisión manual)
 
@@ -630,14 +684,15 @@ Riesgos de configuración identificados al documentar el despliegue real (no son
 
 | ID | Hallazgo | Efecto | Acción correctiva | Estado |
 |----|----------|--------|-------------------|--------|
-| H-01 | Bloque `http://{$PUBLIC_IP}` sin TLS | La web, la API y el login viajan sin cifrar si se usa la IP | Retirarlo del Caddyfile cuando el dominio tenga HTTPS | Abierto (temporal por diseño) |
-| H-02 | `COOKIE_SECURE=false` en `state/.env` | La cookie de sesión también viaja por HTTP | Cambiar a `true` junto con H-01 | Abierto (temporal por diseño) |
-| H-03 | `DEMO_DATA=true`: cuentas demo con contraseña conocida | Cualquiera puede entrar como PYME, transportista u operador de prueba | `DEMO_DATA=false` y base nueva para producción | Abierto (entorno de pruebas) |
-| H-04 | El Caddyfile no restringe `/q/*` | `/q/openapi` podría quedar público (Swagger UI ya está desactivado en producción) | `respond 404` para `/q/*` salvo `/q/health*` | Abierto |
-| H-05 | `encode` aplicado también al stream SSE | Posible retraso de eventos | Verificar con T11; excluir la ruta si hace falta | Pendiente de medición |
-| H-06 | La red `internal` no tiene `internal: true` | `db` y `minio` conservan salida a Internet | Añadir `internal: true` (verificar que MinIO y Postgres no la necesiten) | Abierto (mejora) |
-| H-07 | Sin CDN ni WAF delante del origen | El VPS recibe todo el tráfico directamente, incluido un DDoS | Evaluar Cloudflare (plan gratuito) para producción | Aceptado en pruebas |
-| H-09 | Caddy sin registro de accesos | No hay rastro de peticiones para investigar un incidente | Añadir `log` en el Caddyfile (sección 5.2) | Abierto |
+| H-01 | Bloque `http://{$PUBLIC_IP}` sin TLS | La web, la API y el login viajan sin cifrar si se usa la IP | El bloque ahora responde `308` a `https://oncargo.tech` | **Cerrado (v2.2)**: T4 |
+| H-02 | `COOKIE_SECURE=false` en `state/.env` | La cookie de sesión también viaja por HTTP | `COOKIE_SECURE=true` en el VPS y por omisión en `bootstrap.sh` | **Cerrado (v2.2)** |
+| H-03 | `DEMO_DATA=true`: cuentas demo con contraseña conocida (publicada en el repositorio) | Cualquiera puede entrar como PYME, transportista u operador de prueba | Corto plazo: `DEMO_PASSWORD` propia del VPS ([Seguridad, 1.4](implementacion-seguridad.md)); producción: `DEMO_DATA=false` y base nueva | Abierto (pendiente de decisión y de un cambio en el backend) |
+| H-04 | El Caddyfile no restringe `/q/*` | `/q/openapi` era público (`200`) | `respond 404` para `/q/*` salvo `/q/health*` | **Cerrado (v2.2)**: T13 |
+| H-05 | `encode` aplicado también al stream SSE | Posible retraso de eventos | Verificado con T11: Caddy no comprime `text/event-stream` | **Cerrado (v2.2)**, sin cambios |
+| H-06 | La red `internal` no tiene `internal: true` | `db` y `minio` conservan salida a Internet | `internal: true` en `compose.yml` | **Cerrado (v2.2)**: T6 |
+| H-07 | Sin CDN ni WAF delante del origen | El VPS recibe todo el tráfico directamente, incluido un DDoS | Plan de Cloudflare en [Seguridad, 4.1](implementacion-seguridad.md) (sin *Bot Fight Mode* en la API) | Aceptado en pruebas; pendiente (decisión del usuario) |
+| H-09 | Caddy sin registro de accesos | No hay rastro de peticiones para investigar un incidente | Snippet `access_log` con tokens redactados (sección 5.2) | **Cerrado (v2.2)** |
+| H-12 | Docker se salta UFW en los puertos publicados | Un `ports:` añadido por error quedaría expuesto | `DOCKER-USER` como lista blanca por puerto original (sección 1.4) | **Cerrado (v2.2)**: prueba con el puerto 18080 |
 | H-10 | Astro sin `security.allowedDomains` detrás de Caddy | La web ve como IP de todos los usuarios la del contenedor `caddy` (Astro 7 solo confía en `X-Forwarded-For` si el host está validado) y la reenvía al backend: los límites por IP de login (50), registro (10), restablecer contraseña (20/30) y cotización pública (30, cada 15 min) se **comparten entre todos los usuarios de la web**. Unos pocos intentos fallidos de cualquiera bloquean el login web de todos | Añadir `security: { allowedDomains: [{ hostname: 'oncargo.tech', protocol: 'https' }] }` en `web/astro.config.mjs` y verificar con T13 | Abierto (corresponde al repositorio de código) |
 | H-11 | El APK publicado en `/app/` es una compilación **debug** (`publish-apk.sh` espera `assembleDebug`) | Permite tráfico sin cifrar y muestra accesos demo; su URL de API depende de `-PapiBaseUrl` al compilar (por omisión `http://10.0.2.2:8080`, solo emulador) | Compilar con `-PapiBaseUrl=https://api.oncargo.tech` y, para producción, publicar un *release* firmado (el *release* usa por omisión `https://api.logyx.pe`, que no es el dominio desplegado) | Abierto (entorno de pruebas) |
 | H-08 | Un solo VPS | Servicio indisponible si cae el proveedor | Reconstrucción documentada ([Datacenter, sección 4.3](implementacion-datacenter.md)) | Aceptado (equivalente Tier I) |
@@ -651,13 +706,14 @@ Riesgos de configuración identificados al documentar el despliegue real (no son
 | Evidencia | Origen | Estado |
 |-----------|--------|--------|
 | `infra/vps/compose.yml`, `Caddyfile`, `bootstrap.sh`, `deploy.sh`, `publish-apk.sh`, `README.md` | Repositorio (commit `cad2b77`) | Disponible |
-| `docker compose ps` con los cinco servicios en marcha (`db`, `minio`, `backend`, `web`, `caddy`) | VPS | Pendiente de captura |
-| `docker network inspect oncargo_edge oncargo_internal` (subredes asignadas) | VPS | Pendiente de captura |
-| `sudo ufw status verbose` y `sudo fail2ban-client status sshd` | VPS | Pendiente de captura |
+| `infra/vps/harden.sh`, `host/` (`docker-user.sh`, fail2ban, sshd) y el Caddyfile v2.2 | Repositorio (commits `9d1f6a2`, `b44014a`) | Disponible |
+| `docker compose ps` con los cinco servicios en marcha (`db`, `minio`, `backend`, `web`, `caddy`) | VPS | Capturado (19-nov-2026): los cinco `Up`, cuatro con `healthy` (Caddy no define *healthcheck*) |
+| `docker network inspect oncargo_edge oncargo_internal` (subredes asignadas) | VPS | Capturado: `edge` 172.18.0.0/16; `internal` 172.19.0.0/16 con `internal=true` |
+| `sudo ufw status verbose`, `iptables -S DOCKER-USER` y `fail2ban-client status` | VPS | Capturado ([Seguridad, Sección 0](implementacion-seguridad.md), E2–E4) |
 | Panel DNS de Hostinger con los registros A | Hostinger | Pendiente de captura |
-| Salida de T1 a T15 | Varios | Pendiente de medición |
+| Salida de T1 a T15 | Varios | T1–T9, T11, T13 y T15 registradas en la sección 4.1; T10, T12 y T14 pendientes |
 | Informe de k6 (humo y carga) y de `ab` | Lima | Pendiente de medición |
-| `nmap-full.txt` del escaneo externo | Equipo externo | Pendiente de medición |
+| `nmap-full.txt` del escaneo externo | Equipo externo | Pendiente (se hizo un escaneo TCP parcial sin Nmap: E3 de Seguridad) |
 
 ### Anexo B — Comandos de diagnóstico de red
 
@@ -683,7 +739,9 @@ docker compose exec web wget -qO- http://backend:8080/q/health/ready
 docker compose exec backend getent hosts db minio
 
 # fail2ban
-sudo fail2ban-client status sshd
+sudo fail2ban-client status                          # sshd, recidive, oncargo-caddy-probe, oncargo-caddy-auth
+sudo fail2ban-client unban <IP>                       # desbloquear (p. ej. la IP propia tras una prueba)
+sudo iptables -L DOCKER-USER -v -n                    # contadores de la lista blanca
 
 # Desde fuera: la base de datos no debe responder
 nmap -Pn -p 22,80,443,5432,9000 <IP_PUBLICA_VPS>
@@ -691,4 +749,4 @@ nmap -Pn -p 22,80,443,5432,9000 <IP_PUBLICA_VPS>
 
 ---
 
-*OnCargo · S2 Entregable 1 · Implementación de Red · Competencias C1.2–C1.3 · Versión 2.1 · Noviembre 2026*
+*OnCargo · S2 Entregable 1 · Implementación de Red · Competencias C1.2–C1.3 · Versión 2.2 · Noviembre 2026*

@@ -17,11 +17,11 @@
 !!! warning "Diseño frente a implementación real (actualización 2.1, noviembre 2026)"
     Este documento es el **diseño**. El despliegue real (`infra/vps/` del monorepo, documentado en [Implementación de Red](../semestre-2/implementacion-red.md)) difiere en estos puntos:
 
-    - **Sin Cloudflare:** los registros A de `oncargo.tech`, `www` y `api` están en el panel DNS de Hostinger y apuntan directo a la IP del VPS; Caddy obtiene el certificado de Let's Encrypt por sí mismo. No existe el filtro "solo Cloudflare" en `DOCKER-USER`.
-    - **Redes Docker:** `edge` (Caddy, web, backend) e `internal` (backend, PostgreSQL, MinIO) con subredes asignadas por Docker (no 172.20.0.0/24 ni 172.21.0.0/24) y sin `internal: true`; `TRUSTED_PROXIES=172.16.0.0/12`.
+    - **Sin Cloudflare:** los registros A de `oncargo.tech`, `www` y `api` están en el panel DNS de Hostinger y apuntan directo a la IP del VPS; Caddy obtiene el certificado de Let's Encrypt por sí mismo. No existe el filtro "solo Cloudflare" en `DOCKER-USER`; desde la v2.2 esa cadena es una lista blanca que solo deja pasar 80/443 hacia los contenedores.
+    - **Redes Docker:** `edge` (Caddy, web, backend) e `internal` (backend, PostgreSQL, MinIO) con subredes asignadas por Docker (no 172.20.0.0/24 ni 172.21.0.0/24); `internal: true` en la red de datos desde la v2.2; `TRUSTED_PROXIES=172.16.0.0/12`.
     - **Puertos:** solo Caddy publica 80/tcp, 443/tcp y 443/udp (HTTP/3). UFW permite 22, 80 y 443.
     - **Documentos en MinIO** dentro del VPS (red `internal`), no en R2.
-    - **Acceso temporal por IP** (`http://<IP>`, sin TLS) mientras el DNS propaga, y página de descarga del APK en `/app/`.
+    - **Acceso por IP** (`http://<IP>`): sirvió sin TLS mientras el DNS propagaba; desde la v2.2 redirige al dominio con HTTPS. Página de descarga del APK en `/app/`.
     - **Disco:** 96 GB utilizables.
 
 ---
