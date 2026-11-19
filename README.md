@@ -6,7 +6,7 @@ Organizado por las tres áreas evaluadas del programa:
 
 - **Área de Software** — Entregables E1–E5 (CE021–CE024, CE0217), alineados con el sistema construido (Quarkus 3.40 + Astro 7 + Android/Kotlin, PostgreSQL 16 con RLS, SSE). Ver [Cambios respecto al diseño inicial](docs/software/cambios-diseno-inicial.md)
 - **Área de Gestión de TI** — Entregables E1–E4 (CE0111–CE0135)
-- **Área de Infraestructura** — Semestre 1 (diseño) y Semestre 2 (implementación) (C1–C3), rediseñada sobre un VPS Hostinger KVM 2 + Docker Compose + Caddy + Cloudflare (DNS/CDN y R2), dominio `oncargo.tech`
+- **Área de Infraestructura** — Semestre 1 (diseño) y Semestre 2 (implementación) (C1–C3), rediseñada sobre un VPS Hostinger KVM 2 + Docker Compose + Caddy + MinIO, dominio `oncargo.tech` (Cloudflare y R2 planificados)
 
 ## Recursos
 

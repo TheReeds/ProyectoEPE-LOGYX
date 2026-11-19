@@ -851,7 +851,7 @@
           <span class="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-xs font-bold text-white">Kotlin / Compose</span>
           <span class="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-xs font-bold text-white">PostgreSQL 16 + RLS</span>
           <span class="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-xs font-bold text-white">Docker Compose · Caddy</span>
-          <span class="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-xs font-bold text-white">VPS Hostinger · Cloudflare R2</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-xs font-bold text-white">VPS Hostinger · MinIO</span>
           <span class="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-xs font-bold text-white">SSE · MapLibre</span>
         </div>
         <div class="grid sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
@@ -887,17 +887,17 @@
     <section id="slide-11b" class="slide w-full min-h-screen flex items-center bg-slate-50 text-slate-900">
       <div class="max-w-6xl mx-auto px-6 md:px-10 w-full py-24">
         <span class="text-sm font-bold tracking-widest text-brand-600 uppercase">Software · E1 Arquitectura (IEEE 42010 / C4)</span>
-        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-4">67 requerimientos, 8 decisiones que los sostienen</h2>
+        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight mt-3 mb-4">90 requerimientos, 14 decisiones que los sostienen</h2>
         <p class="text-lg font-light text-slate-600 max-w-2xl mb-10">
-          El SRS documenta 67 requerimientos funcionales (RF01–RF67) y 12 reglas de negocio, todas implementadas.
-          Ocho ADRs (Architecture Decision Records) registran cómo evolucionó el diseño inicial al construir el sistema:
+          El SRS documenta 90 requerimientos funcionales (RF01–RF67 del diseño y RF68–RF90 añadidos al construir) y 12 reglas de negocio, todas implementadas.
+          Catorce ADRs (Architecture Decision Records) registran cómo evolucionó el diseño inicial al construir el sistema:
         </p>
         <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">ADR-0001</span><h3 class="font-bold text-sm mt-1">Aislamiento por organización + RLS</h3><p class="text-xs text-slate-500 mt-1 font-light">Multitenancy evaluado y descartado: es un marketplace</p></div>
           <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">ADR-0002</span><h3 class="font-bold text-sm mt-1">Monolito modular hexagonal</h3><p class="text-xs text-slate-500 mt-1 font-light">Dominio puro, límites verificados por test</p></div>
           <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">ADR-0003</span><h3 class="font-bold text-sm mt-1">Astro + Kotlin</h3><p class="text-xs text-slate-500 mt-1 font-light">Web SSR con islas React; una app Android por roles</p></div>
           <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">ADR-0004</span><h3 class="font-bold text-sm mt-1">Eventos de dominio</h3><p class="text-xs text-slate-500 mt-1 font-light">Notificaciones desacopladas de los casos de uso</p></div>
-          <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">ADR-0005</span><h3 class="font-bold text-sm mt-1">Documentos tras un puerto</h3><p class="text-xs text-slate-500 mt-1 font-light">Disco local en dev, S3-compatible (Cloudflare R2) en prod</p></div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">ADR-0005</span><h3 class="font-bold text-sm mt-1">Documentos tras un puerto</h3><p class="text-xs text-slate-500 mt-1 font-light">Disco local en dev, S3-compatible (MinIO) en el VPS</p></div>
           <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">ADR-0006</span><h3 class="font-bold text-sm mt-1">Mínimo privilegio + outbox</h3><p class="text-xs text-slate-500 mt-1 font-light">La app no puede escalar privilegios en la BD</p></div>
           <div class="rounded-2xl bg-white border border-slate-200 p-5"><span class="text-xs font-bold text-brand-600">ADR-0007</span><h3 class="font-bold text-sm mt-1">Tiempo real por SSE</h3><p class="text-xs text-slate-500 mt-1 font-light">Alimentado por el outbox, con aislamiento por destinatario</p></div>
           <div class="rounded-2xl bg-brand-600 p-5"><span class="text-xs font-bold text-brand-100">ADR-0008</span><h3 class="font-bold text-sm mt-1 text-white">Rutas por carretera</h3><p class="text-xs text-brand-100 mt-1 font-light">Precálculo OSM/OSRM versionado, ya conectado al precio; mapas pendientes</p></div>
@@ -955,17 +955,17 @@
           </p>
           <p class="text-lg font-light text-slate-300 leading-relaxed">
             El diseño de red traduce los estándares tradicionales (VLAN, DMZ) a un <strong>VPS Hostinger KVM 2</strong>
-            detrás de Cloudflare, con Caddy como proxy HTTPS y redes Docker segmentadas por función. Se cambió AWS
+            con Caddy como proxy HTTPS, redes Docker segmentadas por función y Cloudflare como mejora planificada. Se cambió AWS
             por costo y simplicidad: unos USD 14/mes frente a USD 333/mes, aceptando un único nodo.
           </p>
         </div>
         <div class="rounded-2xl bg-white/5 border border-white/10 p-7 font-mono text-xs text-slate-300 leading-relaxed overflow-x-auto">
           <p class="text-brand-300 font-sans font-bold text-sm mb-3 not-italic">oncargo.tech · VPS Hostinger KVM 2 (Brasil)</p>
-          <p>├─ Cloudflare · DNS · CDN · WAF · DDoS</p>
-          <p>├─ Host · UFW 80/443 (solo Cloudflare) · SSH con clave</p>
-          <p>│  ├─ red edge · 172.20.0.0/24 · Caddy · web · backend</p>
-          <p>│  └─ red internal · 172.21.0.0/24 · PostgreSQL 16 (sin puerto público)</p>
-          <p>└─ Cloudflare R2 · documentos y backups pg_dump</p>
+          <p>├─ DNS Hostinger · oncargo.tech · api.oncargo.tech (Cloudflare: planificado)</p>
+          <p>├─ Host · UFW 22/80/443 · DOCKER-USER · fail2ban · SSH con clave</p>
+          <p>│  ├─ red edge · subred de Docker · Caddy · web · backend</p>
+          <p>│  └─ red internal · sin salida a Internet · PostgreSQL 16 · MinIO (sin puertos públicos)</p>
+          <p>└─ Respaldos diarios cifrados (age) en el VPS · copia en R2 pendiente</p>
           <p class="text-slate-500 mt-2">2 vCPU · 8 GB RAM · 100 GB NVMe</p>
         </div>
       </div>

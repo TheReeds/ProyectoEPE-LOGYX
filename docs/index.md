@@ -44,10 +44,10 @@ Este sitio reúne la documentación de la **Evaluación del Perfil de Egreso (EP
 | Backend | Quarkus 3.40 · Java 21 · arquitectura hexagonal modular |
 | Web | Astro 7 (SSR) · islas React · Tailwind 4 · shadcn/ui · MapLibre |
 | Móvil | Android nativo: Kotlin · Jetpack Compose (iOS/SwiftUI planificado) |
-| Datos | PostgreSQL 16 con Row-Level Security (organizaciones aisladas en una BD compartida) · Flyway · documentos en Cloudflare R2 (S3-compatible) |
+| Datos | PostgreSQL 16 con Row-Level Security (organizaciones aisladas en una BD compartida) · Flyway (24 migraciones, 57 tablas) · documentos en MinIO (S3-compatible) |
 | Tiempo real | SSE sobre outbox transaccional |
-| Mapas | MapLibre + OpenFreeMap; rutas por carretera en el backend, mapas pendientes ([ADR-0008](software/cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger)) |
-| Despliegue | VPS Hostinger KVM 2 (Brasil) · Docker Compose · Caddy (HTTPS automático) · Cloudflare (DNS/CDN, dominio `oncargo.tech`) · GitHub Actions |
+| Mapas | MapLibre + OpenFreeMap; rutas por carretera en el backend y en los mapas web y Android ([ADR-0008](software/cambios-diseno-inicial.md#7-rebrand-oncargo-y-migracion-a-hostinger)) |
+| Despliegue | VPS Hostinger KVM 2 (Brasil) · Docker Compose · Caddy (HTTPS automático) · DNS en Hostinger (dominio `oncargo.tech`; Cloudflare planificado) · GitHub Actions |
 
 !!! note "Diseño inicial vs. sistema real"
     El diseño original del EPE (Angular, Flutter, Redis, WebSocket, despliegue en AWS) evolucionó durante la construcción. Ver [Cambios respecto al diseño inicial](software/cambios-diseno-inicial.md), que incluye el **rebrand a OnCargo** y la **migración de la infraestructura de AWS a un VPS Hostinger**.
