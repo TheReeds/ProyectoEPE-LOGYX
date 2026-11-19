@@ -2,7 +2,7 @@
 > Competencias C2.2 (Controles) · C2.3 (Monitoreo y mejora) · C2.4 (Ética ACM)  
 > Proyecto: OnCargo — Sistema Operativo Logístico Colaborativo para PYMEs  
 > Equipo: Jorge Gutiérrez Miranda · Fabrizio Sanchez Saravia · Alex Coila Jarita  
-> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.2 (endurecimiento aplicado y verificado, 19-nov-2026)** · v2.1: estado real del despliegue · v2.0: diseño previo al despliegue · v1.0: AWS
+> Semestre 2 · Agosto–Noviembre 2026 · **Versión 2.3 (contraseña demo propia, alertas y reinicio por kernel, 19-nov-2026)** · v2.2: endurecimiento aplicado y verificado · v2.1: estado real del despliegue · v2.0: diseño previo al despliegue · v1.0: AWS
 
 !!! info "Versión 2.1: controles realmente aplicados en el VPS Hostinger"
     La versión 1.0 implementaba la seguridad con servicios administrados de AWS. La versión 2.0 la rediseñó para un VPS Hostinger detrás de Cloudflare, pero se escribió **antes** de aprovisionar el servidor. Esta versión 2.1 documenta los controles **realmente aplicados**, tomados de `infra/vps/` del monorepo (`compose.yml`, `Caddyfile`, `bootstrap.sh`, `deploy.sh`, `README.md`; commit `cad2b77`) y del código de la aplicación.
@@ -12,6 +12,9 @@
 !!! success "Versión 2.2: propuesta de seguridad evaluada y aplicada en el VPS (19-nov-2026)"
     La propuesta de la v2.1 se contrastó control por control con el servidor real (inspección por SSH, `curl`, `openssl`, Lynis) y se aplicó lo de bajo riesgo y reversible. Todo quedó **versionado** en el monorepo (commits `9d1f6a2` y `b44014a` de `oncargo-code`): `infra/vps/harden.sh` (sistema operativo, idempotente), `infra/vps/host/` (configuraciones), `compose.yml` y `Caddyfile` (contenedores y proxy), `backup.sh` y `healthcheck.sh`. La [Sección 0](#seccion-0-evaluacion-y-endurecimiento-aplicado-v22) resume cada control con su decisión y su evidencia; las secciones siguientes se actualizaron donde la v2.1 quedó superada (respaldos, *jails* de Caddy, contenedores, acceso por IP).
 
+!!! success "Versión 2.3: decisiones del responsable aplicadas (19-nov-2026)"
+    Commits `f11fea9` y `017ac9e` de `oncargo-code`. (1) **Contraseña demo propia del VPS** (cierra H-03): `Logyx2026!` queda solo para desarrollo; las cuentas `*@logyx.pe` del VPS usan una contraseña aleatoria que vive solo en el servidor y se cambió por la API (E13). (2) **Alertas por ntfy.sh** del chequeo de salud, probadas de punta a punta (E14). (3) **Reinicio por el kernel 6.8.0-149**: todo volvió solo (E15). (4) Se **descartan por ahora**, con su razón, el cambio del puerto SSH y HSTS `preload`. (5) Lo que necesita cuentas del responsable (respaldo externo en R2, registro CAA, UptimeRobot, Cloudflare) queda como guía paso a paso en `infra/vps/README.md` § «Pendiente del dueño».
+
 ---
 
 ## Resumen Ejecutivo
@@ -20,7 +23,7 @@ Este documento registra los controles de seguridad de OnCargo tal como están de
 
 En la versión 2.2 se añadieron y verificaron: lista blanca `DOCKER-USER`, endurecimiento adicional de SSH, *jails* de fail2ban sobre el registro de accesos de Caddy, contenedores sin capacidades y con sistema de archivos de solo lectura, red de datos sin salida a Internet, respaldos diarios cifrados con prueba de restauración, chequeo de salud cada 5 minutos, auditd y ajustes de `sysctl` y journald. El acceso HTTP por IP ya no sirve contenido y la cookie de sesión viaja solo por HTTPS.
 
-Lo que **sigue pendiente** se declara con honestidad: la copia de los respaldos **fuera del VPS**, un canal de alertas y un monitor externo, Cloudflare, el reinicio por parches de kernel y la salida del modo de pruebas (cuentas demo con contraseña publicada). Cada pendiente indica quién debe decidirlo. Las secciones de detección (3 y 4) y de ética ACM (5) se conservan, ajustadas al entorno real.
+Lo que **sigue pendiente** se declara con honestidad: la copia de los respaldos **fuera del VPS**, un monitor externo, el registro CAA, Cloudflare y la salida del modo de pruebas (datos demo). Desde la v2.3 ya hay canal de alertas (ntfy), el reinicio por kernel está hecho y la contraseña demo del VPS dejó de ser la publicada. Cada pendiente indica quién debe decidirlo. Las secciones de detección (3 y 4) y de ética ACM (5) se conservan, ajustadas al entorno real.
 
 **Leyenda de estados:**
 
@@ -51,7 +54,7 @@ Lo que **sigue pendiente** se declara con honestidad: la copia de los respaldos 
 |---|---|---|---|
 | SSH solo con clave, `root` solo con clave, `MaxAuthTries 4` | Ya estaba | Desplegado en el VPS | E1 |
 | SSH: `AllowUsers deploy root`, sin X11, agente ni túneles, `LoginGraceTime 30`, KEX/cifrados/MAC modernos (sin SHA-1) | Aplicar ahora | **Implementado (v2.2)** | E1 |
-| Cambio del puerto SSH | Con aprobación | **Pendiente (decisión del usuario)**: reduce el ruido de bots, pero no añade protección real frente a la clave y obliga a ajustar `ssh.socket`, UFW y los clientes | — |
+| Cambio del puerto SSH | Descartado por ahora (v2.3) | **Descartado (razón)**: solo reduce el ruido de bots; la protección real ya está (clave obligatoria, `AllowUsers`, fail2ban `sshd` + `recidive`) y la consola web de Hostinger sirve de respaldo. Cambiarlo suma riesgo de quedarse fuera | — |
 | `PermitRootLogin no` y usuario `admin` separado | Con aprobación | **Pendiente**: el terminal web de Hostinger entra como `root` con una clave temporal; quitarlo elimina el acceso de emergencia | — |
 | UFW: entrada `deny`, 22/80/443 (TCP y 443/UDP) | Ya estaba | Desplegado en el VPS | E2 |
 | Cadena `DOCKER-USER` (puertos publicados por Docker) | Aplicar ahora | **Implementado (v2.2)**: lista blanca por puerto original (80/443) | E2, E3 |
@@ -59,7 +62,7 @@ Lo que **sigue pendiente** se declara con honestidad: la copia de los respaldos 
 | fail2ban `recidive`, `oncargo-caddy-probe`, `oncargo-caddy-auth` | Aplicar ahora | **Implementado (v2.2)** | E4 |
 | Registro de accesos de Caddy (H-09) | Aplicar ahora | **Implementado (v2.2)**: JSON, 14 días, tokens redactados | E5 |
 | Cabeceras: `Permissions-Policy`, ocultar `Server` y `Via`, CSP en `/app/` | Aplicar ahora | **Implementado (v2.2)** | E6 |
-| HSTS `preload` | Con aprobación | **Pendiente (decisión del usuario)**: la inclusión en la lista de los navegadores es prácticamente irreversible | — |
+| HSTS `preload` | Descartado por ahora (v2.3) | **Descartado (razón)**: la inclusión en la lista de los navegadores es prácticamente irreversible y obliga a HTTPS en todo subdominio futuro; no mientras el dominio está en fase de pruebas. Se mantiene HSTS de 1 año sin `preload` | E6 |
 | `/q/*` de Quarkus público (H-04) | Aplicar ahora | **Implementado (v2.2)**: `404` salvo `/q/health*` | E6 |
 | Acceso `http://<IP>` sin TLS (H-01) y cookie sin `Secure` (H-02) | Aplicar ahora | **Implementado (v2.2)**: `308` al dominio; `COOKIE_SECURE=true` | E6 |
 | Límite de tasa en Caddy | Descartado (razón) | `caddy:2.10-alpine` no incluye el módulo `rate_limit` (es de terceros y exige compilar una imagen propia con `xcaddy`). Lo cubren `AuthRateLimits` y la *jail* `oncargo-caddy-auth` | E4 |
@@ -76,12 +79,13 @@ Lo que **sigue pendiente** se declara con honestidad: la copia de los respaldos 
 | Docker `live-restore` | Aplicar ahora | **Implementado (v2.2)**: un reinicio o actualización de `dockerd` no baja los contenedores | E8 |
 | Permisos de `/opt/oncargo/state` | Aplicar ahora | **Implementado (v2.2)**: directorio `700`, `.env` `600`, clave privada JWT `640` (grupo del usuario del backend) | E9 |
 | Respaldos `pg_dump` diarios cifrados, con rotación y prueba de restauración | Aplicar ahora (destino local) | **Implementado (v2.2)** | E10 |
-| Copia de los respaldos fuera del VPS (R2 u otro) | Con aprobación | **Pendiente (decisión del usuario)**: requiere sus credenciales; el script ya admite `rclone` | — |
+| Copia de los respaldos fuera del VPS (R2 u otro) | Con aprobación | **Pendiente (decisión del usuario)**: requiere sus credenciales; el script ya admite `rclone`. Guía paso a paso (bucket, token limitado al bucket, `rclone.conf`, prueba) en `infra/vps/README.md` § Pendiente del dueño | — |
 | Monitoreo: chequeo de salud con temporizador | Aplicar ahora | **Implementado (v2.2)**: cada 5 min | E11 |
-| Canal de alertas y monitor externo (UptimeRobot, healthchecks.io, ntfy) | Con aprobación | **Pendiente (decisión del usuario)**: requiere una cuenta; el script ya admite `ALERT_WEBHOOK_URL` y `HEARTBEAT_URL` | — |
-| Parches del sistema | Ya estaba (`unattended-upgrades`) | Se instalaron a mano las pendientes (`docker-compose-plugin`, `libgstreamer`). **Reinicio por kernel: pendiente (decisión del usuario)** | E12 |
-| Contraseña demo publicada (`Logyx2026!`, H-03) | Con aprobación | **Pendiente**: propuesta `DEMO_PASSWORD` propia del VPS (sección 1.4); exige un cambio en el *seeder* del backend | — |
-| Cloudflare (proxy, WAF, *Bot Fight Mode*) | Solo evaluación | **Pendiente (decisión del usuario)**: plan en la sección 4.1 | — |
+| Canal de alertas (ntfy.sh) | Aplicar ahora (v2.3) | **Implementado (v2.3)**: tema aleatorio de 128 bits, sin cuenta, en `/etc/oncargo/alert.env` (fuera del repositorio); mensaje sin secretos | E14 |
+| Monitor externo (UptimeRobot, healthchecks.io) y registro CAA | Con aprobación | **Pendiente (decisión del usuario)**: requieren su cuenta o su panel DNS; guía en `infra/vps/README.md` § Pendiente del dueño | — |
+| Parches del sistema | Ya estaba (`unattended-upgrades`) | Se instalaron a mano las pendientes (`docker-compose-plugin`, `libgstreamer`). **Reinicio por kernel hecho (v2.3)**: 6.8.0-147 → 6.8.0-149, todo volvió solo | E12, E15 |
+| Contraseña demo publicada (`Logyx2026!`, H-03) | Aprobado (v2.3) | **Implementado (v2.3)**: contraseña propia del VPS (`LOGYX_DEMO_PASSWORD` en `state/.env`), cambiada por la API en las 7 cuentas demo; el APK de pruebas la toma de una propiedad de Gradle fuera del repositorio (sección 1.4) | E13 |
+| Cloudflare (proxy, WAF; sin *Bot Fight Mode*, que rompería la app Android) | Solo evaluación | **Pendiente (decisión del usuario)**: plan en la sección 4.1 y resumen en `infra/vps/README.md` § Pendiente del dueño | — |
 
 ### 0.3 Evidencias (salidas recortadas, sin secretos)
 
@@ -253,6 +257,42 @@ Prueba de falla (umbral de disco forzado al 5 %): estado=FALLA "disco / al 10% (
 
 **E12 — Lynis** (`lynis audit system`, 266 pruebas): índice de endurecimiento **65**. Avisos: *KRNL-5830* (reinicio pendiente por el kernel) y *PKGS-7392* (paquetes con actualización de seguridad). Se instalaron las actualizaciones pendientes y queda solo la imagen del kernel, que se aplica con el reinicio pendiente de aprobación.
 
+**E13 — Contraseña demo propia del VPS** (v2.3; sin mostrar el valor):
+
+```text
+Backend: DemoDataSeeder lee logyx.demo.password (por omisión Logyx2026! en dev/tests); no la escribe en el log.
+state/.env: LOGYX_DEMO_PASSWORD=<16 caracteres aleatorios>   (600, deploy) · en el contenedor backend: coincide (sha256)
+POST /api/v1/auth/change-password (contraseña actual → nueva), una por cuenta:
+  pyme@ 200 · pyme.ops@ 200 · pyme.viewer@ 200 · carrier@ 200 · carrier2@ 200 · driver@ 200 · operator@ 200
+POST /api/v1/auth/login  pyme@logyx.pe con Logyx2026!  → 401   ·  con la nueva → 200  (las 7 cuentas)
+APK staging 0.2.0-f11fea9 (versionCode 30): chips con la contraseña nueva (propiedad oncargo.demoPassword
+  en ~/.gradle/gradle.properties); Logyx2026! no aparece en el APK publicado.
+Web de producción: los botones de cuentas demo solo se pintan con import.meta.env.DEV; /dev/ui → 404.
+```
+Riesgo residual: el APK de `/app/` es público y lleva la contraseña en los chips; quien lo descompile la obtiene. Son datos demo y se rota con el mismo procedimiento (`infra/vps/README.md` § Entorno de pruebas).
+
+**E14 — Alerta por ntfy.sh** (`sudo oncargo-health --test-alert` y lectura del tema con `curl "https://ntfy.sh/<tema>/json?poll=1&since=5m"`):
+
+```text
+Alerta de prueba enviada
+{"event":"message","topic":"oncargo-<32 hex>","title":"OnCargo VPS: PRUEBA",
+ "message":"Alerta de prueba de oncargo-health (2026-11-19T12:04:39-05:00). No hay nada caído.","tags":["test_tube"]}
+```
+El mensaje real lleva solo el estado, la hora y qué falló (URL pública, código HTTP, servicio); FALLA va con prioridad alta. El tema es la única protección de ntfy.sh sin cuenta: no está en el repositorio ni en este documento.
+
+**E15 — Reinicio por el kernel** (`sudo systemctl reboot`, 19-nov-2026 12:05; de vuelta por SSH a las 12:07):
+
+```text
+antes: 6.8.0-147-generic (up 2 days, 15 h)       después: 6.8.0-149-generic · sin /var/run/reboot-required
+docker compose ps: backend, db, minio, web (healthy) · caddy Up        (solos, restart: unless-stopped)
+ufw: Status: active (22, 80, 443 tcp/udp)
+iptables -S FORWARD: -A FORWARD -j DOCKER-USER (primera) · DOCKER-USER con la lista blanca 80/443 (oncargo-docker-user.service)
+fail2ban: oncargo-caddy-auth, oncargo-caddy-probe, recidive, sshd · auditd active
+timers: oncargo-health (cada 5 min), oncargo-backup (diario) · oncargo-health -v → estado=OK
+https://oncargo.tech/ 200 · /login 200 · /app/ 200 · /app/oncargo.apk 200 · POST api…/auth/login 200
+```
+No hizo falta ningún arreglo para el próximo reinicio.
+
 ### 0.4 Reversión
 
 | Cambio | Cómo revertir |
@@ -264,6 +304,8 @@ Prueba de falla (umbral de disco forzado al 5 %): estado=FALLA "disco / al 10% (
 | `live-restore` | Restaurar `/etc/docker/daemon.json.bak-<fecha>` y `systemctl reload docker` |
 | Contenedores y Caddy | `deploy.sh <commit anterior>` (o volver a `src.old`); los volúmenes no se tocan |
 | Respaldos y salud | `systemctl disable --now oncargo-backup.timer oncargo-health.timer` |
+| Alertas (v2.3) | Borrar `/etc/oncargo/alert.env` (o cambiar de tema y suscribirse de nuevo) |
+| Contraseña demo (v2.3) | No se revierte a la publicada. Rotarla: `change-password` por cuenta, `state/.env`, `~/.gradle/gradle.properties` y volver a publicar el APK |
 
 ---
 
@@ -393,8 +435,8 @@ Todo está excluido del repositorio (`infra/.env`, `infra/vps/.env` e `infra/sec
 !!! warning "Datos de acceso publicados en el monorepo"
     `infra/vps/README.md` y `infra/vps/deploy.sh` incluyen la IP pública del VPS y el nombre del usuario SSH. No son secretos, pero facilitan el reconocimiento. En esta documentación se usa `<IP_PUBLICA_VPS>`. Si el repositorio es público, conviene pasar esos valores a variables (`VPS=deploy@…`).
 
-!!! danger "Contraseña demo publicada (H-03): propuesta"
-    Las cuentas `*@logyx.pe` del VPS usan `Logyx2026!`, que figura en el repositorio público. Entre ellas está una cuenta de **operador**. Con datos demo el impacto es acotado, pero cualquiera puede entrar. **Propuesta (pendiente, requiere un cambio en el backend):** el *seeder* de datos demo lee una variable `DEMO_PASSWORD` (en desarrollo, por omisión `Logyx2026!`) y el VPS define en `state/.env` un valor propio generado con `openssl rand`, que se comparte solo con los evaluadores. Hasta entonces, la medida es tratar el VPS como público: sin datos reales.
+!!! success "Contraseña demo publicada (H-03): cerrado en la v2.3"
+    Las cuentas `*@logyx.pe` del VPS usaban `Logyx2026!`, que figura en el repositorio público (entre ellas, una de **operador**). Desde la v2.3 el *seeder* lee `logyx.demo.password` (por omisión `Logyx2026!`, solo en desarrollo y pruebas) y el VPS define `LOGYX_DEMO_PASSWORD` en `state/.env`: 16 caracteres aleatorios que `deploy.sh` genera si faltan y que nunca salen del servidor ni van al repositorio. Las cuentas ya creadas se cambiaron por la API (`POST /api/v1/auth/change-password`, que además cerró sus sesiones). El APK de pruebas toma la contraseña de una propiedad de Gradle fuera del repositorio (sin ella, no muestra los chips) y la web de producción no muestra cuentas demo. Se comparte solo con los evaluadores. **Residual:** el APK publicado la lleva dentro; el VPS se sigue tratando como público, sin datos reales (evidencia E13).
 
 **Rotación:**
 
@@ -505,16 +547,17 @@ ls /var/run/reboot-required 2>/dev/null && echo "Reinicio pendiente"
 | Control | Estado |
 |---------|--------|
 | Parches de seguridad diarios automáticos | Desplegado en el VPS |
-| Reinicio cuando hay parches de kernel | Manual. Al 19-nov-2026 hay uno **pendiente** (kernel 6.8.0-149 instalado, 147 en uso): Pendiente (decisión del usuario), por la ventana de corte |
+| Reinicio cuando hay parches de kernel | Manual, en una ventana. Hecho el 19-nov-2026 (6.8.0-147 → 6.8.0-149, v2.3): todo volvió solo (E15) |
 | Actualizaciones fuera del repositorio de seguridad (Docker) | Manuales: el 19-nov-2026 se actualizó `docker-compose-plugin` 5.7.1 → 5.8.0. Con `live-restore` un reinicio de `dockerd` ya no baja los contenedores |
 | Temporizador de reinicio mensual (`mantenimiento-mensual.timer`) | No implementado (mejora) |
 
 **Reinicio manual de mantenimiento** (cuando exista `/var/run/reboot-required`, fuera del horario de uso):
 
 ```bash
-sudo reboot
-# Tras el arranque, los contenedores se levantan solos (restart: unless-stopped):
-cd /opt/oncargo/src/infra/vps && docker compose ps
+sudo systemctl reboot
+# Tras el arranque vuelven solos los contenedores (restart: unless-stopped), UFW, DOCKER-USER, fail2ban y los timers:
+uname -r; cd /opt/oncargo/src/infra/vps && docker compose ps
+sudo iptables -S DOCKER-USER; sudo fail2ban-client status; sudo oncargo-health -v
 ```
 
 ### 2.2 Dependencias del código (Dependabot)
@@ -711,18 +754,18 @@ sudo fail2ban-client set sshd unbanip <IP_DEL_TESTER>
 
 ### 3.4 Alertas y revisión
 
-Desde la v2.2, `oncargo-health` evalúa cada 5 minutos el servicio y el host, deja el estado en `/var/lib/oncargo/health.txt` y en el *journal* (`journalctl -t oncargo-health`), y avisa **solo cuando el estado cambia**. El canal de salida (un *webhook* de ntfy, por ejemplo) y el latido externo (healthchecks.io, que avisa también si el VPS entero se cae) se activan con `/etc/oncargo/alert.env` en cuanto el equipo cree la cuenta.
+Desde la v2.2, `oncargo-health` evalúa cada 5 minutos el servicio y el host, deja el estado en `/var/lib/oncargo/health.txt` y en el *journal* (`journalctl -t oncargo-health`), y avisa **solo cuando el estado cambia**. Desde la v2.3 el canal de salida es **ntfy.sh** (tema aleatorio en `/etc/oncargo/alert.env`, sin cuenta; el responsable se suscribe en la app ntfy). El latido externo (healthchecks.io, que avisa también si el VPS entero se cae) y UptimeRobot siguen pendientes de su cuenta.
 
 | Alerta | Origen | Umbral | Canal | Estado |
 |--------|--------|--------|-------|--------|
 | IP bloqueada por fail2ban | fail2ban | Cada bloqueo `sshd` (informativo) | Revisión semanal | Desplegado (revisión manual) |
-| Contenedor caído, `unhealthy` o reiniciado | `oncargo-health` | Cualquiera | Journal (+ *webhook* opcional) | Implementado (v2.2) |
-| Disco > 85 %, memoria < 500 MB, swap > 1 GB | `oncargo-health` | Umbrales | Journal (+ *webhook* opcional) | Implementado (v2.2) |
+| Contenedor caído, `unhealthy` o reiniciado | `oncargo-health` | Cualquiera | Journal + ntfy | Implementado (v2.3) |
+| Disco > 85 %, memoria < 500 MB, swap > 1 GB | `oncargo-health` | Umbrales | Journal + ntfy | Implementado (v2.3) |
 | `outbox_events` en `FAILED` | Consulta SQL (sección 4.3) | > 0 | Revisión semanal | Implementado en el repositorio (sin alerta automática) |
-| Web, API o APK caídos (visto desde el VPS) | `oncargo-health` | Cualquier código distinto de 200 | Journal (+ *webhook* opcional) | Implementado (v2.2) |
+| Web, API o APK caídos (visto desde el VPS) | `oncargo-health` | Cualquier código distinto de 200 | Journal + ntfy | Implementado (v2.3) |
 | VPS entero caído (visto desde fuera) | UptimeRobot o healthchecks.io | 3 fallos de 5 min / sin latido | Correo | Pendiente (decisión del usuario: cuenta gratuita) |
-| Certificado por vencer | `oncargo-health` | < 14 días | Journal (+ *webhook* opcional) | Implementado (v2.2) |
-| Respaldo no ejecutado | `oncargo-health` (`backup-last-ok`) | > 26 h | Journal (+ *webhook* opcional) | Implementado (v2.2) |
+| Certificado por vencer | `oncargo-health` | < 14 días | Journal + ntfy | Implementado (v2.3) |
+| Respaldo no ejecutado | `oncargo-health` (`backup-last-ok`) | > 26 h | Journal + ntfy | Implementado (v2.3) |
 
 **Revisión semanal (30 min, Jorge G.):** bloqueos de fail2ban, consultas de la sección 4.3, `docker compose ps`, actualizaciones pendientes (`apt list --upgradable`), `/var/run/reboot-required`, uso de disco y memoria.
 
@@ -739,8 +782,8 @@ Desde la v2.2, `oncargo-health` evalúa cada 5 minutos el servicio y el host, de
 | Actualizaciones de seguridad del SO pendientes más de 7 días | 0 | Semanal | `apt list --upgradable` | Pendiente |
 | Reinicios pendientes por parches de kernel más de 30 días | 0 | Mensual | `/var/run/reboot-required` | Pendiente |
 | Desviación entre el commit desplegado y la rama principal | Conocida y registrada | Por despliegue | `cat /opt/oncargo/state/DEPLOYED` | Pendiente |
-| Hallazgos abiertos del modo de pruebas (H-01 a H-03 de Red) | 0 antes de producción | Por versión | Este documento | 1 abierto (H-03, cuentas demo); H-01 y H-02 cerrados en la v2.2 |
-| Índice de endurecimiento Lynis | Tendencia creciente | Semestral | `lynis audit system` | 65 (19-nov-2026, con reinicio pendiente) |
+| Hallazgos abiertos del modo de pruebas (H-01 a H-03 de Red) | 0 antes de producción | Por versión | Este documento | 0 abiertos: H-01 y H-02 cerrados en la v2.2, H-03 (contraseña demo) en la v2.3 |
+| Índice de endurecimiento Lynis | Tendencia creciente | Semestral | `lynis audit system` | 65 (19-nov-2026, antes del reinicio por kernel; repetir en la próxima revisión) |
 
 ---
 
