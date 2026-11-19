@@ -88,8 +88,9 @@ Completa la matriz de la S1 con **tratamiento, responsable, plazo y riesgo resid
 | R-14 | Exfiltración de datos de clientes | 2×5 = 10 | Mitigar | RLS por organización; la app no puede saltarse RLS | Alex C. | Implementado | 1×5 = 5 |
 | R-15 | Caída de servicios de terceros | 3×2 = 6 | Aceptar | Rutas precalculadas | Jorge G. | — | 3×2 = 6 |
 | R-16 | Falta de parches | 3×4 = 12 | Mitigar | `unattended-upgrades`; reinicio por kernel hecho (19-nov-2026); Lynis | Alex C. | Implementado | 1×4 = 4 |
+| R-17 | Falla del proveedor (Hostinger) o de la región | 2×4 = 8 | Mitigar | Runbook de reconstrucción en otro VPS (DC §4.3) y `harden.sh` reproducible; falta la copia de respaldos fuera del proveedor | Alex C. | R2 pendiente | Hoy 2×4 = 8; con copia externa 1×4 = 4 |
 
-**Resultado:** 15 de 16 riesgos quedan en nivel bajo o medio. **R-10** sigue alto hasta tener la copia fuera del VPS; **R-07** y **R-15** se aceptan por costo.
+**Resultado:** 16 de 17 riesgos quedan en nivel bajo o medio. **R-10** sigue alto hasta tener la copia fuera del VPS; **R-07** y **R-15** se aceptan por costo.
 
 ---
 
@@ -289,7 +290,7 @@ Cláusula 9.3 de ISO 27001: la dirección revisa los resultados del SGSI y decid
 1. Acciones de revisiones anteriores (primera revisión).
 2. Cambios de contexto: migración de AWS al VPS; endurecimiento v2.2 y v2.3.
 3. Auditoría interna: 5 no conformidades (1 cerrada, 2 parciales, 2 abiertas) y 8 observaciones.
-4. Riesgos: 15 de 16 en nivel bajo o medio; R-10 alto hasta la copia externa.
+4. Riesgos: 16 de 17 en nivel bajo o medio; R-10 alto hasta la copia externa.
 5. Pruebas y monitoreo: SIM-1 ejecutado; T1–T4, T6–T9, T11, T13, T15, A5 y A8 ejecutados; el resto pendiente.
 6. Recursos: sin presupuesto; se priorizan herramientas gratuitas.
 7. Mejoras: Cloudflare, R2, réplica, VPN de administración con WireGuard.
